@@ -129,3 +129,7 @@ with a mock server, and tests for typed-stop and route behavior.
 
 See [TODO.md](TODO.md) for planned features (GraphHopper/Valhalla backends,
 driving distance/time in KML, GPX export, itinerary validation, etc.).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
