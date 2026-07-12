@@ -3,12 +3,12 @@ trip: New Zealand
 days:
   - day: 1
     title: Auckland to Waitomo
-    stops:
+    route:
       - {name: Auckland, lat: -36.8485, lon: 174.7633}
       - {name: Waitomo, lat: -38.2617, lon: 175.1035}
 
   - day: 2
     title: Waitomo to Tongariro
-    stops:
+    route:
       - {name: Waitomo, lat: -38.2617, lon: 175.1035}
       - {name: Tongariro NP, lat: -39.1887, lon: 175.5930}

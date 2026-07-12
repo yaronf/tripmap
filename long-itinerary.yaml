@@ -1,0 +1,209 @@
+trip: New Zealand 2026
+description: Four-week road trip starting 22 Nov 2026
+
+# Schema notes:
+#   route:  ordered points that shape the day's line (use `type: via` for
+#           route-only waypoints that should not get a map marker).
+#   stops:  map placemarks that are not part of the driving line
+#           (type: attraction, viewpoint, trailhead, overnight, ...).
+#   hike/ferry: draw the line straight instead of routing by road.
+# A day without `route:` has placemarks only and no route line.
+
+days:
+
+  - day: 1
+    title: Arrive Auckland
+    notes: Recover from flight.
+    stops:
+      - { name: Auckland, type: overnight, lat: -36.8485, lon: 174.7633 }
+
+  - day: 2
+    title: Explore Auckland
+    notes: Devonport, waterfront, Wynyard Quarter.
+    stops:
+      - { name: Auckland, type: overnight, lat: -36.8485, lon: 174.7633 }
+
+  - day: 3
+    title: Auckland → Waitomo
+    notes: Visit the glowworm caves.
+    route:
+      - { name: Auckland, type: overnight, lat: -36.8485, lon: 174.7633 }
+      - { name: Waitomo, type: overnight, lat: -38.2617, lon: 175.1035 }
+    stops:
+      - { name: Waitomo Glowworm Caves, type: attraction, lat: -38.2617, lon: 175.1035 }
+
+  - day: 4
+    title: Waitomo → Tongariro National Park
+    notes: Prepare for tomorrow's hike.
+    route:
+      - { name: Waitomo, type: overnight, lat: -38.2617, lon: 175.1035 }
+      - { name: Tongariro National Park, type: overnight, lat: -39.1887, lon: 175.5930 }
+
+  - day: 5
+    title: Tongariro Alpine Crossing
+    hike: true
+    notes: Weather backup day if necessary.
+    route:
+      - { name: Mangatepopo Trailhead, type: trailhead, lat: -39.1550, lon: 175.5820 }
+      - { name: Ketetahi Trailhead, type: trailhead, lat: -39.1050, lon: 175.6470 }
+    stops:
+      - { name: Tongariro National Park, type: overnight, lat: -39.1887, lon: 175.5930 }
+
+  - day: 6
+    title: Tongariro → Wellington
+    route:
+      - { name: Tongariro National Park, type: overnight, lat: -39.1887, lon: 175.5930 }
+      - { name: Wellington, type: overnight, lat: -41.2866, lon: 174.7756 }
+
+  - day: 7
+    title: Ferry to Picton → Nelson
+    ferry: true
+    notes: Interislander ferry across Cook Strait, then drive to Nelson.
+    route:
+      - { name: Wellington Ferry Terminal, type: ferry_terminal, lat: -41.2810, lon: 174.7788 }
+      - { name: Picton Ferry Terminal, type: ferry_terminal, lat: -41.2894, lon: 174.0055 }
+      - { name: Nelson, type: overnight, lat: -41.2706, lon: 173.2840 }
+
+  - day: 8
+    title: Abel Tasman National Park
+    hike: true
+    route:
+      - { name: Nelson, type: overnight, lat: -41.2706, lon: 173.2840 }
+      - { name: Marahau Trailhead, type: trailhead, lat: -41.0080, lon: 173.0170 }
+
+  - day: 9
+    title: Nelson → Punakaiki
+    notes: Murchison and Westport are drive-through towns.
+    route:
+      - { name: Nelson, type: overnight, lat: -41.2706, lon: 173.2840 }
+      - { name: Murchison, type: via, lat: -41.8092, lon: 172.3330 }
+      - { name: Westport, type: via, lat: -41.7526, lon: 171.6034 }
+      - { name: Punakaiki, type: overnight, lat: -42.1117, lon: 171.3245 }
+    stops:
+      - { name: Pancake Rocks, type: attraction, lat: -42.1148, lon: 171.3260 }
+
+  - day: 10
+    title: Punakaiki → Franz Josef
+    route:
+      - { name: Punakaiki, type: overnight, lat: -42.1117, lon: 171.3245 }
+      - { name: Hokitika, type: via, lat: -42.7170, lon: 170.9660 }
+      - { name: Franz Josef, type: overnight, lat: -43.3881, lon: 170.1836 }
+    stops:
+      - { name: Hokitika Gorge, type: attraction, lat: -42.8460, lon: 170.7240 }
+
+  - day: 11
+    title: Franz Josef area
+    hike: true
+    route:
+      - { name: Franz Josef, type: overnight, lat: -43.3881, lon: 170.1836 }
+      - { name: Lake Matheson, type: viewpoint, lat: -43.4340, lon: 170.1400 }
+
+  - day: 12
+    title: Franz Josef → Wānaka
+    route:
+      - { name: Franz Josef, type: overnight, lat: -43.3881, lon: 170.1836 }
+      - { name: Haast, type: via, lat: -43.8818, lon: 169.0430 }
+      - { name: Wanaka, type: overnight, lat: -44.6966, lon: 169.1362 }
+    stops:
+      - { name: Blue Pools, type: attraction, lat: -44.0878, lon: 169.3096 }
+
+  - day: 13
+    title: Wānaka
+    hike: true
+    route:
+      - { name: Wanaka, type: overnight, lat: -44.6966, lon: 169.1362 }
+      - { name: Roys Peak Trailhead, type: trailhead, lat: -44.6755, lon: 169.0682 }
+
+  - day: 14
+    title: Wānaka → Te Anau
+    route:
+      - { name: Wanaka, type: overnight, lat: -44.6966, lon: 169.1362 }
+      - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
+
+  - day: 15
+    title: Kepler Track Day 1
+    hike: true
+    route:
+      - { name: Kepler Track Car Park, type: trailhead, lat: -45.4180, lon: 167.7110 }
+      - { name: Luxmore Hut, type: trailhead, lat: -45.4213, lon: 167.6395 }
+
+  - day: 16
+    title: Kepler Track Day 2
+    hike: true
+    route:
+      - { name: Luxmore Hut, type: trailhead, lat: -45.4213, lon: 167.6395 }
+      - { name: Iris Burn Hut, type: trailhead, lat: -45.5246, lon: 167.5734 }
+
+  - day: 17
+    title: Kepler Track Day 3
+    hike: true
+    route:
+      - { name: Iris Burn Hut, type: trailhead, lat: -45.5246, lon: 167.5734 }
+      - { name: Moturau Hut, type: trailhead, lat: -45.4853, lon: 167.7545 }
+
+  - day: 18
+    title: Kepler Track Day 4
+    hike: true
+    route:
+      - { name: Moturau Hut, type: trailhead, lat: -45.4853, lon: 167.7545 }
+      - { name: Kepler Track Car Park, type: trailhead, lat: -45.4180, lon: 167.7110 }
+      - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
+
+  - day: 19
+    title: Rest day
+    stops:
+      - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
+
+  - day: 20
+    title: Milford Sound
+    notes: Day trip up the Milford Road and back.
+    route:
+      - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
+      - { name: Milford Sound, type: viewpoint, lat: -44.6718, lon: 167.9256 }
+      - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
+
+  - day: 21
+    title: Te Anau → Queenstown
+    route:
+      - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
+      - { name: Queenstown, type: overnight, lat: -45.0312, lon: 168.6626 }
+
+  - day: 22
+    title: Queenstown
+    stops:
+      - { name: Queenstown, type: overnight, lat: -45.0312, lon: 168.6626 }
+
+  - day: 23
+    title: Queenstown
+    stops:
+      - { name: Queenstown, type: overnight, lat: -45.0312, lon: 168.6626 }
+
+  - day: 24
+    title: Queenstown → Aoraki / Mount Cook
+    route:
+      - { name: Queenstown, type: overnight, lat: -45.0312, lon: 168.6626 }
+      - { name: Aoraki / Mount Cook, type: overnight, lat: -43.5950, lon: 170.1418 }
+
+  - day: 25
+    title: Mount Cook National Park
+    hike: true
+    stops:
+      - { name: Hooker Valley Trailhead, type: trailhead, lat: -43.7085, lon: 170.0962 }
+      - { name: Mount Cook Village, type: overnight, lat: -43.5950, lon: 170.1418 }
+
+  - day: 26
+    title: Mount Cook → Lake Tekapo
+    route:
+      - { name: Mount Cook Village, type: overnight, lat: -43.5950, lon: 170.1418 }
+      - { name: Lake Tekapo, type: overnight, lat: -44.0047, lon: 170.4773 }
+
+  - day: 27
+    title: Lake Tekapo → Christchurch
+    route:
+      - { name: Lake Tekapo, type: overnight, lat: -44.0047, lon: 170.4773 }
+      - { name: Christchurch, type: overnight, lat: -43.5321, lon: 172.6362 }
+
+  - day: 28
+    title: Depart Christchurch
+    stops:
+      - { name: Christchurch, type: overnight, lat: -43.5321, lon: 172.6362 }
