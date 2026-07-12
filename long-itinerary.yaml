@@ -44,8 +44,8 @@ days:
     hike: true
     notes: Weather backup day if necessary.
     route:
-      - { name: Mangatepopo Trailhead, type: trailhead, lat: -39.1550, lon: 175.5820 }
-      - { name: Ketetahi Trailhead, type: trailhead, lat: -39.1050, lon: 175.6470 }
+      - { name: Mangatepopo Trailhead, type: trailhead, lat: -39.1445, lon: 175.5811 }
+      - { name: Ketetahi Trailhead, type: trailhead, lat: -39.0737, lon: 175.6638 }
     stops:
       - { name: Tongariro National Park, type: overnight, lat: -39.1887, lon: 175.5930 }
 
@@ -60,8 +60,8 @@ days:
     ferry: true
     notes: Interislander ferry across Cook Strait, then drive to Nelson.
     route:
-      - { name: Wellington Ferry Terminal, type: ferry_terminal, lat: -41.2810, lon: 174.7788 }
-      - { name: Picton Ferry Terminal, type: ferry_terminal, lat: -41.2894, lon: 174.0055 }
+      - { name: Wellington Ferry Terminal, type: ferry_terminal, lat: -41.2642, lon: 174.7870 }
+      - { name: Picton Ferry Terminal, type: ferry_terminal, lat: -41.2855, lon: 174.0050 }
       - { name: Nelson, type: overnight, lat: -41.2706, lon: 173.2840 }
 
   - day: 8
@@ -69,7 +69,7 @@ days:
     hike: true
     route:
       - { name: Nelson, type: overnight, lat: -41.2706, lon: 173.2840 }
-      - { name: Marahau Trailhead, type: trailhead, lat: -41.0080, lon: 173.0170 }
+      - { name: Marahau Trailhead, type: trailhead, lat: -40.9911, lon: 173.0081 }
 
   - day: 9
     title: Nelson → Punakaiki
@@ -80,7 +80,7 @@ days:
       - { name: Westport, type: via, lat: -41.7526, lon: 171.6034 }
       - { name: Punakaiki, type: overnight, lat: -42.1117, lon: 171.3245 }
     stops:
-      - { name: Pancake Rocks, type: attraction, lat: -42.1148, lon: 171.3260 }
+      - { name: Pancake Rocks, type: attraction, lat: -42.1169, lon: 171.3270 }
 
   - day: 10
     title: Punakaiki → Franz Josef
@@ -89,14 +89,14 @@ days:
       - { name: Hokitika, type: via, lat: -42.7170, lon: 170.9660 }
       - { name: Franz Josef, type: overnight, lat: -43.3881, lon: 170.1836 }
     stops:
-      - { name: Hokitika Gorge, type: attraction, lat: -42.8460, lon: 170.7240 }
+      - { name: Hokitika Gorge, type: attraction, lat: -42.9552, lon: 171.0159 }
 
   - day: 11
     title: Franz Josef area
     hike: true
     route:
       - { name: Franz Josef, type: overnight, lat: -43.3881, lon: 170.1836 }
-      - { name: Lake Matheson, type: viewpoint, lat: -43.4340, lon: 170.1400 }
+      - { name: Lake Matheson, type: viewpoint, lat: -43.4378, lon: 169.9630 }
 
   - day: 12
     title: Franz Josef → Wānaka
@@ -105,14 +105,14 @@ days:
       - { name: Haast, type: via, lat: -43.8818, lon: 169.0430 }
       - { name: Wanaka, type: overnight, lat: -44.6966, lon: 169.1362 }
     stops:
-      - { name: Blue Pools, type: attraction, lat: -44.0878, lon: 169.3096 }
+      - { name: Blue Pools, type: attraction, lat: -44.2255, lon: 169.2558 }
 
   - day: 13
     title: Wānaka
     hike: true
     route:
       - { name: Wanaka, type: overnight, lat: -44.6966, lon: 169.1362 }
-      - { name: Roys Peak Trailhead, type: trailhead, lat: -44.6755, lon: 169.0682 }
+      - { name: Roys Peak Trailhead, type: trailhead, lat: -44.6735, lon: 169.0718 }
 
   - day: 14
     title: Wānaka → Te Anau
@@ -124,29 +124,29 @@ days:
     title: Kepler Track Day 1
     hike: true
     route:
-      - { name: Kepler Track Car Park, type: trailhead, lat: -45.4180, lon: 167.7110 }
-      - { name: Luxmore Hut, type: trailhead, lat: -45.4213, lon: 167.6395 }
+      - { name: Kepler Track Car Park, type: trailhead, lat: -45.4427, lon: 167.6901 }
+      - { name: Luxmore Hut, type: overnight, lat: -45.3853, lon: 167.6192 }
 
   - day: 16
     title: Kepler Track Day 2
     hike: true
     route:
-      - { name: Luxmore Hut, type: trailhead, lat: -45.4213, lon: 167.6395 }
-      - { name: Iris Burn Hut, type: trailhead, lat: -45.5246, lon: 167.5734 }
+      - { name: Luxmore Hut, type: overnight, lat: -45.3853, lon: 167.6192 }
+      - { name: Iris Burn Hut, type: overnight, lat: -45.3990, lon: 167.5095 }
 
   - day: 17
     title: Kepler Track Day 3
     hike: true
     route:
-      - { name: Iris Burn Hut, type: trailhead, lat: -45.5246, lon: 167.5734 }
-      - { name: Moturau Hut, type: trailhead, lat: -45.4853, lon: 167.7545 }
+      - { name: Iris Burn Hut, type: overnight, lat: -45.3990, lon: 167.5095 }
+      - { name: Moturau Hut, type: overnight, lat: -45.4817, lon: 167.6107 }
 
   - day: 18
     title: Kepler Track Day 4
     hike: true
     route:
-      - { name: Moturau Hut, type: trailhead, lat: -45.4853, lon: 167.7545 }
-      - { name: Kepler Track Car Park, type: trailhead, lat: -45.4180, lon: 167.7110 }
+      - { name: Moturau Hut, type: overnight, lat: -45.4817, lon: 167.6107 }
+      - { name: Kepler Track Car Park, type: trailhead, lat: -45.4427, lon: 167.6901 }
       - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
 
   - day: 19
@@ -159,7 +159,7 @@ days:
     notes: Day trip up the Milford Road and back.
     route:
       - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
-      - { name: Milford Sound, type: viewpoint, lat: -44.6718, lon: 167.9256 }
+      - { name: Milford Sound, type: viewpoint, lat: -44.6682, lon: 167.9270 }
       - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
 
   - day: 21
@@ -182,19 +182,19 @@ days:
     title: Queenstown → Aoraki / Mount Cook
     route:
       - { name: Queenstown, type: overnight, lat: -45.0312, lon: 168.6626 }
-      - { name: Aoraki / Mount Cook, type: overnight, lat: -43.5950, lon: 170.1418 }
+      - { name: Aoraki / Mount Cook, type: overnight, lat: -43.7332, lon: 170.0937 }
 
   - day: 25
     title: Mount Cook National Park
     hike: true
     stops:
-      - { name: Hooker Valley Trailhead, type: trailhead, lat: -43.7085, lon: 170.0962 }
-      - { name: Mount Cook Village, type: overnight, lat: -43.5950, lon: 170.1418 }
+      - { name: Hooker Valley Trailhead, type: trailhead, lat: -43.7184, lon: 170.0984 }
+      - { name: Mount Cook Village, type: overnight, lat: -43.7332, lon: 170.0937 }
 
   - day: 26
     title: Mount Cook → Lake Tekapo
     route:
-      - { name: Mount Cook Village, type: overnight, lat: -43.5950, lon: 170.1418 }
+      - { name: Mount Cook Village, type: overnight, lat: -43.7332, lon: 170.0937 }
       - { name: Lake Tekapo, type: overnight, lat: -44.0047, lon: 170.4773 }
 
   - day: 27
