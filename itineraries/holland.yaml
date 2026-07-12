@@ -1,0 +1,109 @@
+trip: Netherlands 2026
+description: Two-week road trip, 22 Jun – 5 Jul 2026 (13 nights)
+
+# City-level itinerary only (no in-city stops). Overnight bases use type
+# overnight; day-trip towns are plain route points; Schiphol uses type airport.
+
+days:
+
+  - day: 1
+    title: Arrive Amsterdam
+    stops:
+      - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
+
+  - day: 2
+    title: Amsterdam
+    stops:
+      - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
+
+  - day: 3
+    title: Amsterdam
+    stops:
+      - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
+
+  - day: 4
+    title: Amsterdam → Utrecht
+    notes: Car pickup at Schiphol.
+    route:
+      - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
+      - { name: Schiphol Airport, type: airport, lat: 52.3086, lon: 4.7639 }
+      - { name: Utrecht, type: overnight, lat: 52.0907, lon: 5.1214 }
+
+  - day: 5
+    title: Utrecht → Deventer (Lettele)
+    route:
+      - { name: Utrecht, type: overnight, lat: 52.0907, lon: 5.1214 }
+      - { name: Deventer, lat: 52.2551, lon: 6.1639 }
+      - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
+
+  - day: 6
+    title: Deventer + Zutphen
+    route:
+      - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
+      - { name: Deventer, lat: 52.2551, lon: 6.1639 }
+      - { name: Zutphen, lat: 52.1417, lon: 6.1961 }
+      - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
+
+  - day: 7
+    title: Doesburg day trip
+    route:
+      - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
+      - { name: Doesburg, lat: 52.0119, lon: 6.1367 }
+      - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
+
+  - day: 8
+    title: Deventer → Otterlo
+    notes: Via Doorwerth and Oosterbeek.
+    route:
+      - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
+      - { name: Doorwerth, lat: 51.9847, lon: 5.8106 }
+      - { name: Oosterbeek, lat: 51.9847, lon: 5.8447 }
+      - { name: Otterlo, type: overnight, lat: 52.0997, lon: 5.7739 }
+
+  - day: 9
+    title: Hoge Veluwe + Kröller-Müller
+    route:
+      - { name: Otterlo, type: overnight, lat: 52.0997, lon: 5.7739 }
+      - { name: Kröller-Müller Museum, type: attraction, lat: 52.0942, lon: 5.8172 }
+      - { name: Otterlo, type: overnight, lat: 52.0997, lon: 5.7739 }
+
+  - day: 10
+    title: Posbank → Sneek
+    route:
+      - { name: Otterlo, type: overnight, lat: 52.0997, lon: 5.7739 }
+      - { name: Posbank, type: viewpoint, lat: 52.0125, lon: 6.0106 }
+      - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
+
+  - day: 11
+    title: Southwest Friesland loop
+    route:
+      - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
+      - { name: Sloten, lat: 52.8969, lon: 5.6431 }
+      - { name: Stavoren, lat: 52.8836, lon: 5.3639 }
+      - { name: Hindeloopen, lat: 52.9433, lon: 5.4028 }
+      - { name: Workum, lat: 52.9789, lon: 5.4453 }
+      - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
+
+  - day: 12
+    title: Leeuwarden + Harlingen
+    route:
+      - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
+      - { name: Leeuwarden, lat: 53.2012, lon: 5.8086 }
+      - { name: Harlingen, lat: 53.1747, lon: 5.4208 }
+      - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
+
+  - day: 13
+    title: Sneek → Haarlem
+    notes: Scenic transfer over the Afsluitdijk.
+    route:
+      - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
+      - { name: Makkum, lat: 53.0503, lon: 5.4022 }
+      - { name: Afsluitdijk, type: viewpoint, lat: 53.0733, lon: 5.3383 }
+      - { name: Den Oever, lat: 52.9347, lon: 5.0392 }
+      - { name: Haarlem, type: overnight, lat: 52.3814, lon: 4.6375 }
+
+  - day: 14
+    title: Depart Amsterdam
+    route:
+      - { name: Haarlem, type: overnight, lat: 52.3814, lon: 4.6375 }
+      - { name: Schiphol Airport, type: airport, lat: 52.3086, lon: 4.7639 }

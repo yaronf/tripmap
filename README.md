@@ -13,8 +13,9 @@ pass through to shape the route does not have to clutter the map.
 ## Quick start
 
 ```bash
-go run . --input itinerary.yaml --output trip.kml
-go run . --input long-itinerary.yaml --output long-trip.kml --route osrm
+go run . --input itineraries/holland.yaml --output maps/holland.kml --route osrm
+go run . --input itineraries/nz-4weeks.yaml --output maps/nz-4weeks.kml --route osrm
+go run .
 ```
 
 - `--route straight` (default): straight lines between route points.
@@ -23,13 +24,16 @@ go run . --input long-itinerary.yaml --output long-trip.kml --route osrm
 
 Build a standalone binary with `go build -o tripmap .`.
 
+Itinerary YAML files live in `itineraries/`; generated KML files go in `maps/`
+(gitignored). Test fixtures remain in `testdata/`.
+
 ## Viewing the output
 
 **Google Earth Pro** (desktop) is the best viewer. On Windows with WSL, open the
 file from the Windows side:
 
 ```
-\\wsl$\<distro>\home\<user>\<path-to-project>\long-trip.kml
+\\wsl$\<distro>\home\<user>\<path-to-project>\maps\nz-4weeks.kml
 ```
 
 In the Places sidebar, expand each day folder and make sure the **Route**
@@ -68,7 +72,7 @@ days:
 `route:` and `stops:` are intentionally separate. A day without `route:` has
 placemarks only and no route line.
 
-See `long-itinerary.yaml` for a full 28-day example with driving days, hikes,
+See `itineraries/nz-4weeks.yaml` for a full 28-day example with driving days, hikes,
 a ferry crossing, and side-trip attractions.
 
 ### Stop types
@@ -87,6 +91,7 @@ type is `via`.
 | `viewpoint`      | camera  | viewpoint placemark |
 | `trailhead`      | hiker   | hike endpoint |
 | `ferry_terminal` | ferry   | ferry endpoint |
+| `airport`        | airport | airport (arrival, departure, car pickup) |
 
 ### Day flags
 

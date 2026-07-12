@@ -20,6 +20,7 @@ import (
 //	viewpoint       map placemark only, not on the route
 //	trailhead       trail car park: map placemark + route point
 //	ferry_terminal  map placemark + route point (draw with ferry styling)
+//	airport         airport: map placemark + route point
 type Stop struct {
 	Name     string `yaml:"name"`
 	Lat, Lon float64
@@ -114,6 +115,7 @@ var iconStyles = []struct {
 	{"viewpoint", "ffff8800", "http://maps.google.com/mapfiles/kml/shapes/camera.png"},
 	{"trailhead", "ff00aa00", "http://maps.google.com/mapfiles/kml/shapes/hiker.png"},
 	{"ferry_terminal", "ffaa5500", "http://maps.google.com/mapfiles/kml/shapes/ferry.png"},
+	{"airport", "ff3333cc", "http://maps.google.com/mapfiles/kml/shapes/airports.png"},
 }
 
 // lineStyles defines styles for non-driving route lines, in output order.
@@ -202,7 +204,7 @@ func isTrailPoint(t string) bool {
 
 func isDrivingPoint(t string) bool {
 	switch t {
-	case "overnight", "ferry_terminal", "via", "":
+	case "overnight", "ferry_terminal", "airport", "via", "":
 		return true
 	default:
 		return false

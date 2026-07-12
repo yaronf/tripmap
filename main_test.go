@@ -260,6 +260,41 @@ func TestGlobalPlacemarkDedup(t *testing.T) {
 	}
 }
 
+func TestAirportStopEmitsStyle(t *testing.T) {
+	trip := Trip{
+		Trip: "airport",
+		Days: []Day{{
+			Day:   1,
+			Title: "arrive",
+			Route: []Stop{
+				{Name: "Schiphol", Type: "airport", Lat: 52.3086, Lon: 4.7639},
+				{Name: "Amsterdam", Type: "overnight", Lat: 52.3676, Lon: 4.9041},
+			},
+		}},
+	}
+
+	doc, err := buildDocument(context.Background(), trip, "straight")
+	if err != nil {
+		t.Fatalf("buildDocument: %v", err)
+	}
+	var hasAirport, hasDrive bool
+	for _, s := range doc.Styles {
+		switch s.ID {
+		case "airport":
+			hasAirport = true
+		case "driveLine":
+			hasDrive = true
+		}
+	}
+	if !hasAirport || !hasDrive {
+		t.Fatalf("styles = %+v, want airport and driveLine", doc.Styles)
+	}
+	pm := doc.Folders[0].Placemarks[0]
+	if pm.StyleURL != "#airport" {
+		t.Fatalf("airport styleUrl = %q, want #airport", pm.StyleURL)
+	}
+}
+
 func TestTypedStopsEmitStyles(t *testing.T) {
 	trip := Trip{
 		Trip: "styled",
