@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>New Zealand</name>
+    <Folder>
+      <name>Day 1 - Auckland to Waitomo</name>
+      <Placemark>
+        <name>Auckland</name>
+        <Point>
+          <coordinates>174.763300,-36.848500,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Waitomo</name>
+        <Point>
+          <coordinates>175.103500,-38.261700,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Route</name>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>174.763300,-36.848500,0 175.103500,-38.261700,0</coordinates>
+        </LineString>
+      </Placemark>
+    </Folder>
+    <Folder>
+      <name>Day 2 - Waitomo to Tongariro</name>
+      <Placemark>
+        <name>Waitomo</name>
+        <Point>
+          <coordinates>175.103500,-38.261700,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Tongariro NP</name>
+        <Point>
+          <coordinates>175.593000,-39.188700,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Route</name>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>175.103500,-38.261700,0 175.593000,-39.188700,0</coordinates>
+        </LineString>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>
