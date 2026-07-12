@@ -10,6 +10,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func testFolder(t *testing.T, d Day, routeMode string) Folder {
+	t.Helper()
+	f, err := buildFolder(context.Background(), d, routeMode, map[string]bool{})
+	if err != nil {
+		t.Fatalf("buildFolder: %v", err)
+	}
+	return f
+}
+
 func TestBuildKMLStraightGolden(t *testing.T) {
 	input := filepath.Join("testdata", "itinerary.yaml")
 	golden := filepath.Join("testdata", "trip_straight.golden.kml")
@@ -63,6 +72,18 @@ func placemarkNames(f Folder) []string {
 	return names
 }
 
+func countPoints(doc Document) int {
+	n := 0
+	for _, f := range doc.Folders {
+		for _, pm := range f.Placemarks {
+			if pm.Point != nil {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 func TestViaPointsAreRoutedButNotMapped(t *testing.T) {
 	d := Day{
 		Day:   1,
@@ -74,19 +95,14 @@ func TestViaPointsAreRoutedButNotMapped(t *testing.T) {
 		},
 	}
 
-	f, err := buildFolder(context.Background(), d, "straight")
-	if err != nil {
-		t.Fatalf("buildFolder: %v", err)
-	}
+	f := testFolder(t, d, "straight")
 
-	// Placemarks: A, B, Route (no V).
 	names := placemarkNames(f)
 	want := []string{"A", "B", "Route"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Fatalf("placemarks = %v, want %v", names, want)
 	}
 
-	// The via point must still shape the route line.
 	route := f.Placemarks[len(f.Placemarks)-1]
 	if route.Line == nil || !strings.Contains(route.Line.Coordinates, "2.000000,2.000000,0") {
 		t.Fatalf("via point missing from route line: %+v", route.Line)
@@ -102,10 +118,7 @@ func TestAttractionsAreMappedButNotRouted(t *testing.T) {
 		},
 	}
 
-	f, err := buildFolder(context.Background(), d, "straight")
-	if err != nil {
-		t.Fatalf("buildFolder: %v", err)
-	}
+	f := testFolder(t, d, "straight")
 
 	if got := placemarkNames(f); len(got) != 1 || got[0] != "Town" {
 		t.Fatalf("placemarks = %v, want [Town] with no route", got)
@@ -122,32 +135,25 @@ func TestStopsDoNotImplicitlyCreateRoute(t *testing.T) {
 		},
 	}
 
-	f, err := buildFolder(context.Background(), d, "straight")
-	if err != nil {
-		t.Fatalf("buildFolder: %v", err)
-	}
+	f := testFolder(t, d, "straight")
 
 	if got := placemarkNames(f); strings.Join(got, ",") != "A,B" {
 		t.Fatalf("placemarks = %v, want [A B] with no route", got)
 	}
 }
 
-func TestHikeDayForcesStraightLine(t *testing.T) {
+func TestHikeDayTrailSegmentIsStraight(t *testing.T) {
 	d := Day{
 		Day:   1,
 		Title: "hike",
 		Hike:  true,
 		Route: []Stop{
 			{Name: "Trailhead", Type: "trailhead", Lat: 1, Lon: 1},
-			{Name: "Hut", Type: "trailhead", Lat: 2, Lon: 2},
+			{Name: "Hut", Type: "hut", Lat: 2, Lon: 2},
 		},
 	}
 
-	// osrm mode requested, but hike days must not hit the network.
-	f, err := buildFolder(context.Background(), d, "osrm")
-	if err != nil {
-		t.Fatalf("buildFolder: %v", err)
-	}
+	f := testFolder(t, d, "osrm")
 
 	route := f.Placemarks[len(f.Placemarks)-1]
 	if route.StyleURL != "#hikeLine" {
@@ -156,6 +162,101 @@ func TestHikeDayForcesStraightLine(t *testing.T) {
 	want := "1.000000,1.000000,0\n2.000000,2.000000,0"
 	if route.Line == nil || route.Line.Coordinates != want {
 		t.Fatalf("hike line = %+v, want straight coords %q", route.Line, want)
+	}
+}
+
+func TestFerryDaySplitsFerryAndDriveSegments(t *testing.T) {
+	d := Day{
+		Day:   7,
+		Title: "ferry and drive",
+		Ferry: true,
+		Route: []Stop{
+			{Name: "Wellington", Type: "ferry_terminal", Lat: -41.2642, Lon: 174.7870},
+			{Name: "Picton", Type: "ferry_terminal", Lat: -41.2855, Lon: 174.0050},
+			{Name: "Nelson", Type: "overnight", Lat: -41.2706, Lon: 173.2840},
+		},
+	}
+
+	f := testFolder(t, d, "straight")
+
+	if len(f.Placemarks) < 4 {
+		t.Fatalf("placemarks = %d, want ferry + drive lines after map points", len(f.Placemarks))
+	}
+	ferry := f.Placemarks[len(f.Placemarks)-2]
+	drive := f.Placemarks[len(f.Placemarks)-1]
+	if ferry.StyleURL != "#ferryLine" {
+		t.Fatalf("ferry styleUrl = %q, want #ferryLine", ferry.StyleURL)
+	}
+	if drive.StyleURL != "#driveLine" {
+		t.Fatalf("drive styleUrl = %q, want #driveLine", drive.StyleURL)
+	}
+	wantFerry := "174.787000,-41.264200,0\n174.005000,-41.285500,0"
+	if ferry.Line == nil || ferry.Line.Coordinates != wantFerry {
+		t.Fatalf("ferry line = %+v, want %q", ferry.Line, wantFerry)
+	}
+	wantDrive := "174.005000,-41.285500,0\n173.284000,-41.270600,0"
+	if drive.Line == nil || drive.Line.Coordinates != wantDrive {
+		t.Fatalf("drive line = %+v, want %q", drive.Line, wantDrive)
+	}
+}
+
+func TestHikeDayAddsDriveFromLodgingInStops(t *testing.T) {
+	d := Day{
+		Day:   5,
+		Title: "crossing",
+		Hike:  true,
+		Route: []Stop{
+			{Name: "Mangatepopo", Type: "trailhead", Lat: 1, Lon: 1},
+			{Name: "Ketetahi", Type: "trailhead", Lat: 2, Lon: 2},
+		},
+		Stops: []Stop{
+			{Name: "National Park", Type: "overnight", Lat: 0, Lon: 0},
+		},
+	}
+
+	f := testFolder(t, d, "straight")
+	names := placemarkNames(f)
+	if names[0] != "National Park" {
+		t.Fatalf("placemarks = %v, want lodging first", names)
+	}
+	if len(f.Placemarks) < 3 {
+		t.Fatalf("placemarks = %v, want drive + hike lines", names)
+	}
+	if f.Placemarks[len(f.Placemarks)-2].StyleURL != "#driveLine" {
+		t.Fatalf("expected drive line before hike segment")
+	}
+	if f.Placemarks[len(f.Placemarks)-1].StyleURL != "#hikeLine" {
+		t.Fatalf("expected hike line for trail segment")
+	}
+}
+
+func TestGlobalPlacemarkDedup(t *testing.T) {
+	wanaka := Stop{Name: "Wanaka", Type: "overnight", Lat: -44.6966, Lon: 169.1362}
+	trip := Trip{
+		Trip: "dedup",
+		Days: []Day{
+			{
+				Day: 12, Title: "arrive",
+				Route: []Stop{wanaka, {Name: "Franz Josef", Type: "overnight", Lat: -43.3881, Lon: 170.1836}},
+			},
+			{
+				Day: 13, Title: "stay",
+				Route: []Stop{wanaka, {Name: "Roys Peak", Type: "trailhead", Lat: -44.6735, Lon: 169.0718}},
+				Hike:  true,
+			},
+			{
+				Day: 14, Title: "leave",
+				Route: []Stop{wanaka, {Name: "Te Anau", Type: "overnight", Lat: -45.4145, Lon: 167.7180}},
+			},
+		},
+	}
+
+	doc, err := buildDocument(context.Background(), trip, "straight")
+	if err != nil {
+		t.Fatalf("buildDocument: %v", err)
+	}
+	if count := countPoints(doc); count != 4 {
+		t.Fatalf("point placemarks = %d, want 4 unique locations (Wanaka once)", count)
 	}
 }
 

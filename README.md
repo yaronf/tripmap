@@ -81,6 +81,7 @@ type is `via`.
 |------------------|---------|-------------|
 | _(none)_         | default | generic point |
 | `overnight`      | lodging | route endpoint or lodging placemark |
+| `hut`            | hut     | backcountry hut on a multi-day hike |
 | `via`            | none    | hidden route-shaping waypoint |
 | `attraction`     | star    | attraction placemark |
 | `viewpoint`      | camera  | viewpoint placemark |
@@ -89,8 +90,14 @@ type is `via`.
 
 ### Day flags
 
-- `hike: true` — draw the day's line straight (no road routing), styled green.
-- `ferry: true` — draw the day's line straight, styled as a ferry crossing.
+- `hike: true` — trail segments are straight lines; driving approaches from
+  towns to trailheads use OSRM when `--route osrm` is set.
+- `ferry: true` — ferry-terminal pairs are drawn straight (orange); other
+  segments on the day use OSRM when `--route osrm` is set.
+
+Each location appears once on the map even if it is visited on multiple days.
+On hike days, lodging listed under `stops:` is automatically prepended to the
+route when the trail does not already start there.
 
 Styles (`<Style>` icons and line colors) are only emitted for types and flags
 that actually appear in the itinerary.

@@ -124,28 +124,29 @@ days:
     title: Kepler Track Day 1
     hike: true
     route:
+      - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
       - { name: Kepler Track Car Park, type: trailhead, lat: -45.4427, lon: 167.6901 }
-      - { name: Luxmore Hut, type: overnight, lat: -45.3853, lon: 167.6192 }
+      - { name: Luxmore Hut, type: hut, lat: -45.3853, lon: 167.6192 }
 
   - day: 16
     title: Kepler Track Day 2
     hike: true
     route:
-      - { name: Luxmore Hut, type: overnight, lat: -45.3853, lon: 167.6192 }
-      - { name: Iris Burn Hut, type: overnight, lat: -45.3990, lon: 167.5095 }
+      - { name: Luxmore Hut, type: hut, lat: -45.3853, lon: 167.6192 }
+      - { name: Iris Burn Hut, type: hut, lat: -45.3990, lon: 167.5095 }
 
   - day: 17
     title: Kepler Track Day 3
     hike: true
     route:
-      - { name: Iris Burn Hut, type: overnight, lat: -45.3990, lon: 167.5095 }
-      - { name: Moturau Hut, type: overnight, lat: -45.4817, lon: 167.6107 }
+      - { name: Iris Burn Hut, type: hut, lat: -45.3990, lon: 167.5095 }
+      - { name: Moturau Hut, type: hut, lat: -45.4817, lon: 167.6107 }
 
   - day: 18
     title: Kepler Track Day 4
     hike: true
     route:
-      - { name: Moturau Hut, type: overnight, lat: -45.4817, lon: 167.6107 }
+      - { name: Moturau Hut, type: hut, lat: -45.4817, lon: 167.6107 }
       - { name: Kepler Track Car Park, type: trailhead, lat: -45.4427, lon: 167.6901 }
       - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
 
@@ -187,9 +188,9 @@ days:
   - day: 25
     title: Mount Cook National Park
     hike: true
-    stops:
-      - { name: Hooker Valley Trailhead, type: trailhead, lat: -43.7184, lon: 170.0984 }
+    route:
       - { name: Mount Cook Village, type: overnight, lat: -43.7332, lon: 170.0937 }
+      - { name: Hooker Valley Trailhead, type: trailhead, lat: -43.7184, lon: 170.0984 }
 
   - day: 26
     title: Mount Cook → Lake Tekapo

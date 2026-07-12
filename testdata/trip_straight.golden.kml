@@ -35,12 +35,6 @@
     <Folder>
       <name>Day 2 - Waitomo to Tongariro</name>
       <Placemark>
-        <name>Waitomo</name>
-        <Point>
-          <coordinates>175.103500,-38.261700,0</coordinates>
-        </Point>
-      </Placemark>
-      <Placemark>
         <name>Tongariro NP</name>
         <Point>
           <coordinates>175.593000,-39.188700,0</coordinates>
