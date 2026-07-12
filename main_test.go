@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,9 +11,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func straightOpts(mode string) RouteOptions {
+	return RouteOptions{Mode: mode, CoordPrecision: 6}
+}
+
 func testFolder(t *testing.T, d Day, routeMode string) Folder {
 	t.Helper()
-	f, err := buildFolder(context.Background(), d, routeMode, map[string]bool{})
+	f, err := buildFolder(context.Background(), d, straightOpts(routeMode), map[string]bool{})
 	if err != nil {
 		t.Fatalf("buildFolder: %v", err)
 	}
@@ -33,7 +38,7 @@ func TestBuildKMLStraightGolden(t *testing.T) {
 		t.Fatalf("parse yaml: %v", err)
 	}
 
-	doc, err := buildDocument(context.Background(), trip, "straight")
+	doc, err := buildDocument(context.Background(), trip, straightOpts("straight"))
 	if err != nil {
 		t.Fatalf("build document: %v", err)
 	}
@@ -251,7 +256,7 @@ func TestGlobalPlacemarkDedup(t *testing.T) {
 		},
 	}
 
-	doc, err := buildDocument(context.Background(), trip, "straight")
+	doc, err := buildDocument(context.Background(), trip, straightOpts("straight"))
 	if err != nil {
 		t.Fatalf("buildDocument: %v", err)
 	}
@@ -273,7 +278,7 @@ func TestAirportStopEmitsStyle(t *testing.T) {
 		}},
 	}
 
-	doc, err := buildDocument(context.Background(), trip, "straight")
+	doc, err := buildDocument(context.Background(), trip, straightOpts("straight"))
 	if err != nil {
 		t.Fatalf("buildDocument: %v", err)
 	}
@@ -295,6 +300,57 @@ func TestAirportStopEmitsStyle(t *testing.T) {
 	}
 }
 
+func TestMyMapsFlattenRemovesFolders(t *testing.T) {
+	trip := Trip{
+		Trip: "flat",
+		Days: []Day{
+			{Day: 1, Title: "empty"},
+			{
+				Day: 2, Title: "drive", Notes: "note",
+				Route: []Stop{
+					{Name: "A", Type: "overnight", Lat: 1, Lon: 1},
+					{Name: "B", Type: "overnight", Lat: 2, Lon: 2},
+				},
+			},
+		},
+	}
+
+	doc, err := buildDocument(context.Background(), trip, RouteOptions{
+		Mode: "straight", CoordPrecision: 6, Flatten: true,
+	})
+	if err != nil {
+		t.Fatalf("buildDocument: %v", err)
+	}
+	if len(doc.Folders) != 0 {
+		t.Fatalf("folders = %d, want 0", len(doc.Folders))
+	}
+	if len(doc.Placemarks) != 3 {
+		t.Fatalf("placemarks = %d, want 3 (A, B, Route)", len(doc.Placemarks))
+	}
+	if doc.Placemarks[0].Name != "Day 2 - drive: A" {
+		t.Fatalf("first name = %q", doc.Placemarks[0].Name)
+	}
+}
+
+func TestSplitLongLinePlacemark(t *testing.T) {
+	var coords []string
+	for i := 0; i < 600; i++ {
+		coords = append(coords, fmt.Sprintf("%f,%f,0", float64(i), 0.0))
+	}
+	pm := Placemark{
+		Name:     "Route",
+		StyleURL: "#driveLine",
+		Line:     &Line{Coordinates: strings.Join(coords, "\n")},
+	}
+	parts := splitLongLinePlacemark(pm, 499)
+	if len(parts) != 2 {
+		t.Fatalf("parts = %d, want 2", len(parts))
+	}
+	if parts[1].Name != "Route (2)" {
+		t.Fatalf("second name = %q", parts[1].Name)
+	}
+}
+
 func TestTypedStopsEmitStyles(t *testing.T) {
 	trip := Trip{
 		Trip: "styled",
@@ -305,7 +361,7 @@ func TestTypedStopsEmitStyles(t *testing.T) {
 		}},
 	}
 
-	doc, err := buildDocument(context.Background(), trip, "straight")
+	doc, err := buildDocument(context.Background(), trip, straightOpts("straight"))
 	if err != nil {
 		t.Fatalf("buildDocument: %v", err)
 	}
@@ -327,7 +383,7 @@ func TestUntypedItineraryEmitsDriveLineStyle(t *testing.T) {
 		}},
 	}
 
-	doc, err := buildDocument(context.Background(), trip, "straight")
+	doc, err := buildDocument(context.Background(), trip, straightOpts("straight"))
 	if err != nil {
 		t.Fatalf("buildDocument: %v", err)
 	}

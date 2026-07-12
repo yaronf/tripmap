@@ -30,7 +30,7 @@ func TestRouteOSRM(t *testing.T) {
 	route, err := routeOSRM(context.Background(), srv.URL, []Point{
 		{Lat: 2, Lon: 1},
 		{Lat: 4, Lon: 3},
-	}, srv.Client())
+	}, srv.Client(), "full")
 	if err != nil {
 		t.Fatalf("routeOSRM: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestRouteOSRMStatusError(t *testing.T) {
 	_, err := routeOSRM(context.Background(), srv.URL, []Point{
 		{Lat: 2, Lon: 1},
 		{Lat: 4, Lon: 3},
-	}, srv.Client())
+	}, srv.Client(), "full")
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}

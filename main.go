@@ -21,8 +21,25 @@ func run(args []string) error {
 	in := fs.String("input", "itineraries/holland.yaml", "input YAML itinerary")
 	out := fs.String("output", "maps/holland.kml", "output KML file")
 	routeMode := fs.String("route", "straight", "route mode: straight or osrm")
+	simplify := fs.Float64("simplify", 0, "simplify OSRM route geometry (meters); 0 keeps full detail")
+	precision := fs.Int("precision", 0, "decimal places for coordinates (default 6, or 5 with -mymaps)")
+	mymaps := fs.Bool("mymaps", false, "optimize for Google My Maps (-simplify 100 -precision 5)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	opts := RouteOptions{Mode: *routeMode, SimplifyMeters: *simplify, CoordPrecision: *precision}
+	if *mymaps {
+		if opts.SimplifyMeters == 0 {
+			opts.SimplifyMeters = 100
+		}
+		if opts.CoordPrecision == 0 {
+			opts.CoordPrecision = 5
+		}
+		opts.Flatten = true
+	}
+	if opts.CoordPrecision == 0 {
+		opts.CoordPrecision = 6
 	}
 
 	b, err := os.ReadFile(*in)
@@ -35,7 +52,7 @@ func run(args []string) error {
 		return fmt.Errorf("parse yaml: %w", err)
 	}
 
-	doc, err := buildDocument(context.Background(), t, *routeMode)
+	doc, err := buildDocument(context.Background(), t, opts)
 	if err != nil {
 		return err
 	}

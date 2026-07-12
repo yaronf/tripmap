@@ -47,6 +47,14 @@ type Trip struct {
 	Days        []Day  `yaml:"days"`
 }
 
+// RouteOptions controls road routing and KML coordinate detail.
+type RouteOptions struct {
+	Mode           string
+	SimplifyMeters float64
+	CoordPrecision int
+	Flatten        bool // flat placemarks for Google My Maps (no Folders)
+}
+
 type KML struct {
 	XMLName xml.Name `xml:"kml"`
 	Xmlns   string   `xml:"xmlns,attr"`
@@ -54,10 +62,11 @@ type KML struct {
 }
 
 type Document struct {
-	Name        string   `xml:"name"`
-	Description string   `xml:"description,omitempty"`
-	Styles      []Style  `xml:"Style,omitempty"`
-	Folders     []Folder `xml:"Folder"`
+	Name        string      `xml:"name"`
+	Description string      `xml:"description,omitempty"`
+	Styles      []Style     `xml:"Style,omitempty"`
+	Folders     []Folder    `xml:"Folder,omitempty"`
+	Placemarks  []Placemark `xml:"Placemark,omitempty"`
 }
 
 type Style struct {
@@ -221,21 +230,24 @@ func isFerrySegment(a, b Stop) bool {
 	return a.Type == "ferry_terminal" && b.Type == "ferry_terminal"
 }
 
-func buildDocument(ctx context.Context, t Trip, routeMode string) (Document, error) {
+func buildDocument(ctx context.Context, t Trip, opts RouteOptions) (Document, error) {
 	doc := Document{Name: t.Trip, Description: t.Description}
 	seen := map[string]bool{}
 	for _, d := range t.Days {
-		f, err := buildFolder(ctx, d, routeMode, seen)
+		f, err := buildFolder(ctx, d, opts, seen)
 		if err != nil {
 			return Document{}, fmt.Errorf("day %d: %w", d.Day, err)
 		}
 		doc.Folders = append(doc.Folders, f)
 	}
-	doc.Styles = usedStyles(doc.Folders)
+	if opts.Flatten {
+		doc = flattenForMyMaps(doc)
+	}
+	doc.Styles = usedStyles(doc.Folders, doc.Placemarks)
 	return doc, nil
 }
 
-func buildFolder(ctx context.Context, d Day, routeMode string, seen map[string]bool) (Folder, error) {
+func buildFolder(ctx context.Context, d Day, opts RouteOptions, seen map[string]bool) (Folder, error) {
 	f := Folder{Name: fmt.Sprintf("Day %d - %s", d.Day, d.Title), Description: d.Notes}
 
 	for _, s := range mapPoints(d) {
@@ -247,7 +259,7 @@ func buildFolder(ctx context.Context, d Day, routeMode string, seen map[string]b
 		pm := Placemark{
 			Name:        s.Name,
 			Description: s.Notes,
-			Point:       &Point{Coordinates: stopCoords(s)},
+			Point:       &Point{Coordinates: formatCoords(s.Lon, s.Lat, opts.CoordPrecision)},
 		}
 		if id := styleForType(s.Type); id != "" {
 			pm.StyleURL = "#" + id
@@ -260,7 +272,7 @@ func buildFolder(ctx context.Context, d Day, routeMode string, seen map[string]b
 		return f, nil
 	}
 
-	lines, err := buildRouteLines(ctx, d, rp, routeMode)
+	lines, err := buildRouteLines(ctx, d, rp, opts)
 	if err != nil {
 		return Folder{}, err
 	}
@@ -268,38 +280,38 @@ func buildFolder(ctx context.Context, d Day, routeMode string, seen map[string]b
 	return f, nil
 }
 
-func buildRouteLines(ctx context.Context, d Day, pts []Stop, routeMode string) ([]Placemark, error) {
+func buildRouteLines(ctx context.Context, d Day, pts []Stop, opts RouteOptions) ([]Placemark, error) {
 	if d.Ferry {
-		return buildSegmentLines(ctx, pts, routeMode, func(a, b Stop) (mode, style, name string) {
+		return buildSegmentLines(ctx, pts, opts, func(a, b Stop) (mode, style, name string) {
 			if isFerrySegment(a, b) {
 				return "straight", "#ferryLine", "Ferry"
 			}
-			return routeMode, "#driveLine", "Drive"
+			return opts.Mode, "#driveLine", "Drive"
 		})
 	}
 
 	if !d.Hike {
-		coords, err := routeCoords(ctx, pts, routeMode)
+		coords, err := routeCoords(ctx, pts, opts.Mode, opts)
 		if err != nil {
 			return nil, err
 		}
 		return []Placemark{routeLinePlacemark("Route", coords, "#driveLine")}, nil
 	}
 
-	return buildSegmentLines(ctx, pts, routeMode, func(a, b Stop) (mode, style, name string) {
+	return buildSegmentLines(ctx, pts, opts, func(a, b Stop) (mode, style, name string) {
 		if isDrivingSegment(a, b) {
-			return routeMode, "#driveLine", "Drive"
+			return opts.Mode, "#driveLine", "Drive"
 		}
 		return "straight", "#hikeLine", "Hike"
 	})
 }
 
-func buildSegmentLines(ctx context.Context, pts []Stop, routeMode string, classify func(a, b Stop) (mode, style, name string)) ([]Placemark, error) {
+func buildSegmentLines(ctx context.Context, pts []Stop, opts RouteOptions, classify func(a, b Stop) (mode, style, name string)) ([]Placemark, error) {
 	var lines []Placemark
 	for i := 0; i < len(pts)-1; i++ {
 		seg := []Stop{pts[i], pts[i+1]}
 		mode, style, name := classify(seg[0], seg[1])
-		coords, err := routeCoords(ctx, seg, mode)
+		coords, err := routeCoords(ctx, seg, mode, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -323,18 +335,20 @@ func routeLinePlacemark(name, coords, style string) Placemark {
 	}
 }
 
-// usedStyles returns the Style definitions referenced by any placemark, in a
-// deterministic order. Styles that are never referenced are omitted so simple
-// itineraries produce no <Style> elements.
-func usedStyles(folders []Folder) []Style {
+// usedStyles returns Style definitions referenced by placemarks, in output order.
+func usedStyles(folders []Folder, placemarks []Placemark) []Style {
 	used := map[string]bool{}
-	for _, f := range folders {
-		for _, pm := range f.Placemarks {
+	collect := func(pms []Placemark) {
+		for _, pm := range pms {
 			if pm.StyleURL != "" {
 				used[strings.TrimPrefix(pm.StyleURL, "#")] = true
 			}
 		}
 	}
+	for _, f := range folders {
+		collect(f.Placemarks)
+	}
+	collect(placemarks)
 
 	var styles []Style
 	for _, s := range iconStyles {
@@ -356,43 +370,115 @@ func usedStyles(folders []Folder) []Style {
 	return styles
 }
 
-func routeCoords(ctx context.Context, stops []Stop, mode string) (string, error) {
+func routeCoords(ctx context.Context, stops []Stop, mode string, opts RouteOptions) (string, error) {
 	switch mode {
 	case "straight":
-		return straightLineCoords(stops), nil
+		return straightLineCoords(stops, opts.CoordPrecision), nil
 	case "osrm":
 		pts := make([]routing.Point, len(stops))
 		for i, s := range stops {
 			pts[i] = routing.Point{Lat: s.Lat, Lon: s.Lon}
 		}
-		route, err := routing.RouteOSRM(ctx, pts)
+		overview := "full"
+		if opts.SimplifyMeters > 0 {
+			overview = "simplified"
+		}
+		route, err := routing.RouteOSRMOverview(ctx, pts, overview)
 		if err != nil {
 			return "", err
 		}
-		return geometryToKMLCoords(route.Geometry), nil
+		geom := routing.SimplifyGeometry(route.Geometry, opts.SimplifyMeters)
+		return geometryToKMLCoords(geom, opts.CoordPrecision), nil
 	default:
 		return "", fmt.Errorf("unknown route mode %q (use straight or osrm)", mode)
 	}
 }
 
-func stopCoords(s Stop) string {
-	return fmt.Sprintf("%f,%f,0", s.Lon, s.Lat)
+func formatCoords(lon, lat float64, precision int) string {
+	if precision <= 0 {
+		precision = 6
+	}
+	format := fmt.Sprintf("%%.%df,%%.%df,0", precision, precision)
+	return fmt.Sprintf(format, lon, lat)
 }
 
-func straightLineCoords(stops []Stop) string {
+func straightLineCoords(stops []Stop, precision int) string {
 	parts := make([]string, len(stops))
 	for i, s := range stops {
-		parts[i] = stopCoords(s)
+		parts[i] = formatCoords(s.Lon, s.Lat, precision)
 	}
 	return strings.Join(parts, "\n")
 }
 
-func geometryToKMLCoords(geometry [][]float64) string {
+func geometryToKMLCoords(geometry [][]float64, precision int) string {
 	parts := make([]string, len(geometry))
 	for i, pt := range geometry {
-		parts[i] = fmt.Sprintf("%f,%f,0", pt[0], pt[1])
+		parts[i] = formatCoords(pt[0], pt[1], precision)
 	}
 	return strings.Join(parts, "\n")
+}
+
+const myMapsMaxLinePoints = 499
+
+func flattenForMyMaps(doc Document) Document {
+	var flat []Placemark
+	for _, f := range doc.Folders {
+		if len(f.Placemarks) == 0 {
+			continue
+		}
+		prefix := f.Name + ": "
+		for _, pm := range f.Placemarks {
+			pm.Name = prefix + pm.Name
+			if pm.Description == "" && f.Description != "" {
+				pm.Description = f.Description
+			}
+			flat = append(flat, splitLongLinePlacemark(pm, myMapsMaxLinePoints)...)
+		}
+	}
+	doc.Folders = nil
+	doc.Placemarks = flat
+	return doc
+}
+
+func splitLongLinePlacemark(pm Placemark, maxPts int) []Placemark {
+	if pm.Line == nil || maxPts <= 0 {
+		return []Placemark{pm}
+	}
+	pts := parseCoordLines(pm.Line.Coordinates)
+	if len(pts) <= maxPts {
+		return []Placemark{pm}
+	}
+
+	var out []Placemark
+	for start := 0; start < len(pts)-1; {
+		end := start + maxPts
+		if end >= len(pts) {
+			end = len(pts) - 1
+		}
+		chunk := pts[start : end+1]
+		part := pm
+		if len(out) > 0 {
+			part.Name = fmt.Sprintf("%s (%d)", pm.Name, len(out)+1)
+		}
+		part.Line = &Line{
+			Tess:         pm.Line.Tess,
+			AltitudeMode: pm.Line.AltitudeMode,
+			Coordinates:  strings.Join(chunk, "\n"),
+		}
+		out = append(out, part)
+		if end >= len(pts)-1 {
+			break
+		}
+		start = end
+	}
+	return out
+}
+
+func parseCoordLines(coords string) []string {
+	coords = strings.ReplaceAll(coords, "\r\n", "\n")
+	return strings.FieldsFunc(coords, func(r rune) bool {
+		return r == '\n'
+	})
 }
 
 func marshalKML(doc Document) ([]byte, error) {

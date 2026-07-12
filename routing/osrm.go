@@ -26,10 +26,16 @@ type Route struct {
 }
 
 func RouteOSRM(ctx context.Context, pts []Point) (*Route, error) {
-	return routeOSRM(ctx, defaultOSRMBase, pts, defaultHTTPClient)
+	return routeOSRM(ctx, defaultOSRMBase, pts, defaultHTTPClient, "full")
 }
 
-func routeOSRM(ctx context.Context, baseURL string, pts []Point, client *http.Client) (*Route, error) {
+// RouteOSRMOverview requests a route from OSRM. overview is one of full,
+// simplified, or false (see OSRM API docs).
+func RouteOSRMOverview(ctx context.Context, pts []Point, overview string) (*Route, error) {
+	return routeOSRM(ctx, defaultOSRMBase, pts, defaultHTTPClient, overview)
+}
+
+func routeOSRM(ctx context.Context, baseURL string, pts []Point, client *http.Client, overview string) (*Route, error) {
 	if len(pts) < 2 {
 		return nil, fmt.Errorf("need at least two points")
 	}
@@ -42,10 +48,15 @@ func routeOSRM(ctx context.Context, baseURL string, pts []Point, client *http.Cl
 		fmt.Fprintf(&b, "%f,%f", p.Lon, p.Lat)
 	}
 
+	if overview == "" {
+		overview = "full"
+	}
+
 	url := fmt.Sprintf(
-		"%s/route/v1/driving/%s?overview=full&geometries=geojson",
+		"%s/route/v1/driving/%s?overview=%s&geometries=geojson",
 		strings.TrimRight(baseURL, "/"),
 		b.String(),
+		overview,
 	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

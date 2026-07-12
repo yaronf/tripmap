@@ -14,13 +14,20 @@ pass through to shape the route does not have to clutter the map.
 
 ```bash
 go run . --input itineraries/holland.yaml --output maps/holland.kml --route osrm
-go run . --input itineraries/nz-4weeks.yaml --output maps/nz-4weeks.kml --route osrm
+go run . --input itineraries/nz-4weeks.yaml --output maps/nz-4weeks.kml --route osrm --mymaps
 go run .
 ```
 
 - `--route straight` (default): straight lines between route points.
 - `--route osrm`: road routing via the public [OSRM](https://project-osrm.org/)
   demo server. Hike and ferry days stay straight regardless of this flag.
+- `--mymaps`: optimize for [Google My Maps](https://support.google.com/mymaps/answer/3024836)
+  import — uses OSRM simplified geometry, 100 m Douglas-Peucker simplification,
+  5-decimal coordinates, and a flat placemark layout (My Maps ignores KML
+  Folders). Equivalent to `-simplify 100 -precision 5` plus flattening.
+- `--simplify METERS`: post-process OSRM geometry (also requests simplified
+  overview from OSRM). `0` keeps full detail (best for Google Earth).
+- `--precision N`: decimal places for coordinates in the KML (default 6).
 
 Build a standalone binary with `go build -o tripmap .`.
 
@@ -49,7 +56,9 @@ Days with only a single overnight stop and no `route:` list show markers but no
 line — rest days, explore days, etc.
 
 Google My Maps and other lightweight KML viewers may not render route lines
-reliably; use Google Earth if routes are missing.
+reliably; use Google Earth if routes are missing. For My Maps, generate with
+`--mymaps` — My Maps does not support KML Folders and splits long lines at
+500 points, so the output is flattened and simplified accordingly.
 
 ## Itinerary schema
 
