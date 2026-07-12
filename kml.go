@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/example/tripmap/routing"
+	"github.com/yaronf/tripmap/routing"
 )
 
 // Stop is a single point in a day. Type controls whether it appears on the map,
@@ -97,8 +97,9 @@ type Point struct {
 }
 
 type Line struct {
-	Tess        int    `xml:"tessellate"`
-	Coordinates string `xml:"coordinates"`
+	Tess         int    `xml:"tessellate"`
+	AltitudeMode string `xml:"altitudeMode,omitempty"`
+	Coordinates  string `xml:"coordinates"`
 }
 
 // iconStyles defines the marker style for each placemark type, in output order.
@@ -118,6 +119,7 @@ var lineStyles = []struct {
 	ID, Color string
 	Width     float64
 }{
+	{"driveLine", "ffff0000", 4}, // blue in KML aabbggrr
 	{"ferryLine", "ffff8000", 4},
 	{"hikeLine", "ff00aa00", 4},
 }
@@ -201,13 +203,19 @@ func buildFolder(ctx context.Context, d Day, routeMode string) (Folder, error) {
 		}
 		line := Placemark{
 			Name: "Route",
-			Line: &Line{Tess: 1, Coordinates: coords},
+			Line: &Line{
+				Tess:         1,
+				AltitudeMode: "clampToGround",
+				Coordinates:  coords,
+			},
 		}
 		switch {
 		case d.Ferry:
 			line.StyleURL = "#ferryLine"
 		case d.Hike:
 			line.StyleURL = "#hikeLine"
+		default:
+			line.StyleURL = "#driveLine"
 		}
 		f.Placemarks = append(f.Placemarks, line)
 	}
@@ -271,25 +279,19 @@ func stopCoords(s Stop) string {
 }
 
 func straightLineCoords(stops []Stop) string {
-	var coords strings.Builder
+	parts := make([]string, len(stops))
 	for i, s := range stops {
-		if i > 0 {
-			coords.WriteByte(' ')
-		}
-		coords.WriteString(stopCoords(s))
+		parts[i] = stopCoords(s)
 	}
-	return coords.String()
+	return strings.Join(parts, "\n")
 }
 
 func geometryToKMLCoords(geometry [][]float64) string {
-	var coords strings.Builder
+	parts := make([]string, len(geometry))
 	for i, pt := range geometry {
-		if i > 0 {
-			coords.WriteByte(' ')
-		}
-		fmt.Fprintf(&coords, "%f,%f,0", pt[0], pt[1])
+		parts[i] = fmt.Sprintf("%f,%f,0", pt[0], pt[1])
 	}
-	return coords.String()
+	return strings.Join(parts, "\n")
 }
 
 func marshalKML(doc Document) ([]byte, error) {

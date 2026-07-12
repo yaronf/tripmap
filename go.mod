@@ -1,4 +1,4 @@
-module github.com/example/tripmap
+module github.com/yaronf/tripmap
 
 go 1.24
 

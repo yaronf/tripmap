@@ -2,6 +2,12 @@
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>New Zealand</name>
+    <Style id="driveLine">
+      <LineStyle>
+        <color>ffff0000</color>
+        <width>4</width>
+      </LineStyle>
+    </Style>
     <Folder>
       <name>Day 1 - Auckland to Waitomo</name>
       <Placemark>
@@ -18,9 +24,11 @@
       </Placemark>
       <Placemark>
         <name>Route</name>
+        <styleUrl>#driveLine</styleUrl>
         <LineString>
           <tessellate>1</tessellate>
-          <coordinates>174.763300,-36.848500,0 175.103500,-38.261700,0</coordinates>
+          <altitudeMode>clampToGround</altitudeMode>
+          <coordinates>174.763300,-36.848500,0&#xA;175.103500,-38.261700,0</coordinates>
         </LineString>
       </Placemark>
     </Folder>
@@ -40,9 +48,11 @@
       </Placemark>
       <Placemark>
         <name>Route</name>
+        <styleUrl>#driveLine</styleUrl>
         <LineString>
           <tessellate>1</tessellate>
-          <coordinates>175.103500,-38.261700,0 175.593000,-39.188700,0</coordinates>
+          <altitudeMode>clampToGround</altitudeMode>
+          <coordinates>175.103500,-38.261700,0&#xA;175.593000,-39.188700,0</coordinates>
         </LineString>
       </Placemark>
     </Folder>

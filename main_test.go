@@ -153,7 +153,7 @@ func TestHikeDayForcesStraightLine(t *testing.T) {
 	if route.StyleURL != "#hikeLine" {
 		t.Fatalf("route styleUrl = %q, want #hikeLine", route.StyleURL)
 	}
-	want := "1.000000,1.000000,0 2.000000,2.000000,0"
+	want := "1.000000,1.000000,0\n2.000000,2.000000,0"
 	if route.Line == nil || route.Line.Coordinates != want {
 		t.Fatalf("hike line = %+v, want straight coords %q", route.Line, want)
 	}
@@ -178,7 +178,7 @@ func TestTypedStopsEmitStyles(t *testing.T) {
 	}
 }
 
-func TestUntypedItineraryEmitsNoStyles(t *testing.T) {
+func TestUntypedItineraryEmitsDriveLineStyle(t *testing.T) {
 	trip := Trip{
 		Trip: "plain",
 		Days: []Day{{
@@ -195,7 +195,7 @@ func TestUntypedItineraryEmitsNoStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildDocument: %v", err)
 	}
-	if len(doc.Styles) != 0 {
-		t.Fatalf("styles = %+v, want none for untyped itinerary", doc.Styles)
+	if len(doc.Styles) != 1 || doc.Styles[0].ID != "driveLine" {
+		t.Fatalf("styles = %+v, want single driveLine style", doc.Styles)
 	}
 }
