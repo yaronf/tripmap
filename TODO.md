@@ -2,6 +2,20 @@
 
 ## Planned
 
+### Viewer
+
+See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (architecture) and [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) (UI/UX).
+
+- [ ] Phase 1: `--bundle` export (`trip.json`, per-day GeoJSON)
+- [ ] Phase 2: `viewer/` SPA (day index, map, detail)
+- [ ] Phase 3: Photo field in YAML + bundle + lightbox
+- [ ] Phase 4: PWA service worker (offline data + images)
+- [ ] Phase 5: GitHub Actions → GitHub Pages
+- [ ] Phase 6: REST API (`cmd/tripmapd/`) + OpenAPI + PATCH → git
+- [ ] Phase 7: Custom GPT Action
+- [ ] Phase 8: Cursor skill (optional local alternative)
+- [ ] Phase 9: Ephemeral PWA comments (`localStorage`)
+
 ### Schema
 - [ ] Places registry: define `places:` once, reference by ID in route/stops
 - [ ] Stop priority flags: `optional`, `backup`, `must`
