@@ -161,6 +161,12 @@
     const saved = localStorage.getItem(notesKey(d.day)) || "";
 
     const driveStats = formatDriveStats(d);
+    const i = state.dayIndex;
+    const n = state.trip.days.length;
+    const prevDisabled = i <= 0 ? "disabled" : "";
+    const nextDisabled = i >= n - 1 ? "disabled" : "";
+    const prevTitle = i > 0 ? escapeAttr(state.trip.days[i - 1].title) : "";
+    const nextTitle = i < n - 1 ? escapeAttr(state.trip.days[i + 1].title) : "";
 
     el.detail.innerHTML = `
       <p class="detail-micro">Day ${d.day}</p>
@@ -173,7 +179,25 @@
       <details class="notes-disclosure">
         <summary>Your notes</summary>
         <textarea id="local-notes" aria-label="Local notes for this day">${escapeHtml(saved)}</textarea>
-      </details>`;
+      </details>
+      <nav class="day-nav" aria-label="Adjacent days">
+        <button type="button" class="day-nav-btn" data-dir="-1" ${prevDisabled} title="${prevTitle}">
+          <span class="day-nav-dir" aria-hidden="true">‹</span> Prev
+        </button>
+        <span class="day-nav-pos">Day ${d.day}/${n}</span>
+        <button type="button" class="day-nav-btn" data-dir="1" ${nextDisabled} title="${nextTitle}">
+          Next <span class="day-nav-dir" aria-hidden="true">›</span>
+        </button>
+      </nav>`;
+
+    el.detail.querySelectorAll(".day-nav-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const dir = Number(btn.dataset.dir);
+        const next = state.dayIndex + dir;
+        if (next < 0 || next >= state.trip.days.length) return;
+        selectDay(next, true);
+      });
+    });
 
     el.detail.querySelectorAll("[data-photo]").forEach((node) => {
       node.addEventListener("click", (e) => {
@@ -288,7 +312,7 @@
     renderDetail(d);
     if (!state.showFullTrip) await renderMap();
     if (closePicker) el.picker.hidden = true;
-    el.btnDays.textContent = `Day ${d.day}`;
+    el.btnDays.textContent = "Days";
   }
 
   function setMode(mode) {
