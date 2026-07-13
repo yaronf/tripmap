@@ -2,7 +2,7 @@
 
 Visual and interaction design for the tripmap PWA viewer.  
 Companion to [itinerary-display-viewer.md](itinerary-display-viewer.md).  
-**Status:** draft for review — not yet implemented.
+**Status:** MVP implemented (`--bundle` + `viewer/`). Further phases in architecture doc.
 
 ---
 

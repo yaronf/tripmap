@@ -69,6 +69,17 @@ func TestRunInvalidRouteMode(t *testing.T) {
 	}
 }
 
+func TestRunInvalidUnits(t *testing.T) {
+	err := run([]string{
+		"-input", filepath.Join("testdata", "itinerary.yaml"),
+		"-bundle", t.TempDir(),
+		"-units", "furlongs",
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid units")
+	}
+}
+
 func placemarkNames(f Folder) []string {
 	names := make([]string, len(f.Placemarks))
 	for i, pm := range f.Placemarks {
@@ -87,6 +98,44 @@ func countPoints(doc Document) int {
 		}
 	}
 	return n
+}
+
+func TestViewerDayStopsDepartAndOvernight(t *testing.T) {
+	d := Day{
+		Day:   3,
+		Title: "Auckland → Waitomo",
+		Route: []Stop{
+			{Name: "Auckland", Type: "overnight", Lat: -36.8485, Lon: 174.7633},
+			{Name: "Waitomo", Type: "overnight", Lat: -38.2617, Lon: 175.1035},
+		},
+		Stops: []Stop{
+			{Name: "Waitomo Glowworm Caves", Type: "attraction", Lat: -38.2617, Lon: 175.1035},
+		},
+	}
+	got := viewerDayStops(d)
+	if len(got) != 3 {
+		t.Fatalf("len = %d, want 3: %+v", len(got), got)
+	}
+	if got[0].Name != "Auckland" || got[0].Type != "depart" {
+		t.Fatalf("start = %+v, want Auckland depart", got[0])
+	}
+	if got[1].Name != "Waitomo Glowworm Caves" || got[1].Type != "attraction" {
+		t.Fatalf("mid = %+v, want caves attraction", got[1])
+	}
+	if got[2].Name != "Waitomo" || got[2].Type != "overnight" {
+		t.Fatalf("end = %+v, want Waitomo overnight", got[2])
+	}
+}
+
+func TestViewerDayStopsRestStaysOvernight(t *testing.T) {
+	d := Day{
+		Day: 2, Title: "Explore",
+		Stops: []Stop{{Name: "Auckland", Type: "overnight", Lat: 1, Lon: 2}},
+	}
+	got := viewerDayStops(d)
+	if len(got) != 1 || got[0].Type != "overnight" {
+		t.Fatalf("got %+v, want single overnight", got)
+	}
 }
 
 func TestViaPointsAreRoutedButNotMapped(t *testing.T) {

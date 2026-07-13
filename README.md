@@ -1,9 +1,8 @@
 # tripmap
 
-tripmap turns a YAML road-trip itinerary into a KML file you can open in Google
-Earth. Each day becomes a folder with map markers for stops and a route line
-showing how you get from A to B — following real roads when OSRM routing is
-enabled.
+tripmap turns a YAML road-trip itinerary into a KML file for Google Earth / My
+Maps, or a static PWA for day-by-day viewing on phone and laptop. Each day has
+map markers and a route line — following real roads when OSRM routing is enabled.
 
 The project is aimed at multi-day driving trips where some days are on the road,
 some are hikes, and some involve ferries or side trips. The YAML schema separates
@@ -13,7 +12,14 @@ pass through to shape the route does not have to clutter the map.
 ## Quick start
 
 ```bash
+# KML for Google Earth
 go run . --input itineraries/holland.yaml --output maps/holland.kml --route osrm
+
+# PWA bundle (serve over HTTP — do not open file://)
+go run . --input itineraries/holland.yaml --bundle maps/holland-bundle/ --route osrm --mymaps
+cd maps/holland-bundle && python3 -m http.server 8080
+# visit http://localhost:8080/
+
 go run . --input itineraries/nz-4weeks.yaml --output maps/nz-4weeks.kml --route osrm --mymaps
 go run .
 ```
@@ -21,22 +27,48 @@ go run .
 - `--route straight` (default): straight lines between route points.
 - `--route osrm`: road routing via the public [OSRM](https://project-osrm.org/)
   demo server. Hike and ferry days stay straight regardless of this flag.
+- `--bundle DIR`: write a static PWA (`trip.json`, `geo/`, embedded viewer).
+  With `--route osrm`, simplification defaults to 100 m unless overridden.
 - `--mymaps`: optimize for [Google My Maps](https://support.google.com/mymaps/answer/3024836)
-  import — uses OSRM simplified geometry, 100 m Douglas-Peucker simplification,
-  5-decimal coordinates, and a flat placemark layout (My Maps ignores KML
-  Folders). Equivalent to `-simplify 100 -precision 5` plus flattening.
-- `--simplify METERS`: post-process OSRM geometry (also requests simplified
-  overview from OSRM). `0` keeps full detail (best for Google Earth).
+  import — 100 m Douglas-Peucker simplification, 5-decimal coordinates, and a
+  flat placemark layout (My Maps ignores KML Folders). Equivalent to
+  `-simplify 100 -precision 5` plus flattening.
+- `--simplify METERS`: Douglas-Peucker simplify of full OSRM geometry (meters).
+  `0` keeps full detail (best for Google Earth).
 - `--precision N`: decimal places for coordinates in the KML (default 6).
+- `--units km|mi`: distance units in the PWA bundle (default `km`). No in-viewer toggle yet.
 
 Build a standalone binary with `go build -o tripmap .`.
 
-Itinerary YAML files live in `itineraries/`; generated KML files go in `maps/`
-(gitignored). Test fixtures remain in `testdata/`.
+Itinerary YAML files live in `itineraries/`; generated KML and PWA bundles go in
+`maps/` (gitignored). Viewer source is in `viewer/` (embedded into the CLI).
+Test fixtures remain in `testdata/`.
 
 ## Viewing the output
 
-**Google Earth Pro** (desktop) is the best viewer. On Windows with WSL, open the
+### PWA (day-by-day navigation)
+
+```bash
+go run . --input itineraries/holland.yaml --bundle maps/holland-bundle/ --route osrm --mymaps
+cd maps/holland-bundle && python3 -m http.server 8080
+```
+
+Desktop: day list | map | detail. Phone: List / Map toggle and a day picker.
+Optional local notes are stored in `localStorage` only. The service worker caches
+trip data and images after the first visit; basemap tiles still need the network.
+
+Optional photos on days or stops (paths relative to the YAML file):
+
+```yaml
+photo: photos/harbour.jpg
+```
+
+See [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) for UI design and
+[docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) for the longer roadmap.
+
+### Google Earth / My Maps
+
+**Google Earth Pro** (desktop) is the best KML viewer. On Windows with WSL, open the
 file from the Windows side:
 
 ```
@@ -101,6 +133,9 @@ type is `via`.
 | `trailhead`      | hiker   | hike endpoint |
 | `ferry_terminal` | ferry   | ferry endpoint |
 | `airport`        | airport | airport (arrival, departure, car pickup) |
+
+Optional fields: `notes`, `photo` (day or stop) — photo paths are relative to the
+itinerary file and are copied into PWA bundles.
 
 ### Day flags
 
