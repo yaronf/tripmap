@@ -17,6 +17,7 @@
     showFullTrip: false,
     map: null,
     layers: L.layerGroup(),
+    lastBounds: null,
     geoCache: new Map(),
   };
 
@@ -137,25 +138,27 @@
 
     let photo = "";
     if (d.photo) {
-      photo = `<button type="button" class="detail-photo" data-photo="${escapeAttr(d.photo)}" data-caption="${escapeAttr(d.title)}">
-        <img src="${escapeAttr(d.photo)}" alt="${escapeAttr(d.title)}" loading="lazy" />
+      const caption = d.photo_caption || d.title;
+      photo = `<button type="button" class="detail-photo" title="${escapeAttr(caption)}" data-photo="${escapeAttr(d.photo)}" data-caption="${escapeAttr(caption)}">
+        <img src="${escapeAttr(d.photo)}" alt="${escapeAttr(caption)}" title="${escapeAttr(caption)}" loading="lazy" />
       </button>`;
     }
 
     const stops = (d.stops || [])
-      .map(
-        (s) => `<li class="stop">
+      .map((s) => {
+        const stopCap = s.photo_caption || s.name;
+        return `<li class="stop">
         <button type="button" data-lat="${s.lat}" data-lon="${s.lon}">
           <span class="stop-name">${escapeHtml(s.name)}</span>
           <span class="stop-type">${escapeHtml(stopTypeLabel(s.type))}</span>
         </button>
         ${
           s.photo
-            ? `<img class="stop-thumb" src="${escapeAttr(s.photo)}" alt="${escapeAttr(s.name)}" loading="lazy" data-photo="${escapeAttr(s.photo)}" data-caption="${escapeAttr(s.name)}" />`
+            ? `<img class="stop-thumb" src="${escapeAttr(s.photo)}" alt="${escapeAttr(stopCap)}" title="${escapeAttr(stopCap)}" loading="lazy" data-photo="${escapeAttr(s.photo)}" data-caption="${escapeAttr(stopCap)}" />`
             : ""
         }
-      </li>`
-      )
+      </li>`;
+      })
       .join("");
 
     const saved = localStorage.getItem(notesKey(d.day)) || "";
@@ -210,9 +213,10 @@
       btn.addEventListener("click", () => {
         const lat = Number(btn.dataset.lat);
         const lon = Number(btn.dataset.lon);
-        state.map.setView([lat, lon], Math.max(state.map.getZoom(), 12));
         if (window.matchMedia("(max-width: 899px)").matches) {
-          setMode("map");
+          setMode("map", { lat, lon, zoom: Math.max(state.map.getZoom() || 0, 12) });
+        } else {
+          state.map.setView([lat, lon], Math.max(state.map.getZoom(), 12));
         }
       });
     });
@@ -294,12 +298,52 @@
       }
     }
 
+    state.lastBounds = null;
     if (bounds.length) {
       const merged = bounds[0];
       for (let i = 1; i < bounds.length; i++) merged.extend(bounds[i]);
-      state.map.fitBounds(merged, { padding: [28, 28] });
+      state.lastBounds = merged;
+      // fitBounds while the pane is display:none computes a wrong zoom on mobile.
+      if (mapPaneVisible()) {
+        state.map.fitBounds(merged, { padding: [28, 28] });
+      }
     }
-    setTimeout(() => state.map.invalidateSize(), 50);
+    if (mapPaneVisible()) {
+      state.map.invalidateSize({ animate: false });
+    }
+  }
+
+  function mapPaneVisible() {
+    return (
+      !window.matchMedia("(max-width: 899px)").matches || state.mode === "map"
+    );
+  }
+
+  function fitMapToContent() {
+    if (!state.map) return;
+    const b =
+      state.lastBounds && state.lastBounds.isValid()
+        ? state.lastBounds
+        : state.layers.getLayers().length
+          ? state.layers.getBounds()
+          : null;
+    if (b && b.isValid()) {
+      state.map.fitBounds(b, { padding: [28, 28] });
+    }
+  }
+
+  /** Leaflet needs a real size after the map pane is shown (mobile List→Map). */
+  function whenMapLaidOut(fn) {
+    const run = () => {
+      state.map.invalidateSize({ animate: false });
+      fn();
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        run();
+        setTimeout(run, 120);
+      });
+    });
   }
 
   async function selectDay(index, closePicker) {
@@ -315,14 +359,25 @@
     el.btnDays.textContent = "Days";
   }
 
-  function setMode(mode) {
+  function setMode(mode, opts = {}) {
     state.mode = mode;
     document.body.classList.toggle("mode-list", mode === "list");
     document.body.classList.toggle("mode-map", mode === "map");
     el.modeToggle.querySelectorAll(".seg-btn").forEach((b) => {
       b.classList.toggle("is-active", b.dataset.mode === mode);
     });
-    if (mode === "map") setTimeout(() => state.map.invalidateSize(), 80);
+    if (mode === "map") {
+      whenMapLaidOut(() => {
+        if (opts.lat != null && opts.lon != null) {
+          state.map.setView(
+            [opts.lat, opts.lon],
+            opts.zoom ?? Math.max(state.map.getZoom() || 0, 12)
+          );
+        } else {
+          fitMapToContent();
+        }
+      });
+    }
   }
 
   function openLightbox(src, caption) {

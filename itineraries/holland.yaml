@@ -8,21 +8,29 @@ days:
 
   - day: 1
     title: Arrive Amsterdam
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Water_reflection_of_canal_houses_at_blue_hour_in_Damrak_Amsterdam_the_Netherlands.jpg/1280px-Water_reflection_of_canal_houses_at_blue_hour_in_Damrak_Amsterdam_the_Netherlands.jpg
+    photo_caption: Amsterdam canal houses on the Damrak at blue hour
     stops:
       - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
 
   - day: 2
     title: Amsterdam
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Water_reflection_of_canal_houses_at_blue_hour_in_Damrak_Amsterdam_the_Netherlands.jpg/1280px-Water_reflection_of_canal_houses_at_blue_hour_in_Damrak_Amsterdam_the_Netherlands.jpg
+    photo_caption: Amsterdam canal houses on the Damrak at blue hour
     stops:
       - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
 
   - day: 3
     title: Amsterdam
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Water_reflection_of_canal_houses_at_blue_hour_in_Damrak_Amsterdam_the_Netherlands.jpg/1280px-Water_reflection_of_canal_houses_at_blue_hour_in_Damrak_Amsterdam_the_Netherlands.jpg
+    photo_caption: Amsterdam canal houses on the Damrak at blue hour
     stops:
       - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
 
   - day: 4
     title: Amsterdam → Utrecht
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Dom_Tower%2C_Domplein%2C_seen_from_Stadhuisbrug%2C_Utrecht_03.jpg/1280px-Dom_Tower%2C_Domplein%2C_seen_from_Stadhuisbrug%2C_Utrecht_03.jpg
+    photo_caption: Utrecht Dom Tower from Stadhuisbrug
     notes: Car pickup at Schiphol.
     route:
       - { name: Amsterdam, type: overnight, lat: 52.3676, lon: 4.9041 }
@@ -31,6 +39,8 @@ days:
 
   - day: 5
     title: Utrecht → Deventer (Lettele)
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Brink_naar_Polstraat_-_Deventer_-_20053963_-_RCE.jpg/1280px-Brink_naar_Polstraat_-_Deventer_-_20053963_-_RCE.jpg
+    photo_caption: Deventer Brink toward Polstraat
     route:
       - { name: Utrecht, type: overnight, lat: 52.0907, lon: 5.1214 }
       - { name: Deventer, lat: 52.2551, lon: 6.1639 }
@@ -38,6 +48,8 @@ days:
 
   - day: 6
     title: Deventer + Zutphen
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Brink_naar_Polstraat_-_Deventer_-_20053963_-_RCE.jpg/1280px-Brink_naar_Polstraat_-_Deventer_-_20053963_-_RCE.jpg
+    photo_caption: Deventer Brink toward Polstraat
     route:
       - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
       - { name: Deventer, lat: 52.2551, lon: 6.1639 }
@@ -46,6 +58,8 @@ days:
 
   - day: 7
     title: Doesburg day trip
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Twinshouse_at_Doesburg_showing_its_historic_innercity_character_-_panoramio.jpg/1280px-Twinshouse_at_Doesburg_showing_its_historic_innercity_character_-_panoramio.jpg
+    photo_caption: Historic streetscape in Doesburg
     route:
       - { name: Lettele, type: overnight, lat: 52.3097, lon: 6.2394 }
       - { name: Doesburg, lat: 52.0119, lon: 6.1367 }
@@ -62,6 +76,8 @@ days:
 
   - day: 9
     title: Hoge Veluwe + Kröller-Müller
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Monument_of_General_De_Wet_in_a_rather_desert_landscape_at_National_Park_Hoge_Veluwe_-_panoramio.jpg/1280px-Monument_of_General_De_Wet_in_a_rather_desert_landscape_at_National_Park_Hoge_Veluwe_-_panoramio.jpg
+    photo_caption: Hoge Veluwe National Park — De Wet monument landscape
     route:
       - { name: Otterlo, type: overnight, lat: 52.0997, lon: 5.7739 }
       - { name: Kröller-Müller Museum, type: attraction, lat: 52.0942, lon: 5.8172 }
@@ -69,6 +85,8 @@ days:
 
   - day: 10
     title: Posbank → Sneek
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Paviljoen_De_Posbank_DSCF1368.JPG/1280px-Paviljoen_De_Posbank_DSCF1368.JPG
+    photo_caption: Paviljoen De Posbank, Veluwezoom
     route:
       - { name: Otterlo, type: overnight, lat: 52.0997, lon: 5.7739 }
       - { name: Posbank, type: viewpoint, lat: 52.0125, lon: 6.0106 }
@@ -76,6 +94,8 @@ days:
 
   - day: 11
     title: Southwest Friesland loop
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Schutsluis_in_Hindeloopen._30-03-2021._%28actm%29_01.jpg/1280px-Schutsluis_in_Hindeloopen._30-03-2021._%28actm%29_01.jpg
+    photo_caption: Lock (schutsluis) in Hindeloopen, Friesland
     route:
       - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
       - { name: Sloten, lat: 52.8969, lon: 5.6431 }
@@ -86,6 +106,8 @@ days:
 
   - day: 12
     title: Leeuwarden + Harlingen
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Leuchtturm_in_Harlingen_%282023%29.jpg/1280px-Leuchtturm_in_Harlingen_%282023%29.jpg
+    photo_caption: Harlingen lighthouse
     route:
       - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }
       - { name: Leeuwarden, lat: 53.2012, lon: 5.8086 }
@@ -94,6 +116,8 @@ days:
 
   - day: 13
     title: Sneek → Haarlem
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Monument_afsluitdijk_en_omgeving_28-06-2019._%28actm.%29_01.jpg/1280px-Monument_afsluitdijk_en_omgeving_28-06-2019._%28actm.%29_01.jpg
+    photo_caption: Afsluitdijk monument
     notes: Scenic transfer over the Afsluitdijk.
     route:
       - { name: Sneek, type: overnight, lat: 53.0328, lon: 5.6583 }

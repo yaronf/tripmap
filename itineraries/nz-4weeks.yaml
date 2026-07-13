@@ -14,12 +14,16 @@ days:
   - day: 1
     title: Arrive Auckland
     notes: Recover from flight.
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Auckland_skyline_from_harbour.png/1280px-Auckland_skyline_from_harbour.png
+    photo_caption: Auckland skyline from the harbour
     stops:
       - { name: Auckland, type: overnight, lat: -36.8485, lon: 174.7633 }
 
   - day: 2
     title: Explore Auckland
     notes: Devonport, waterfront, Wynyard Quarter.
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Auckland_skyline_from_harbour.png/1280px-Auckland_skyline_from_harbour.png
+    photo_caption: Auckland skyline from the harbour
     stops:
       - { name: Auckland, type: overnight, lat: -36.8485, lon: 174.7633 }
 
@@ -43,6 +47,8 @@ days:
     title: Tongariro Alpine Crossing
     hike: true
     notes: Weather backup day if necessary.
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Emerald_Lakes%2C_New_Zealand.jpg/1280px-Emerald_Lakes%2C_New_Zealand.jpg
+    photo_caption: Emerald Lakes on the Tongariro Alpine Crossing
     route:
       - { name: Mangatepopo Trailhead, type: trailhead, lat: -39.1445, lon: 175.5811 }
       - { name: Ketetahi Trailhead, type: trailhead, lat: -39.0737, lon: 175.6638 }
@@ -51,6 +57,8 @@ days:
 
   - day: 6
     title: Tongariro → Wellington
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Old_and_New_on_the_Wellington_Waterfront_%2826045169054%29.jpg/1280px-Old_and_New_on_the_Wellington_Waterfront_%2826045169054%29.jpg
+    photo_caption: Wellington waterfront — old and new
     route:
       - { name: Tongariro National Park, type: overnight, lat: -39.1887, lon: 175.5930 }
       - { name: Wellington, type: overnight, lat: -41.2866, lon: 174.7756 }
@@ -67,6 +75,8 @@ days:
   - day: 8
     title: Abel Tasman National Park
     hike: true
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Abel_Tasman_National_Park_beach_plant.jpg/1280px-Abel_Tasman_National_Park_beach_plant.jpg
+    photo_caption: Abel Tasman National Park coastline
     route:
       - { name: Nelson, type: overnight, lat: -41.2706, lon: 173.2840 }
       - { name: Marahau Trailhead, type: trailhead, lat: -40.9911, lon: 173.0081 }
@@ -74,6 +84,8 @@ days:
   - day: 9
     title: Nelson → Punakaiki
     notes: Murchison and Westport are drive-through towns.
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/PancakeRocks_MC.jpg/1280px-PancakeRocks_MC.jpg
+    photo_caption: Pancake Rocks at Punakaiki
     route:
       - { name: Nelson, type: overnight, lat: -41.2706, lon: 173.2840 }
       - { name: Murchison, type: via, lat: -41.8092, lon: 172.3330 }
@@ -94,6 +106,8 @@ days:
   - day: 11
     title: Franz Josef area
     hike: true
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Franz_Josef_Glacier_14.jpg/1280px-Franz_Josef_Glacier_14.jpg
+    photo_caption: Franz Josef Glacier
     route:
       - { name: Franz Josef, type: overnight, lat: -43.3881, lon: 170.1836 }
       - { name: Lake Matheson, type: viewpoint, lat: -43.4378, lon: 169.9630 }
@@ -110,6 +124,8 @@ days:
   - day: 13
     title: Wānaka
     hike: true
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Mount_Albert_Southern_Alps_NZ.jpg/1280px-Mount_Albert_Southern_Alps_NZ.jpg
+    photo_caption: Southern Alps near Wānaka
     route:
       - { name: Wanaka, type: overnight, lat: -44.6966, lon: 169.1362 }
       - { name: Roys Peak Trailhead, type: trailhead, lat: -44.6735, lon: 169.0718 }
@@ -158,6 +174,8 @@ days:
   - day: 20
     title: Milford Sound
     notes: Day trip up the Milford Road and back.
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/Milford_Sound_in_Fiordland_National_Park_01.jpg/1280px-Milford_Sound_in_Fiordland_National_Park_01.jpg
+    photo_caption: Milford Sound / Piopiotahi
     route:
       - { name: Te Anau, type: overnight, lat: -45.4145, lon: 167.7180 }
       - { name: Milford Sound, type: viewpoint, lat: -44.6682, lon: 167.9270 }
@@ -171,6 +189,8 @@ days:
 
   - day: 22
     title: Queenstown
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Queenstown_Bay_Lake_Wakatipu_04.jpg/1280px-Queenstown_Bay_Lake_Wakatipu_04.jpg
+    photo_caption: Queenstown Bay, Lake Wakatipu
     stops:
       - { name: Queenstown, type: overnight, lat: -45.0312, lon: 168.6626 }
 
@@ -188,12 +208,16 @@ days:
   - day: 25
     title: Mount Cook National Park
     hike: true
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Valley_of_Hooker_River_02.jpg/1280px-Valley_of_Hooker_River_02.jpg
+    photo_caption: Hooker Valley toward Aoraki / Mount Cook
     route:
       - { name: Mount Cook Village, type: overnight, lat: -43.7332, lon: 170.0937 }
       - { name: Hooker Valley Trailhead, type: trailhead, lat: -43.7184, lon: 170.0984 }
 
   - day: 26
     title: Mount Cook → Lake Tekapo
+    photo: https://upload.wikimedia.org/wikipedia/commons/7/75/Church_of_the_Good_Shepherd_%28Lake_Tekapo%29.jpg
+    photo_caption: Church of the Good Shepherd, Lake Tekapo
     route:
       - { name: Mount Cook Village, type: overnight, lat: -43.7332, lon: 170.0937 }
       - { name: Lake Tekapo, type: overnight, lat: -44.0047, lon: 170.4773 }
@@ -206,5 +230,7 @@ days:
 
   - day: 28
     title: Depart Christchurch
+    photo: https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Christchurch_Cathedral_Square.jpg/1280px-Christchurch_Cathedral_Square.jpg
+    photo_caption: Christchurch Cathedral Square
     stops:
       - { name: Christchurch, type: overnight, lat: -43.5321, lon: 172.6362 }

@@ -431,14 +431,19 @@ body {
 
 .lightbox img {
   max-width: min(100%, 960px);
-  max-height: 80vh;
+  max-height: calc(80vh - 3.5rem);
   object-fit: contain;
 }
 
-.lightbox-caption {
-  color: #eee;
+.lightbox-caption,
+#lightbox-caption {
+  color: #f3efe6;
   font-family: var(--serif);
-  margin: 0.75rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  text-align: center;
+  margin: 0.85rem 1rem 0;
+  max-width: min(100%, 40rem);
 }
 
 .lightbox-close {

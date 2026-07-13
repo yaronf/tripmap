@@ -1,3 +1,6 @@
 /tripmap
 /maps/*
 !/maps/.gitkeep
+/itineraries/photos/*
+!/itineraries/photos/README.md
+!/itineraries/photos/CREDITS.md

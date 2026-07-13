@@ -27,20 +27,23 @@ type Stop struct {
 	Type     string `yaml:"type,omitempty"`
 	Notes    string `yaml:"notes,omitempty"`
 	Photo    string `yaml:"photo,omitempty"`
+	// PhotoCaption is optional hover / lightbox text for Photo.
+	PhotoCaption string `yaml:"photo_caption,omitempty"`
 }
 
 // Day is one day of the trip. Route explicitly defines the line, while Stops
 // defines additional map placemarks. Hike days may combine OSRM driving
 // approaches with straight-line trail segments.
 type Day struct {
-	Day   int    `yaml:"day"`
-	Title string `yaml:"title"`
-	Route []Stop `yaml:"route,omitempty"`
-	Stops []Stop `yaml:"stops,omitempty"`
-	Notes string `yaml:"notes,omitempty"`
-	Photo string `yaml:"photo,omitempty"`
-	Hike  bool   `yaml:"hike,omitempty"`
-	Ferry bool   `yaml:"ferry,omitempty"`
+	Day          int    `yaml:"day"`
+	Title        string `yaml:"title"`
+	Route        []Stop `yaml:"route,omitempty"`
+	Stops        []Stop `yaml:"stops,omitempty"`
+	Notes        string `yaml:"notes,omitempty"`
+	Photo        string `yaml:"photo,omitempty"`
+	PhotoCaption string `yaml:"photo_caption,omitempty"`
+	Hike         bool   `yaml:"hike,omitempty"`
+	Ferry        bool   `yaml:"ferry,omitempty"`
 }
 
 type Trip struct {

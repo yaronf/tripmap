@@ -57,11 +57,15 @@ Desktop: day list | map | detail. Phone: List / Map toggle and a day picker.
 Optional local notes are stored in `localStorage` only. The service worker caches
 trip data and images after the first visit; basemap tiles still need the network.
 
-Optional photos on days or stops (paths relative to the YAML file):
+Optional photos on days or stops — local path (relative to the YAML) or HTTPS URL:
 
 ```yaml
-photo: photos/harbour.jpg
+photo: https://upload.wikimedia.org/wikipedia/commons/thumb/…/1280px-….jpg
+photo_caption: Amsterdam canals at blue hour   # hover + lightbox text
+# or: photo: photos/harbour.jpg
 ```
+
+Local files are copied into the bundle; URLs are kept as-is (network required on first view; images cache after load).
 
 See [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) for UI design and
 [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) for the longer roadmap.
@@ -134,8 +138,8 @@ type is `via`.
 | `ferry_terminal` | ferry   | ferry endpoint |
 | `airport`        | airport | airport (arrival, departure, car pickup) |
 
-Optional fields: `notes`, `photo` (day or stop) — photo paths are relative to the
-itinerary file and are copied into PWA bundles.
+Optional fields: `notes`, `photo` (day or stop) — `photo` may be an HTTPS URL
+or a path relative to the itinerary file (copied into PWA bundles).
 
 ### Day flags
 

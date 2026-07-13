@@ -22,26 +22,28 @@ type TripJSON struct {
 }
 
 type DayJSON struct {
-	Day       int        `json:"day"`
-	Title     string     `json:"title"`
-	Notes     string     `json:"notes,omitempty"`
-	Hike      bool       `json:"hike,omitempty"`
-	Ferry     bool       `json:"ferry,omitempty"`
-	Photo     string     `json:"photo,omitempty"`
-	Stops     []StopJSON `json:"stops"`
-	Geo       string     `json:"geo"`
-	Kind      string     `json:"kind"`                  // drive | hike | ferry | rest
-	DriveDist float64    `json:"drive_dist,omitempty"`  // in trip units (km or mi)
-	DriveMin  int        `json:"drive_min,omitempty"`   // OSRM estimate; omitted for straight
+	Day          int        `json:"day"`
+	Title        string     `json:"title"`
+	Notes        string     `json:"notes,omitempty"`
+	Hike         bool       `json:"hike,omitempty"`
+	Ferry        bool       `json:"ferry,omitempty"`
+	Photo        string     `json:"photo,omitempty"`
+	PhotoCaption string     `json:"photo_caption,omitempty"`
+	Stops        []StopJSON `json:"stops"`
+	Geo          string     `json:"geo"`
+	Kind         string     `json:"kind"`                 // drive | hike | ferry | rest
+	DriveDist    float64    `json:"drive_dist,omitempty"` // in trip units (km or mi)
+	DriveMin     int        `json:"drive_min,omitempty"`  // OSRM estimate; omitted for straight
 }
 
 type StopJSON struct {
-	Name  string  `json:"name"`
-	Type  string  `json:"type,omitempty"`
-	Lat   float64 `json:"lat"`
-	Lon   float64 `json:"lon"`
-	Notes string  `json:"notes,omitempty"`
-	Photo string  `json:"photo,omitempty"`
+	Name         string  `json:"name"`
+	Type         string  `json:"type,omitempty"`
+	Lat          float64 `json:"lat"`
+	Lon          float64 `json:"lon"`
+	Notes        string  `json:"notes,omitempty"`
+	Photo        string  `json:"photo,omitempty"`
+	PhotoCaption string  `json:"photo_caption,omitempty"`
 }
 
 type geoFeatureCollection struct {
@@ -135,14 +137,15 @@ func buildTripBundle(ctx context.Context, t Trip, inputPath, outDir string, opts
 func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts RouteOptions, photoMap map[string]string) (DayJSON, error) {
 	geoName := fmt.Sprintf("geo/day-%02d.json", d.Day)
 	dj := DayJSON{
-		Day:   d.Day,
-		Title: d.Title,
-		Notes: d.Notes,
-		Hike:  d.Hike,
-		Ferry: d.Ferry,
-		Kind:  dayKind(d),
-		Geo:   geoName,
-		Stops: []StopJSON{},
+		Day:          d.Day,
+		Title:        d.Title,
+		Notes:        d.Notes,
+		Hike:         d.Hike,
+		Ferry:        d.Ferry,
+		PhotoCaption: d.PhotoCaption,
+		Kind:         dayKind(d),
+		Geo:          geoName,
+		Stops:        []StopJSON{},
 	}
 
 	if d.Photo != "" {
@@ -163,7 +166,7 @@ func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts Ro
 			return nil
 		}
 		seen[key] = true
-		sj := StopJSON{Name: s.Name, Type: s.Type, Lat: s.Lat, Lon: s.Lon, Notes: s.Notes}
+		sj := StopJSON{Name: s.Name, Type: s.Type, Lat: s.Lat, Lon: s.Lon, Notes: s.Notes, PhotoCaption: s.PhotoCaption}
 		if s.Photo != "" {
 			rel, err := copyPhoto(s.Photo, inputDir, outDir, photoMap)
 			if err != nil {
@@ -269,16 +272,18 @@ func copyPhoto(src, inputDir, outDir string, photoMap map[string]string) (string
 	base := filepath.Base(src)
 	destRel := filepath.ToSlash(filepath.Join("images", base))
 	destAbs := filepath.Join(outDir, "images", base)
-	// Avoid collisions.
-	if _, err := os.Stat(destAbs); err == nil {
+	// If another source already claimed this basename in this build, uniquify.
+	if other, ok := photoMap[destAbs]; ok && other != abs {
 		ext := filepath.Ext(base)
 		stem := strings.TrimSuffix(base, ext)
 		for i := 2; ; i++ {
-			base = fmt.Sprintf("%s-%d%s", stem, i, ext)
-			destRel = filepath.ToSlash(filepath.Join("images", base))
-			destAbs = filepath.Join(outDir, "images", base)
-			if _, err := os.Stat(destAbs); os.IsNotExist(err) {
-				break
+			cand := fmt.Sprintf("%s-%d%s", stem, i, ext)
+			destRel = filepath.ToSlash(filepath.Join("images", cand))
+			destAbs = filepath.Join(outDir, "images", cand)
+			if _, taken := photoMap[destAbs]; !taken {
+				if _, err := os.Stat(destAbs); os.IsNotExist(err) {
+					break
+				}
 			}
 		}
 	}
@@ -286,6 +291,7 @@ func copyPhoto(src, inputDir, outDir string, photoMap map[string]string) (string
 		return "", err
 	}
 	photoMap[abs] = destRel
+	photoMap[destAbs] = abs // mark basename ownership for collision checks
 	return destRel, nil
 }
 
@@ -367,8 +373,21 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) {
+    const isImage =
+      e.request.destination === "image" ||
+      /\.(jpe?g|png|gif|webp|svg)(\?|$)/i.test(url.pathname);
     e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
+      (isImage ? caches.match(e.request) : Promise.resolve(undefined)).then((cached) => {
+        if (cached) return cached;
+        return fetch(e.request).then((res) => {
+          // Opaque responses (typical for <img> hotlinks) are cacheable; status is 0.
+          if (isImage && res && (res.ok || res.type === "opaque")) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+          }
+          return res;
+        });
+      }).catch(() => (isImage ? caches.match(e.request) : Promise.reject()))
     );
     return;
   }
@@ -380,6 +399,6 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v12", string(list))
+`, "tripmap-"+tj.ID+"-v19", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
