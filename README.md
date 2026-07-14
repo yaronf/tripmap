@@ -75,26 +75,22 @@ See [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) for UI design a
 Pushing to `main` (or running **Deploy Pages** manually) builds every
 `itineraries/*.yaml` and publishes:
 
-| Trip | Default URL |
-|------|-------------|
-| Index | https://yaronf.github.io/tripmap/ |
-| Holland | https://yaronf.github.io/tripmap/trips/holland/ |
-| NZ | https://yaronf.github.io/tripmap/trips/nz-4weeks/ |
+| Trip | URL |
+|------|-----|
+| Index | https://www.sheffer.org/tripmap/ |
+| Holland | https://www.sheffer.org/tripmap/trips/holland/ |
+| NZ | https://www.sheffer.org/tripmap/trips/nz-4weeks/ |
 
-**One-time repo setup:** Settings → Pages → **Source: GitHub Actions**.
+(Also reachable as `https://yaronf.github.io/tripmap/…`.)
 
-**Custom domain** (e.g. `www.sheffer.org`):
+**One-time repo setup:** Settings → Pages → **Source: GitHub Actions** (already
+enabled for this repo).
 
-1. Create a repo-root file `CNAME` containing only the hostname:
-   ```
-   www.sheffer.org
-   ```
-2. DNS: CNAME `www` → `yaronf.github.io` (or apex A/ALIAS records per GitHub’s docs).
-3. Settings → Pages → Custom domain → same hostname; enable HTTPS once DNS propagates.
-
-With a custom domain, paths become `https://www.sheffer.org/trips/holland/` (no
-`/tripmap` prefix). If `www.sheffer.org` already hosts something else, use a
-subdomain such as `trips.sheffer.org` instead.
+**Custom domain notes:** this site is served under `/tripmap/` on
+`www.sheffer.org`. If you later put a one-line hostname in a repo-root `CNAME`
+file, the workflow copies it into the published site — only do that if that
+hostname should map cleanly to this Pages deployment (and will not fight another
+app on the same host).
 
 ### Google Earth / My Maps
 
