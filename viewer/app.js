@@ -98,11 +98,31 @@
     state.map.setView([52.1, 5.1], 7);
   }
 
+  function formatDayDate(iso, opts = {}) {
+    if (!iso) return "";
+    const d = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, {
+      weekday: opts.weekday ? "short" : undefined,
+      day: "numeric",
+      month: "short",
+    });
+  }
+
+  function dayNumLabel(d) {
+    const n = `Day ${String(d.day).padStart(2, "0")}`;
+    const date = formatDayDate(d.date);
+    return date ? `${n} · ${date}` : n;
+  }
+
   function renderDayIndex(container, filter = "") {
     const q = filter.trim().toLowerCase();
     container.innerHTML = "";
     state.trip.days.forEach((d, i) => {
-      const hay = `${d.day} ${d.title} ${(d.stops || []).map((s) => s.name).join(" ")}`.toLowerCase();
+      const dateLabel = formatDayDate(d.date);
+      const hay = `${d.day} ${d.date || ""} ${dateLabel} ${d.title} ${(d.stops || [])
+        .map((s) => s.name)
+        .join(" ")}`.toLowerCase();
       if (q && !hay.includes(q)) return;
       const btn = document.createElement("button");
       btn.type = "button";
@@ -111,7 +131,7 @@
       const stats = formatDriveStats(d);
       const sub = stats ? `${kindLabel(d.kind)} · ${stats}` : kindLabel(d.kind);
       btn.innerHTML = `
-        <span class="day-row-num">Day ${String(d.day).padStart(2, "0")}</span>
+        <span class="day-row-num">${escapeHtml(dayNumLabel(d))}</span>
         <span class="day-row-title" title="${escapeAttr(d.title)}">${escapeHtml(d.title)}</span>
         <span class="day-row-sub">${escapeHtml(sub)}</span>`;
       btn.addEventListener("click", () => selectDay(i, true));
@@ -170,9 +190,11 @@
     const nextDisabled = i >= n - 1 ? "disabled" : "";
     const prevTitle = i > 0 ? escapeAttr(state.trip.days[i - 1].title) : "";
     const nextTitle = i < n - 1 ? escapeAttr(state.trip.days[i + 1].title) : "";
+    const dateLabel = formatDayDate(d.date, { weekday: true });
+    const micro = dateLabel ? `Day ${d.day} · ${dateLabel}` : `Day ${d.day}`;
 
     el.detail.innerHTML = `
-      <p class="detail-micro">Day ${d.day}</p>
+      <p class="detail-micro">${escapeHtml(micro)}</p>
       <h2>${escapeHtml(d.title)}</h2>
       <div>${flags.join("")}</div>
       ${driveStats ? `<p class="detail-stats">${escapeHtml(driveStats)}</p>` : ""}
@@ -350,7 +372,10 @@
     state.dayIndex = index;
     const d = state.trip.days[index];
     document.title = `${d.title} · ${state.trip.title}`;
-    el.meta.textContent = `Day ${d.day} of ${state.trip.days.length}`;
+    const dateLabel = formatDayDate(d.date);
+    el.meta.textContent = dateLabel
+      ? `Day ${d.day} of ${state.trip.days.length} · ${dateLabel}`
+      : `Day ${d.day} of ${state.trip.days.length}`;
     renderDayIndex(el.dayIndex);
     renderDayIndex(el.pickerList, el.daySearch.value);
     renderDetail(d);

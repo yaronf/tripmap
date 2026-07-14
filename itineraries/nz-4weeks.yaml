@@ -1,5 +1,6 @@
 trip: New Zealand 2026
 description: Four-week road trip starting 22 Nov 2026
+start: 2026-11-22
 
 # Schema notes:
 #   route:  ordered points that shape the day's line (use `type: via` for

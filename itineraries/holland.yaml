@@ -1,5 +1,6 @@
 trip: Netherlands 2026
 description: Two-week road trip, 22 Jun – 5 Jul 2026 (13 nights)
+start: 2026-06-22
 
 # City-level itinerary only (no in-city stops). Overnight bases use type
 # overnight; day-trip towns are plain route points; Schiphol uses type airport.

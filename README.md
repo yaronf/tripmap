@@ -123,8 +123,10 @@ reliably; use Google Earth if routes are missing. For My Maps, generate with
 ```yaml
 trip: New Zealand 2026
 description: Four-week road trip starting 22 Nov 2026
+start: 2026-11-22   # optional; fills day dates as start + (day − 1)
 days:
   - day: 9
+    # date: 2026-11-30   # optional override (YYYY-MM-DD)
     title: Nelson → Punakaiki
     notes: Murchison and Westport are drive-through towns.
     route:            # ordered points that shape the day's line
@@ -137,7 +139,9 @@ days:
 ```
 
 `route:` and `stops:` are intentionally separate. A day without `route:` has
-placemarks only and no route line.
+placemarks only and no route line. Calendar dates are optional: omit `start`
+and `date` for day-number-only trips; when present, the PWA day index and
+detail view show them.
 
 See `itineraries/nz-4weeks.yaml` for a full 28-day example with driving days, hikes,
 a ferry crossing, and side-trip attractions.

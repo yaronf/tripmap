@@ -36,6 +36,7 @@ type Stop struct {
 // approaches with straight-line trail segments.
 type Day struct {
 	Day          int    `yaml:"day"`
+	Date         string `yaml:"date,omitempty"` // YYYY-MM-DD; optional, or derived from trip.start
 	Title        string `yaml:"title"`
 	Route        []Stop `yaml:"route,omitempty"`
 	Stops        []Stop `yaml:"stops,omitempty"`
@@ -49,7 +50,10 @@ type Day struct {
 type Trip struct {
 	Trip        string `yaml:"trip"`
 	Description string `yaml:"description,omitempty"`
-	Days        []Day  `yaml:"days"`
+	// Start is an optional trip start date (YYYY-MM-DD). When set, days
+	// without an explicit date get start + (day number − 1).
+	Start string `yaml:"start,omitempty"`
+	Days  []Day  `yaml:"days"`
 }
 
 // RouteOptions controls road routing and KML coordinate detail.
@@ -320,7 +324,7 @@ func buildDocument(ctx context.Context, t Trip, opts RouteOptions) (Document, er
 }
 
 func buildFolder(ctx context.Context, d Day, opts RouteOptions, seen map[string]bool) (Folder, error) {
-	f := Folder{Name: fmt.Sprintf("Day %d - %s", d.Day, d.Title), Description: d.Notes}
+	f := Folder{Name: dayFolderName(d), Description: d.Notes}
 
 	for _, s := range mapPoints(d) {
 		key := stopKey(s)

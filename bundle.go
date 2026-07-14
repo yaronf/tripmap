@@ -23,6 +23,7 @@ type TripJSON struct {
 
 type DayJSON struct {
 	Day          int        `json:"day"`
+	Date         string     `json:"date,omitempty"` // YYYY-MM-DD when known
 	Title        string     `json:"title"`
 	Notes        string     `json:"notes,omitempty"`
 	Hike         bool       `json:"hike,omitempty"`
@@ -138,6 +139,7 @@ func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts Ro
 	geoName := fmt.Sprintf("geo/day-%02d.json", d.Day)
 	dj := DayJSON{
 		Day:          d.Day,
+		Date:         d.Date,
 		Title:        d.Title,
 		Notes:        d.Notes,
 		Hike:         d.Hike,
@@ -399,6 +401,6 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v19", string(list))
+`, "tripmap-"+tj.ID+"-v20", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }

@@ -22,7 +22,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [ ] First-class overnight block (place, nights, notes)
 - [ ] Booking metadata on stops (required, opens, status) in KML descriptions
 - [ ] Weather backup hints on hike days (`swap_with`) in descriptions
-- [ ] Trip dates in YAML (`start`, `end`) for export and descriptions
+- [x] Trip dates in YAML (`start` + optional per-day `date`) for viewer and KML
 
 ### Routing
 - [ ] GraphHopper backend

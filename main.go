@@ -73,6 +73,9 @@ func run(args []string) error {
 	if err := yaml.Unmarshal(b, &t); err != nil {
 		return fmt.Errorf("parse yaml: %w", err)
 	}
+	if err := resolveDayDates(&t); err != nil {
+		return err
+	}
 
 	ctx := context.Background()
 
