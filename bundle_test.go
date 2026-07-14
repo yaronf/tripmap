@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -70,6 +71,20 @@ func TestBuildTripBundleStraight(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
 			t.Fatalf("missing %s: %v", name, err)
 		}
+	}
+
+	indexHTML, err := os.ReadFile(filepath.Join(out, "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(indexHTML), "Test Trip Itinerary") {
+		t.Fatalf("index.html title missing trip name:\n%s", indexHTML)
+	}
+	if !strings.Contains(string(indexHTML), `property="og:title"`) {
+		t.Fatalf("index.html missing og:title")
+	}
+	if strings.Contains(string(indexHTML), "<title>Trip</title>") {
+		t.Fatalf("index.html still has placeholder title")
 	}
 
 	geoB, err := os.ReadFile(filepath.Join(out, "geo/day-01.json"))

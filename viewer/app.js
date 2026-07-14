@@ -98,19 +98,19 @@
     state.map.setView([52.1, 5.1], 7);
   }
 
-  function formatDayDate(iso, opts = {}) {
+  function formatDayDate(iso) {
     if (!iso) return "";
     const d = new Date(`${iso}T12:00:00`);
     if (Number.isNaN(d.getTime())) return iso;
     return d.toLocaleDateString(undefined, {
-      weekday: opts.weekday ? "short" : undefined,
+      weekday: "short",
       day: "numeric",
       month: "short",
     });
   }
 
   function dayNumLabel(d) {
-    const n = `Day ${String(d.day).padStart(2, "0")}`;
+    const n = `Day ${d.day}`;
     const date = formatDayDate(d.date);
     return date ? `${n} · ${date}` : n;
   }
@@ -190,7 +190,7 @@
     const nextDisabled = i >= n - 1 ? "disabled" : "";
     const prevTitle = i > 0 ? escapeAttr(state.trip.days[i - 1].title) : "";
     const nextTitle = i < n - 1 ? escapeAttr(state.trip.days[i + 1].title) : "";
-    const dateLabel = formatDayDate(d.date, { weekday: true });
+    const dateLabel = formatDayDate(d.date);
     const micro = dateLabel ? `Day ${d.day} · ${dateLabel}` : `Day ${d.day}`;
 
     el.detail.innerHTML = `
@@ -420,6 +420,42 @@
     if (online) el.tileBanner.hidden = true;
   }
 
+  function todayISO() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  /** Prefer ?day=N (YAML day number), else today's date when dated, else day 1. */
+  function initialDayIndex() {
+    const params = new URLSearchParams(location.search);
+    if (params.has("day")) {
+      const n = Number(params.get("day"));
+      const byNum = state.trip.days.findIndex((d) => d.day === n);
+      if (byNum >= 0) return byNum;
+    }
+
+    const days = state.trip.days;
+    const dated = days.map((d, i) => (d.date ? { i, date: d.date } : null)).filter(Boolean);
+    if (!dated.length) return 0;
+
+    const today = todayISO();
+    const exact = dated.find((d) => d.date === today);
+    if (exact) return exact.i;
+    // Outside the trip window → day 1
+    if (today < dated[0].date || today > dated[dated.length - 1].date) {
+      return 0;
+    }
+
+    let best = dated[0].i;
+    for (const d of dated) {
+      if (d.date <= today) best = d.i;
+    }
+    return best;
+  }
+
   async function boot() {
     initMap();
     setMode(window.matchMedia("(max-width: 899px)").matches ? "list" : "list");
@@ -433,12 +469,15 @@
     }
     state.trip = await res.json();
     el.title.textContent = state.trip.title;
-    document.title = state.trip.title;
+    const pageTitle = /itinerary/i.test(state.trip.title)
+      ? state.trip.title
+      : `${state.trip.title} Itinerary`;
+    document.title = pageTitle;
 
     el.modeToggle.hidden = false;
     el.btnDays.hidden = false;
 
-    await selectDay(0, false);
+    await selectDay(initialDayIndex(), false);
     updateOnline();
   }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"math"
@@ -116,6 +117,9 @@ func buildTripBundle(ctx context.Context, t Trip, inputPath, outDir string, opts
 
 	if err := copyViewerAssets(outDir); err != nil {
 		return fmt.Errorf("copy viewer: %w", err)
+	}
+	if err := writeViewerIndex(outDir, t); err != nil {
+		return fmt.Errorf("viewer index: %w", err)
 	}
 
 	manifest := fmt.Sprintf(`{
@@ -401,6 +405,43 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v20", string(list))
+`, "tripmap-"+tj.ID+"-v22", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
+}
+
+// writeViewerIndex sets a static document title and Open Graph tags so link
+// previews (WhatsApp, Slack, iMessage, …) show the trip name without running JS.
+func writeViewerIndex(outDir string, t Trip) error {
+	path := filepath.Join(outDir, "index.html")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	pageTitle := t.Trip
+	if pageTitle == "" {
+		pageTitle = "Trip"
+	} else if !strings.Contains(strings.ToLower(pageTitle), "itinerary") {
+		pageTitle = pageTitle + " Itinerary"
+	}
+	desc := strings.TrimSpace(t.Description)
+	if desc == "" {
+		desc = pageTitle
+	}
+
+	meta := fmt.Sprintf(`<title>%s</title>
+  <meta name="description" content="%s" />
+  <meta property="og:title" content="%s" />
+  <meta property="og:description" content="%s" />
+  <meta property="og:type" content="website" />`,
+		html.EscapeString(pageTitle),
+		html.EscapeString(desc),
+		html.EscapeString(pageTitle),
+		html.EscapeString(desc),
+	)
+
+	out := strings.Replace(string(b), "<title>Trip</title>", meta, 1)
+	if out == string(b) {
+		return fmt.Errorf("viewer index.html missing <title>Trip</title> placeholder")
+	}
+	return os.WriteFile(path, []byte(out), 0644)
 }
