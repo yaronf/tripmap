@@ -70,6 +70,32 @@ Local files are copied into the bundle; URLs are kept as-is (network required on
 See [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) for UI design and
 [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) for the longer roadmap.
 
+### Public site (GitHub Pages)
+
+Pushing to `main` (or running **Deploy Pages** manually) builds every
+`itineraries/*.yaml` and publishes:
+
+| Trip | Default URL |
+|------|-------------|
+| Index | https://yaronf.github.io/tripmap/ |
+| Holland | https://yaronf.github.io/tripmap/trips/holland/ |
+| NZ | https://yaronf.github.io/tripmap/trips/nz-4weeks/ |
+
+**One-time repo setup:** Settings → Pages → **Source: GitHub Actions**.
+
+**Custom domain** (e.g. `www.sheffer.org`):
+
+1. Create a repo-root file `CNAME` containing only the hostname:
+   ```
+   www.sheffer.org
+   ```
+2. DNS: CNAME `www` → `yaronf.github.io` (or apex A/ALIAS records per GitHub’s docs).
+3. Settings → Pages → Custom domain → same hostname; enable HTTPS once DNS propagates.
+
+With a custom domain, paths become `https://www.sheffer.org/trips/holland/` (no
+`/tripmap` prefix). If `www.sheffer.org` already hosts something else, use a
+subdomain such as `trips.sheffer.org` instead.
+
 ### Google Earth / My Maps
 
 **Google Earth Pro** (desktop) is the best KML viewer. On Windows with WSL, open the

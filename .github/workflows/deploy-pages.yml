@@ -1,0 +1,205 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "itineraries/**"
+      - "viewer/**"
+      - "*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/deploy-pages.yml"
+      - "CNAME"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      - name: Bundle itineraries
+        run: |
+          set -euo pipefail
+          mkdir -p _site/trips
+          for f in itineraries/*.yaml; do
+            id=$(basename "$f" .yaml)
+            echo "::group::Bundle $id"
+            go run . --input "$f" --bundle "_site/trips/$id/" --route osrm --mymaps --units km
+            echo "::endgroup::"
+          done
+
+      - name: Write trip index
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, pathlib, html
+
+          root = pathlib.Path("_site")
+          trips = []
+          for trip_json in sorted((root / "trips").glob("*/trip.json")):
+              data = json.loads(trip_json.read_text())
+              trips.append({
+                  "id": trip_json.parent.name,
+                  "title": data.get("title") or trip_json.parent.name,
+                  "description": data.get("description") or "",
+                  "days": len(data.get("days") or []),
+              })
+
+          cards = []
+          for t in trips:
+              desc = html.escape(t["description"])
+              title = html.escape(t["title"])
+              href = html.escape(f"trips/{t['id']}/")
+              meta = f'{t["days"]} days' if t["days"] else ""
+              cards.append(
+                  f'<li><a href="{href}"><span class="title">{title}</span>'
+                  f'<span class="meta">{html.escape(meta)}</span>'
+                  f'<span class="desc">{desc}</span></a></li>'
+              )
+
+          page = f"""<!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>tripmap</title>
+            <style>
+              :root {{
+                --ink: #1a1f1c;
+                --paper: #f3efe6;
+                --muted: #5c635c;
+                --accent: #0f5c5c;
+                --rule: rgba(26, 31, 28, 0.12);
+                --serif: "Source Serif 4", "Noto Serif", Georgia, serif;
+                --sans: "Source Sans 3", "Noto Sans", system-ui, sans-serif;
+              }}
+              body {{
+                margin: 0;
+                font-family: var(--sans);
+                color: var(--ink);
+                background:
+                  radial-gradient(900px 500px at 10% -10%, rgba(15, 92, 92, 0.08), transparent 55%),
+                  var(--paper);
+                min-height: 100vh;
+              }}
+              main {{
+                max-width: 40rem;
+                margin: 0 auto;
+                padding: 2.5rem 1.25rem 3rem;
+              }}
+              h1 {{
+                font-family: var(--serif);
+                font-size: clamp(2rem, 5vw, 2.6rem);
+                margin: 0 0 0.35rem;
+              }}
+              .lede {{
+                color: var(--muted);
+                margin: 0 0 2rem;
+                line-height: 1.5;
+              }}
+              ul {{
+                list-style: none;
+                margin: 0;
+                padding: 0;
+              }}
+              li + li {{
+                margin-top: 0.85rem;
+              }}
+              a {{
+                display: block;
+                text-decoration: none;
+                color: inherit;
+                padding: 1rem 1.1rem;
+                border: 1px solid var(--rule);
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.45);
+              }}
+              a:hover {{
+                border-color: var(--accent);
+              }}
+              .title {{
+                display: block;
+                font-family: var(--serif);
+                font-size: 1.35rem;
+                font-weight: 600;
+                color: var(--accent);
+              }}
+              .meta {{
+                display: block;
+                margin-top: 0.2rem;
+                font-size: 0.8rem;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+              }}
+              .desc {{
+                display: block;
+                margin-top: 0.45rem;
+                color: var(--muted);
+                line-height: 1.45;
+              }}
+            </style>
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+            <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet" />
+          </head>
+          <body>
+            <main>
+              <h1>tripmap</h1>
+              <p class="lede">Road-trip itineraries — open a trip to browse by day.</p>
+              <ul>
+                {''.join(cards)}
+              </ul>
+            </main>
+          </body>
+          </html>
+          """
+          (root / "index.html").write_text(page, encoding="utf-8")
+          print(f"Wrote index with {len(trips)} trips")
+          PY
+          touch _site/.nojekyll
+          # Optional custom domain: put a one-line hostname in repo-root CNAME
+          # (e.g. www.sheffer.org). Comments-only files are ignored.
+          if [ -f CNAME ]; then
+            host=$(grep -E '^[A-Za-z0-9.-]+$' CNAME | head -1 || true)
+            if [ -n "$host" ]; then
+              printf '%s\n' "$host" > _site/CNAME
+              echo "Included CNAME: $host"
+            fi
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

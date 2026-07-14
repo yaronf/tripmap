@@ -10,7 +10,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [x] Phase 2: `viewer/` SPA (day index, map, detail)
 - [x] Phase 3: Photo field in YAML + bundle + lightbox
 - [x] Phase 4: PWA service worker (offline data + images)
-- [ ] Phase 5: GitHub Actions → GitHub Pages
+- [x] Phase 5: GitHub Actions → GitHub Pages
 - [ ] Phase 6: REST API (`cmd/tripmapd/`) + OpenAPI + PATCH → git
 - [ ] Phase 7: Custom GPT Action
 - [ ] Phase 8: Cursor skill (optional local alternative)
