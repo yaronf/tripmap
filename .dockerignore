@@ -1,0 +1,5 @@
+# Ignore build context noise for Docker.
+.git
+maps/
+*.md
+docs/
