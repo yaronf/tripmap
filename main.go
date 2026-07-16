@@ -5,8 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/yaronf/tripmap/internal/bundle"
+	"github.com/yaronf/tripmap/internal/itinerary"
+	"github.com/yaronf/tripmap/internal/routebuild"
 )
 
 func main() {
@@ -20,7 +24,7 @@ func run(args []string) error {
 	fs := flag.NewFlagSet("tripmap", flag.ContinueOnError)
 	in := fs.String("input", "itineraries/holland.yaml", "input YAML itinerary")
 	out := fs.String("output", "maps/holland.kml", "output KML file")
-	bundle := fs.String("bundle", "", "write PWA bundle directory (trip.json, geo/, viewer)")
+	bundleDir := fs.String("bundle", "", "write PWA bundle directory (trip.json, geo/, viewer)")
 	routeMode := fs.String("route", "straight", "route mode: straight or osrm")
 	simplify := fs.Float64("simplify", 0, "simplify OSRM route geometry (meters); 0 keeps full detail")
 	precision := fs.Int("precision", 0, "decimal places for coordinates (default 6, or 5 with -mymaps)")
@@ -43,7 +47,7 @@ func run(args []string) error {
 		return fmt.Errorf("invalid -units %q (use km or mi)", *units)
 	}
 
-	opts := RouteOptions{Mode: *routeMode, SimplifyMeters: *simplify, CoordPrecision: *precision, Units: *units}
+	opts := routebuild.RouteOptions{Mode: *routeMode, SimplifyMeters: *simplify, CoordPrecision: *precision, Units: *units}
 	if *mymaps {
 		if opts.SimplifyMeters == 0 {
 			opts.SimplifyMeters = 100
@@ -56,8 +60,7 @@ func run(args []string) error {
 	if opts.CoordPrecision == 0 {
 		opts.CoordPrecision = 6
 	}
-	// PWA bundles default to simplified geometry when routing via OSRM.
-	if *bundle != "" && opts.Mode == "osrm" && opts.SimplifyMeters == 0 && !*mymaps {
+	if *bundleDir != "" && opts.Mode == "osrm" && opts.SimplifyMeters == 0 && !*mymaps {
 		opts.SimplifyMeters = 100
 		if opts.CoordPrecision > 5 {
 			opts.CoordPrecision = 5
@@ -69,23 +72,24 @@ func run(args []string) error {
 		return fmt.Errorf("read input: %w", err)
 	}
 
-	var t Trip
-	if err := yaml.Unmarshal(b, &t); err != nil {
-		return fmt.Errorf("parse yaml: %w", err)
+	t, err := itinerary.ParseYAML(b)
+	if err != nil {
+		return err
 	}
-	if err := resolveDayDates(&t); err != nil {
+	if err := itinerary.ResolveDayDates(&t); err != nil {
 		return err
 	}
 
 	ctx := context.Background()
 
-	if *bundle != "" {
-		if err := buildTripBundle(ctx, t, *in, *bundle, opts); err != nil {
+	if *bundleDir != "" {
+		id := strings.TrimSuffix(filepath.Base(*in), filepath.Ext(*in))
+		if err := bundle.Build(ctx, t, id, filepath.Dir(*in), *bundleDir, opts); err != nil {
 			return fmt.Errorf("bundle: %w", err)
 		}
 	}
 
-	if *bundle != "" && !outputSet {
+	if *bundleDir != "" && !outputSet {
 		return nil
 	}
 

@@ -6,64 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yaronf/tripmap/routing"
+	"github.com/yaronf/tripmap/internal/itinerary"
+	"github.com/yaronf/tripmap/internal/routebuild"
 )
 
-// Stop is a single point in a day. Type controls whether it appears on the map,
-// on the route line, or both:
-//
-//	""              generic waypoint: map placemark + route point (default)
-//	overnight       lodging: map placemark + route endpoint
-//	hut             backcountry hut: map placemark + hike route point
-//	via             route-shaping only: on the line, no placemark
-//	attraction      map placemark only, not on the route
-//	viewpoint       map placemark only, not on the route
-//	trailhead       trail car park: map placemark + route point
-//	ferry_terminal  map placemark + route point (draw with ferry styling)
-//	airport         airport: map placemark + route point
-type Stop struct {
-	Name     string `yaml:"name"`
-	Lat, Lon float64
-	Type     string `yaml:"type,omitempty"`
-	Notes    string `yaml:"notes,omitempty"`
-	Photo    string `yaml:"photo,omitempty"`
-	// PhotoCaption is optional hover / lightbox text for Photo.
-	PhotoCaption string `yaml:"photo_caption,omitempty"`
-}
-
-// Day is one day of the trip. Route explicitly defines the line, while Stops
-// defines additional map placemarks. Hike days may combine OSRM driving
-// approaches with straight-line trail segments.
-type Day struct {
-	Day          int    `yaml:"day"`
-	Date         string `yaml:"date,omitempty"` // YYYY-MM-DD; optional, or derived from trip.start
-	Title        string `yaml:"title"`
-	Route        []Stop `yaml:"route,omitempty"`
-	Stops        []Stop `yaml:"stops,omitempty"`
-	Notes        string `yaml:"notes,omitempty"`
-	Photo        string `yaml:"photo,omitempty"`
-	PhotoCaption string `yaml:"photo_caption,omitempty"`
-	Hike         bool   `yaml:"hike,omitempty"`
-	Ferry        bool   `yaml:"ferry,omitempty"`
-}
-
-type Trip struct {
-	Trip        string `yaml:"trip"`
-	Description string `yaml:"description,omitempty"`
-	// Start is an optional trip start date (YYYY-MM-DD). When set, days
-	// without an explicit date get start + (day number − 1).
-	Start string `yaml:"start,omitempty"`
-	Days  []Day  `yaml:"days"`
-}
-
-// RouteOptions controls road routing and KML coordinate detail.
-type RouteOptions struct {
-	Mode           string
-	SimplifyMeters float64
-	CoordPrecision int
-	Flatten        bool   // flat placemarks for Google My Maps (no Folders)
-	Units          string // km (default) or mi — distance display for PWA bundles
-}
+type Stop = itinerary.Stop
+type Day = itinerary.Day
+type Trip = itinerary.Trip
+type RouteOptions = routebuild.RouteOptions
 
 type KML struct {
 	XMLName xml.Name `xml:"kml"`
@@ -156,154 +106,22 @@ func styleForType(t string) string {
 	return ""
 }
 
-func stopKey(s Stop) string {
-	return fmt.Sprintf("%.6f|%.6f", s.Lat, s.Lon)
-}
 
-func sameStop(a, b Stop) bool {
-	return stopKey(a) == stopKey(b)
-}
+func stopKey(s Stop) string { return routebuild.StopKey(s) }
+func mapPoints(d Day) []Stop { return routebuild.MapPoints(d) }
+func viewerDayStops(d Day) []Stop { return routebuild.ViewerDayStops(d) }
+func effectiveRoutePoints(d Day) []Stop { return routebuild.EffectiveRoutePoints(d) }
 
-// mapPoints returns placemark candidates for a day from Stops and Route,
-// excluding via points and de-duplicating by location within the day.
-func mapPoints(d Day) []Stop {
-	var pts []Stop
-	seen := map[string]bool{}
-	add := func(s Stop) {
-		if s.Type == "via" {
-			return
-		}
-		key := stopKey(s)
-		if seen[key] {
-			return
-		}
-		seen[key] = true
-		pts = append(pts, s)
+func buildRouteLines(ctx context.Context, d Day, pts []Stop, opts RouteOptions) ([]Placemark, error) {
+	segs, err := routebuild.BuildRouteSegments(ctx, d, pts, opts)
+	if err != nil {
+		return nil, err
 	}
-	for _, s := range d.Stops {
-		add(s)
+	lines := make([]Placemark, len(segs))
+	for i, s := range segs {
+		lines[i] = routeLinePlacemark(s.Name, routebuild.GeometryToKMLCoords(s.Geometry, opts.CoordPrecision), "#"+s.Style)
 	}
-	for _, s := range d.Route {
-		add(s)
-	}
-	return pts
-}
-
-// viewerDayStops builds the PWA stop list in day order. The morning lodging
-// on a travel day is labeled "depart" (where you wake up), not "overnight"
-// (where you sleep). Co-located attraction + overnight are both kept.
-func viewerDayStops(d Day) []Stop {
-	var out []Stop
-	seen := map[string]bool{}
-	add := func(s Stop) {
-		if s.Type == "via" {
-			return
-		}
-		key := s.Name + "|" + s.Type + "|" + stopKey(s)
-		if seen[key] {
-			return
-		}
-		seen[key] = true
-		out = append(out, s)
-	}
-
-	route := d.Route
-	if d.Hike {
-		route = effectiveRoutePoints(d)
-	}
-
-	if len(route) >= 2 {
-		start, end := route[0], route[len(route)-1]
-		startOut := start
-		if start.Type == "overnight" && dayHasLaterOvernight(d, start) {
-			startOut.Type = "depart"
-		}
-		add(startOut)
-		for i := 1; i < len(route)-1; i++ {
-			add(route[i])
-		}
-		for _, s := range d.Stops {
-			add(s)
-		}
-		add(end)
-		return out
-	}
-
-	for _, s := range d.Stops {
-		add(s)
-	}
-	for _, s := range d.Route {
-		add(s)
-	}
-	return out
-}
-
-func dayHasLaterOvernight(d Day, start Stop) bool {
-	for i, s := range d.Route {
-		if i == 0 {
-			continue
-		}
-		if s.Type == "overnight" && !sameStop(s, start) {
-			return true
-		}
-	}
-	for _, s := range d.Stops {
-		if s.Type == "overnight" && !sameStop(s, start) {
-			return true
-		}
-	}
-	return false
-}
-
-// effectiveRoutePoints builds the ordered list of points used to draw lines.
-// On hike days, prepends lodging from stops when the route does not already
-// start there, and falls back to stops when no route is defined.
-func effectiveRoutePoints(d Day) []Stop {
-	pts := append([]Stop{}, d.Route...)
-	if len(pts) == 0 && d.Hike {
-		for _, s := range d.Stops {
-			if s.Type != "attraction" {
-				pts = append(pts, s)
-			}
-		}
-	}
-	if !d.Hike || len(pts) == 0 {
-		return pts
-	}
-	for _, s := range d.Stops {
-		if s.Type == "overnight" && !sameStop(s, pts[0]) {
-			return append([]Stop{s}, pts...)
-		}
-	}
-	return pts
-}
-
-func isTrailPoint(t string) bool {
-	switch t {
-	case "trailhead", "hut", "viewpoint", "attraction":
-		return true
-	default:
-		return false
-	}
-}
-
-func isDrivingPoint(t string) bool {
-	switch t {
-	case "overnight", "ferry_terminal", "airport", "via", "":
-		return true
-	default:
-		return false
-	}
-}
-
-// isDrivingSegment reports whether a pair should use road routing on hike days.
-func isDrivingSegment(a, b Stop) bool {
-	return (isDrivingPoint(a.Type) && isTrailPoint(b.Type)) ||
-		(isTrailPoint(a.Type) && isDrivingPoint(b.Type))
-}
-
-func isFerrySegment(a, b Stop) bool {
-	return a.Type == "ferry_terminal" && b.Type == "ferry_terminal"
+	return lines, nil
 }
 
 func buildDocument(ctx context.Context, t Trip, opts RouteOptions) (Document, error) {
@@ -324,7 +142,7 @@ func buildDocument(ctx context.Context, t Trip, opts RouteOptions) (Document, er
 }
 
 func buildFolder(ctx context.Context, d Day, opts RouteOptions, seen map[string]bool) (Folder, error) {
-	f := Folder{Name: dayFolderName(d), Description: d.Notes}
+	f := Folder{Name: itinerary.DayFolderName(d), Description: d.Notes}
 
 	for _, s := range mapPoints(d) {
 		key := stopKey(s)
@@ -354,82 +172,6 @@ func buildFolder(ctx context.Context, d Day, opts RouteOptions, seen map[string]
 	}
 	f.Placemarks = append(f.Placemarks, lines...)
 	return f, nil
-}
-
-// routeSegment is one styled polyline (drive, hike, or ferry).
-type routeSegment struct {
-	Name            string
-	Style           string // driveLine, hikeLine, ferryLine
-	Geometry        [][]float64
-	DistanceMeters  float64
-	DurationSeconds float64 // set for OSRM drive segments; 0 for straight
-}
-
-type routedGeom struct {
-	Geometry        [][]float64
-	DistanceMeters  float64
-	DurationSeconds float64
-}
-
-func buildRouteLines(ctx context.Context, d Day, pts []Stop, opts RouteOptions) ([]Placemark, error) {
-	segs, err := buildRouteSegments(ctx, d, pts, opts)
-	if err != nil {
-		return nil, err
-	}
-	lines := make([]Placemark, len(segs))
-	for i, s := range segs {
-		lines[i] = routeLinePlacemark(s.Name, geometryToKMLCoords(s.Geometry, opts.CoordPrecision), "#"+s.Style)
-	}
-	return lines, nil
-}
-
-func buildRouteSegments(ctx context.Context, d Day, pts []Stop, opts RouteOptions) ([]routeSegment, error) {
-	if d.Ferry {
-		return buildSegmentGeometries(ctx, pts, opts, func(a, b Stop) (mode, style, name string) {
-			if isFerrySegment(a, b) {
-				return "straight", "ferryLine", "Ferry"
-			}
-			return opts.Mode, "driveLine", "Drive"
-		})
-	}
-
-	if !d.Hike {
-		rg, err := routeGeometry(ctx, pts, opts.Mode, opts)
-		if err != nil {
-			return nil, err
-		}
-		return []routeSegment{{
-			Name: "Route", Style: "driveLine", Geometry: rg.Geometry,
-			DistanceMeters: rg.DistanceMeters, DurationSeconds: rg.DurationSeconds,
-		}}, nil
-	}
-
-	return buildSegmentGeometries(ctx, pts, opts, func(a, b Stop) (mode, style, name string) {
-		if isDrivingSegment(a, b) {
-			return opts.Mode, "driveLine", "Drive"
-		}
-		return "straight", "hikeLine", "Hike"
-	})
-}
-
-func buildSegmentGeometries(ctx context.Context, pts []Stop, opts RouteOptions, classify func(a, b Stop) (mode, style, name string)) ([]routeSegment, error) {
-	var segs []routeSegment
-	for i := 0; i < len(pts)-1; i++ {
-		seg := []Stop{pts[i], pts[i+1]}
-		mode, style, name := classify(seg[0], seg[1])
-		rg, err := routeGeometry(ctx, seg, mode, opts)
-		if err != nil {
-			return nil, err
-		}
-		segs = append(segs, routeSegment{
-			Name: name, Style: style, Geometry: rg.Geometry,
-			DistanceMeters: rg.DistanceMeters, DurationSeconds: rg.DurationSeconds,
-		})
-	}
-	if len(segs) == 1 {
-		segs[0].Name = "Route"
-	}
-	return segs, nil
 }
 
 func routeLinePlacemark(name, coords, style string) Placemark {
@@ -479,50 +221,12 @@ func usedStyles(folders []Folder, placemarks []Placemark) []Style {
 	return styles
 }
 
-func routeGeometry(ctx context.Context, stops []Stop, mode string, opts RouteOptions) (routedGeom, error) {
-	switch mode {
-	case "straight":
-		out := make([][]float64, len(stops))
-		for i, s := range stops {
-			out[i] = []float64{s.Lon, s.Lat}
-		}
-		return routedGeom{Geometry: out, DistanceMeters: routing.PathLengthMeters(out)}, nil
-	case "osrm":
-		pts := make([]routing.Point, len(stops))
-		for i, s := range stops {
-			pts[i] = routing.Point{Lat: s.Lat, Lon: s.Lon}
-		}
-		// Always request full geometry; OSRM overview=simplified is too coarse
-		// (tens of points) and looks like crow-flies. Douglas-Peucker below
-		// keeps file size down while still following roads.
-		route, err := routing.RouteOSRM(ctx, pts)
-		if err != nil {
-			return routedGeom{}, err
-		}
-		return routedGeom{
-			Geometry:        routing.SimplifyGeometry(route.Geometry, opts.SimplifyMeters),
-			DistanceMeters:  route.DistanceMeters,
-			DurationSeconds: route.DurationSeconds,
-		}, nil
-	default:
-		return routedGeom{}, fmt.Errorf("unknown route mode %q (use straight or osrm)", mode)
-	}
-}
-
 func routeCoords(ctx context.Context, stops []Stop, mode string, opts RouteOptions) (string, error) {
-	rg, err := routeGeometry(ctx, stops, mode, opts)
-	if err != nil {
-		return "", err
-	}
-	return geometryToKMLCoords(rg.Geometry, opts.CoordPrecision), nil
+	return routebuild.RouteGeometryCoords(ctx, stops, mode, opts)
 }
 
 func formatCoords(lon, lat float64, precision int) string {
-	if precision <= 0 {
-		precision = 6
-	}
-	format := fmt.Sprintf("%%.%df,%%.%df,0", precision, precision)
-	return fmt.Sprintf(format, lon, lat)
+	return routebuild.FormatCoords(lon, lat, precision)
 }
 
 func straightLineCoords(stops []Stop, precision int) string {
@@ -534,11 +238,7 @@ func straightLineCoords(stops []Stop, precision int) string {
 }
 
 func geometryToKMLCoords(geometry [][]float64, precision int) string {
-	parts := make([]string, len(geometry))
-	for i, pt := range geometry {
-		parts[i] = formatCoords(pt[0], pt[1], precision)
-	}
-	return strings.Join(parts, "\n")
+	return routebuild.GeometryToKMLCoords(geometry, precision)
 }
 
 const myMapsMaxLinePoints = 499

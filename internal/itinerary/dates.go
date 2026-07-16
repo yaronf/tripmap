@@ -1,4 +1,4 @@
-package main
+package itinerary
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 
 const dateLayout = "2006-01-02"
 
-// resolveDayDates fills missing day.Date values from trip.Start + (day-1).
+// ResolveDayDates fills missing day.Date values from trip.Start + (day-1).
 // Explicit per-day dates win. Dates are optional; empty stay empty.
-func resolveDayDates(t *Trip) error {
+func ResolveDayDates(t *Trip) error {
 	var start time.Time
 	var hasStart bool
 	if t.Start != "" {
@@ -37,8 +37,8 @@ func resolveDayDates(t *Trip) error {
 	return nil
 }
 
-// formatDayDateShort returns a compact calendar label, e.g. "22 Jun".
-func formatDayDateShort(iso string) string {
+// FormatDayDateShort returns a compact calendar label, e.g. "22 Jun".
+func FormatDayDateShort(iso string) string {
 	t, err := time.Parse(dateLayout, iso)
 	if err != nil {
 		return iso
@@ -46,9 +46,10 @@ func formatDayDateShort(iso string) string {
 	return t.Format("2 Jan")
 }
 
-func dayFolderName(d Day) string {
+// DayFolderName is the KML folder label for a day.
+func DayFolderName(d Day) string {
 	if d.Date == "" {
 		return fmt.Sprintf("Day %d - %s", d.Day, d.Title)
 	}
-	return fmt.Sprintf("Day %d · %s - %s", d.Day, formatDayDateShort(d.Date), d.Title)
+	return fmt.Sprintf("Day %d · %s - %s", d.Day, FormatDayDateShort(d.Date), d.Title)
 }

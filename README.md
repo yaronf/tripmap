@@ -41,7 +41,7 @@ go run .
 Build a standalone binary with `go build -o tripmap .`.
 
 Itinerary YAML files live in `itineraries/`; generated KML and PWA bundles go in
-`maps/` (gitignored). Viewer source is in `viewer/` (embedded into the CLI).
+`maps/` (gitignored). Viewer source is in `internal/bundle/viewer/` (embedded into the CLI and tripmapd).
 Test fixtures remain in `testdata/`.
 
 ## Viewing the output

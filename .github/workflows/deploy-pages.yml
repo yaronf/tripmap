@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "itineraries/**"
-      - "viewer/**"
+      - "internal/bundle/viewer/**"
       - "*.go"
       - "go.mod"
       - "go.sum"

@@ -1,4 +1,4 @@
-package main
+package itinerary
 
 import "testing"
 
@@ -11,7 +11,7 @@ func TestResolveDayDatesFromStart(t *testing.T) {
 			{Day: 14, Title: "Depart"},
 		},
 	}
-	if err := resolveDayDates(&trip); err != nil {
+	if err := ResolveDayDates(&trip); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"2026-06-22", "2026-06-25", "2026-07-05"}
@@ -27,10 +27,10 @@ func TestResolveDayDatesExplicitWins(t *testing.T) {
 		Start: "2026-06-22",
 		Days: []Day{
 			{Day: 1, Title: "Arrive"},
-			{Day: 2, Date: "2026-06-24", Title: "Rest"}, // skip a calendar day
+			{Day: 2, Date: "2026-06-24", Title: "Rest"},
 		},
 	}
-	if err := resolveDayDates(&trip); err != nil {
+	if err := ResolveDayDates(&trip); err != nil {
 		t.Fatal(err)
 	}
 	if trip.Days[0].Date != "2026-06-22" {
@@ -43,7 +43,7 @@ func TestResolveDayDatesExplicitWins(t *testing.T) {
 
 func TestResolveDayDatesOptional(t *testing.T) {
 	trip := Trip{Days: []Day{{Day: 1, Title: "No dates"}}}
-	if err := resolveDayDates(&trip); err != nil {
+	if err := ResolveDayDates(&trip); err != nil {
 		t.Fatal(err)
 	}
 	if trip.Days[0].Date != "" {
@@ -52,10 +52,10 @@ func TestResolveDayDatesOptional(t *testing.T) {
 }
 
 func TestDayFolderName(t *testing.T) {
-	if got := dayFolderName(Day{Day: 1, Title: "Arrive"}); got != "Day 1 - Arrive" {
+	if got := DayFolderName(Day{Day: 1, Title: "Arrive"}); got != "Day 1 - Arrive" {
 		t.Fatalf("no date: %q", got)
 	}
-	got := dayFolderName(Day{Day: 1, Date: "2026-06-22", Title: "Arrive"})
+	got := DayFolderName(Day{Day: 1, Date: "2026-06-22", Title: "Arrive"})
 	want := "Day 1 · 22 Jun - Arrive"
 	if got != want {
 		t.Fatalf("with date: got %q want %q", got, want)

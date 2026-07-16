@@ -80,6 +80,22 @@ func TestRunInvalidUnits(t *testing.T) {
 	}
 }
 
+func TestRunBundleOnly(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "bundle")
+	err := run([]string{
+		"-input", filepath.Join("testdata", "itinerary.yaml"),
+		"-bundle", out,
+		"-route", "straight",
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "trip.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func placemarkNames(f Folder) []string {
 	names := make([]string, len(f.Placemarks))
 	for i, pm := range f.Placemarks {

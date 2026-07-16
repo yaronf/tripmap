@@ -1,4 +1,4 @@
-package main
+package bundle
 
 import (
 	"context"
@@ -11,6 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yaronf/tripmap/internal/itinerary"
+	"github.com/yaronf/tripmap/internal/routebuild"
 )
 
 // TripJSON is the viewer-facing trip metadata (no heavy geometry).
@@ -22,9 +25,10 @@ type TripJSON struct {
 	Days        []DayJSON `json:"days"`
 }
 
+// DayJSON is one day in trip.json.
 type DayJSON struct {
 	Day          int        `json:"day"`
-	Date         string     `json:"date,omitempty"` // YYYY-MM-DD when known
+	Date         string     `json:"date,omitempty"`
 	Title        string     `json:"title"`
 	Notes        string     `json:"notes,omitempty"`
 	Hike         bool       `json:"hike,omitempty"`
@@ -33,11 +37,12 @@ type DayJSON struct {
 	PhotoCaption string     `json:"photo_caption,omitempty"`
 	Stops        []StopJSON `json:"stops"`
 	Geo          string     `json:"geo"`
-	Kind         string     `json:"kind"`                 // drive | hike | ferry | rest
-	DriveDist    float64    `json:"drive_dist,omitempty"` // in trip units (km or mi)
-	DriveMin     int        `json:"drive_min,omitempty"`  // OSRM estimate; omitted for straight
+	Kind         string     `json:"kind"`
+	DriveDist    float64    `json:"drive_dist,omitempty"`
+	DriveMin     int        `json:"drive_min,omitempty"`
 }
 
+// StopJSON is a stop in trip.json.
 type StopJSON struct {
 	Name         string  `json:"name"`
 	Type         string  `json:"type,omitempty"`
@@ -64,26 +69,22 @@ type geoGeometry struct {
 	Coordinates any    `json:"coordinates"`
 }
 
-func tripIDFromPath(inputPath string) string {
-	base := filepath.Base(inputPath)
-	return strings.TrimSuffix(base, filepath.Ext(base))
-}
-
-func dayKind(d Day) string {
+func dayKind(d itinerary.Day) string {
 	switch {
 	case d.Ferry:
 		return "ferry"
 	case d.Hike:
 		return "hike"
-	case len(effectiveRoutePoints(d)) >= 2:
+	case len(routebuild.EffectiveRoutePoints(d)) >= 2:
 		return "drive"
 	default:
 		return "rest"
 	}
 }
 
-func buildTripBundle(ctx context.Context, t Trip, inputPath, outDir string, opts RouteOptions) error {
-	id := tripIDFromPath(inputPath)
+// Build writes a PWA bundle for trip id into outDir.
+// inputDir is used to resolve relative photo paths (may be empty).
+func Build(ctx context.Context, t itinerary.Trip, id, inputDir, outDir string, opts routebuild.RouteOptions) error {
 	if err := os.MkdirAll(filepath.Join(outDir, "geo"), 0755); err != nil {
 		return err
 	}
@@ -91,8 +92,7 @@ func buildTripBundle(ctx context.Context, t Trip, inputPath, outDir string, opts
 		return err
 	}
 
-	inputDir := filepath.Dir(inputPath)
-	photoMap := map[string]string{} // src path -> images/ relative for de-dupe naming
+	photoMap := map[string]string{}
 	units := opts.Units
 	if units == "" {
 		units = "km"
@@ -139,7 +139,7 @@ func buildTripBundle(ctx context.Context, t Trip, inputPath, outDir string, opts
 	return writeServiceWorker(outDir, tj)
 }
 
-func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts RouteOptions, photoMap map[string]string) (DayJSON, error) {
+func buildDayBundle(ctx context.Context, d itinerary.Day, inputDir, outDir string, opts routebuild.RouteOptions, photoMap map[string]string) (DayJSON, error) {
 	geoName := fmt.Sprintf("geo/day-%02d.json", d.Day)
 	dj := DayJSON{
 		Day:          d.Day,
@@ -163,11 +163,11 @@ func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts Ro
 	}
 
 	seen := map[string]bool{}
-	addStop := func(s Stop) error {
+	addStop := func(s itinerary.Stop) error {
 		if s.Type == "via" {
 			return nil
 		}
-		key := s.Name + "|" + s.Type + "|" + stopKey(s)
+		key := s.Name + "|" + s.Type + "|" + routebuild.StopKey(s)
 		if seen[key] {
 			return nil
 		}
@@ -183,7 +183,7 @@ func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts Ro
 		dj.Stops = append(dj.Stops, sj)
 		return nil
 	}
-	for _, s := range viewerDayStops(d) {
+	for _, s := range routebuild.ViewerDayStops(d) {
 		if err := addStop(s); err != nil {
 			return DayJSON{}, err
 		}
@@ -202,9 +202,9 @@ func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts Ro
 		})
 	}
 
-	rp := effectiveRoutePoints(d)
+	rp := routebuild.EffectiveRoutePoints(d)
 	if len(rp) >= 2 {
-		segs, err := buildRouteSegments(ctx, d, rp, opts)
+		segs, err := routebuild.BuildRouteSegments(ctx, d, rp, opts)
 		if err != nil {
 			return DayJSON{}, err
 		}
@@ -249,6 +249,11 @@ func buildDayBundle(ctx context.Context, d Day, inputDir, outDir string, opts Ro
 	return dj, nil
 }
 
+// DistanceInUnits converts meters to km or mi (one decimal).
+func DistanceInUnits(meters float64, units string) float64 {
+	return distanceInUnits(meters, units)
+}
+
 func distanceInUnits(meters float64, units string) float64 {
 	var dist float64
 	switch units {
@@ -257,7 +262,7 @@ func distanceInUnits(meters float64, units string) float64 {
 	default:
 		dist = meters / 1000
 	}
-	return math.Round(dist*10) / 10 // one decimal
+	return math.Round(dist*10) / 10
 }
 
 func copyPhoto(src, inputDir, outDir string, photoMap map[string]string) (string, error) {
@@ -278,7 +283,6 @@ func copyPhoto(src, inputDir, outDir string, photoMap map[string]string) (string
 	base := filepath.Base(src)
 	destRel := filepath.ToSlash(filepath.Join("images", base))
 	destAbs := filepath.Join(outDir, "images", base)
-	// If another source already claimed this basename in this build, uniquify.
 	if other, ok := photoMap[destAbs]; ok && other != abs {
 		ext := filepath.Ext(base)
 		stem := strings.TrimSuffix(base, ext)
@@ -297,7 +301,7 @@ func copyPhoto(src, inputDir, outDir string, photoMap map[string]string) (string
 		return "", err
 	}
 	photoMap[abs] = destRel
-	photoMap[destAbs] = abs // mark basename ownership for collision checks
+	photoMap[destAbs] = abs
 	return destRel, nil
 }
 
@@ -314,7 +318,7 @@ func copyViewerAssets(outDir string) error {
 			return err
 		}
 		if rel == "manifest.webmanifest" {
-			return nil // written per-trip
+			return nil
 		}
 		dest := filepath.Join(outDir, rel)
 		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
@@ -386,7 +390,6 @@ self.addEventListener("fetch", (e) => {
       (isImage ? caches.match(e.request) : Promise.resolve(undefined)).then((cached) => {
         if (cached) return cached;
         return fetch(e.request).then((res) => {
-          // Opaque responses (typical for <img> hotlinks) are cacheable; status is 0.
           if (isImage && res && (res.ok || res.type === "opaque")) {
             const copy = res.clone();
             caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
@@ -409,9 +412,7 @@ self.addEventListener("fetch", (e) => {
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 
-// writeViewerIndex sets a static document title and Open Graph tags so link
-// previews (WhatsApp, Slack, iMessage, …) show the trip name without running JS.
-func writeViewerIndex(outDir string, t Trip) error {
+func writeViewerIndex(outDir string, t itinerary.Trip) error {
 	path := filepath.Join(outDir, "index.html")
 	b, err := os.ReadFile(path)
 	if err != nil {

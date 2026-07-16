@@ -9,7 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/yaronf/tripmap/internal/httpserver"
+	"github.com/yaronf/tripmap/internal/store"
 )
 
 func main() {
@@ -18,7 +21,19 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	srv := httpserver.New(cfg)
+	var st store.Store
+	if cfg.ItinerariesBucket == "" {
+		log.Printf("ITINERARIES_BUCKET unset; using in-memory store (dev only)")
+		st = store.NewMem()
+	} else {
+		awsCfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(cfg.AWSRegion))
+		if err != nil {
+			log.Fatalf("aws config: %v", err)
+		}
+		st = &store.S3{Client: s3.NewFromConfig(awsCfg), Bucket: cfg.ItinerariesBucket}
+	}
+
+	srv := httpserver.New(cfg, st)
 	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           srv.Handler(),

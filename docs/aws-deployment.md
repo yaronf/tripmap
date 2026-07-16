@@ -3,8 +3,9 @@
 Authoritative plan for hosting tripmap **beyond** the current GitHub Pages static PWA.  
 Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/architecture), [itinerary-display-ux.md](itinerary-display-ux.md) (UI).
 
-**Status:** design — not implemented.  
-**Current production:** static bundles on GitHub Pages (`www.sheffer.org/tripmap/`).
+**Status:** Phase A live; Phase B agent API + write-through bundles implemented (capability-URL viewer is Phase C).  
+**Current production (static):** GitHub Pages (`www.sheffer.org/tripmap/`).  
+**In-season compute:** ECS Express Mode endpoint from `tripmap-compute` stack outputs.
 
 ---
 
@@ -237,10 +238,20 @@ Prefer **CloudFormation** over click-ops for buckets/roles/compute. You still ap
 
 ### M4 — Compute stack (seasonal)
 
-- [ ] Create stack `tripmap-compute` with ImageTag + data stack exports
+- [x] Create stack `tripmap-compute` with ImageTag + data stack exports
 - [ ] Copy **ServiceUrl** output → password manager
-- [ ] `curl $ServiceUrl/health`
+- [x] `curl $ServiceUrl/health`
 - [ ] **Undeploy drill:** delete `tripmap-compute`; confirm data stack intact; recreate; confirm new ServiceUrl
+
+Agent API smoke (after image push):
+
+```bash
+ENDPOINT=$(aws cloudformation describe-stacks --stack-name tripmap-compute --region eu-central-1 \
+  --query "Stacks[0].Outputs[?OutputKey=='Endpoint'].OutputValue" --output text)
+TOKEN=$(aws secretsmanager get-secret-value --secret-id tripmap/agent-bearer --region eu-central-1 \
+  --query SecretString --output text | jq -r .token)
+BASE_URL="https://$ENDPOINT" TOKEN="$TOKEN" ./scripts/smoke-agent.sh
+```
 
 ### M5 — Seed itineraries
 
@@ -274,14 +285,14 @@ Prefer **CloudFormation** over click-ops for buckets/roles/compute. You still ap
 
 ### Phase A — App + data template
 
-- [ ] `cmd/tripmapd` skeleton: health, Bearer middleware, static stub
-- [ ] `infra/data.yaml` + create `tripmap-data`
-- [ ] Push first ECR image
+- [x] `cmd/tripmapd` skeleton: health, Bearer middleware, static stub
+- [x] `infra/data.yaml` + create `tripmap-data`
+- [x] Push first ECR image
 
 ### Phase B — Compute template + OpenAPI
 
-- [ ] `infra/compute.yaml` (Express Mode)
-- [ ] OpenAPI agent API + schema_version + bundles
+- [x] `infra/compute.yaml` (Express Mode)
+- [x] OpenAPI agent API + schema_version + bundles
 - [ ] Deploy/undeploy drill (M4)
 - [ ] Seed + Custom GPT (M5–M6)
 

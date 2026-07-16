@@ -63,6 +63,8 @@ Resources:
           - Name: COMMENTS_BUCKET
             Value:
               Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
+          - Name: ROUTE_MODE
+            Value: osrm
         Secrets:
           # Injects the JSON key "token" from tripmap/agent-bearer
           - Name: AGENT_BEARER_TOKEN
