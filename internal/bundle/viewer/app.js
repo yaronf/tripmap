@@ -19,6 +19,9 @@
     layers: L.layerGroup(),
     lastBounds: null,
     geoCache: new Map(),
+    sharedNotes: { days: {} },
+    notesSaveTimer: null,
+    notesDirty: false,
   };
 
   const el = {
@@ -42,8 +45,53 @@
     lightboxClose: document.getElementById("lightbox-close"),
   };
 
-  function notesKey(dayNum) {
-    return `tripmap:${state.trip.id}:day:${dayNum}:notes`;
+  function dayNote(dayNum) {
+    return state.sharedNotes.days?.[String(dayNum)] || "";
+  }
+
+  function setDayNote(dayNum, text) {
+    if (!state.sharedNotes.days) state.sharedNotes.days = {};
+    state.sharedNotes.days[String(dayNum)] = text;
+  }
+
+  async function loadSharedNotes() {
+    try {
+      const res = await fetch("api/notes");
+      if (!res.ok) return;
+      const doc = await res.json();
+      state.sharedNotes = {
+        days: doc.days && typeof doc.days === "object" ? doc.days : {},
+        updated_at: doc.updated_at,
+      };
+    } catch {
+      // Offline: SW may still satisfy fetch from cache; if not, keep empty.
+    }
+  }
+
+  function scheduleSaveNotes(dayNum) {
+    state.notesDirty = true;
+    if (state.notesSaveTimer) clearTimeout(state.notesSaveTimer);
+    state.notesSaveTimer = setTimeout(() => {
+      saveSharedNotes(dayNum);
+    }, 500);
+  }
+
+  async function saveSharedNotes() {
+    if (!navigator.onLine) return;
+    try {
+      const res = await fetch("api/notes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days: state.sharedNotes.days || {} }),
+      });
+      if (res.ok) {
+        const doc = await res.json();
+        state.sharedNotes.updated_at = doc.updated_at;
+        state.notesDirty = false;
+      }
+    } catch {
+      // Leave dirty; user can edit offline but writes do not queue.
+    }
   }
 
   function kindLabel(kind) {
@@ -181,7 +229,7 @@
       })
       .join("");
 
-    const saved = localStorage.getItem(notesKey(d.day)) || "";
+    const saved = dayNote(d.day);
 
     const driveStats = formatDriveStats(d);
     const i = state.dayIndex;
@@ -202,8 +250,9 @@
       ${photo}
       <ul class="stops">${stops || "<li class=\"stop\"><span class=\"stop-type\">No stops</span></li>"}</ul>
       <details class="notes-disclosure">
-        <summary>Your notes</summary>
-        <textarea id="local-notes" aria-label="Local notes for this day">${escapeHtml(saved)}</textarea>
+        <summary>Shared notes</summary>
+        <textarea id="shared-notes" aria-label="Shared notes for this day">${escapeHtml(saved)}</textarea>
+        ${!navigator.onLine ? `<p class="notes-offline-hint">Offline — edits won’t sync until you’re online.</p>` : ""}
       </details>
       <nav class="day-nav" aria-label="Adjacent days">
         <button type="button" class="day-nav-btn" data-dir="-1" ${prevDisabled} title="${prevTitle}">
@@ -243,10 +292,18 @@
       });
     });
 
-    const ta = el.detail.querySelector("#local-notes");
+    const ta = el.detail.querySelector("#shared-notes");
     if (ta) {
       ta.addEventListener("input", () => {
-        localStorage.setItem(notesKey(d.day), ta.value);
+        setDayNote(d.day, ta.value);
+        scheduleSaveNotes(d.day);
+      });
+      ta.addEventListener("blur", () => {
+        if (state.notesSaveTimer) {
+          clearTimeout(state.notesSaveTimer);
+          state.notesSaveTimer = null;
+        }
+        saveSharedNotes();
       });
     }
   }
@@ -468,6 +525,7 @@
       return;
     }
     state.trip = await res.json();
+    await loadSharedNotes();
     el.title.textContent = state.trip.title;
     const pageTitle = /itinerary/i.test(state.trip.title)
       ? state.trip.title

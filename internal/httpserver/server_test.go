@@ -264,3 +264,58 @@ days:
 		t.Fatalf("expected swapped titles in %s", got)
 	}
 }
+
+func TestCapabilityBundleAndNotes(t *testing.T) {
+	srv, _ := testServer(t)
+	createBody, _ := json.Marshal(map[string]string{"id": "cap-trip", "yaml": sampleYAML})
+	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))
+	req.Header.Set("Idempotency-Key", "cap-c")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %s", rec.Body.String())
+	}
+	var created mutateResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	bad := httptest.NewRequest(http.MethodGet, "/t/cap-trip/wrong-token/index.html", nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, bad)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("bad token status=%d", rec.Code)
+	}
+
+	base := "/t/cap-trip/" + created.Token + "/"
+	req = httptest.NewRequest(http.MethodGet, base+"index.html", nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<title>") {
+		t.Fatalf("index status=%d body=%s", rec.Code, rec.Body.String()[:min(200, rec.Body.Len())])
+	}
+
+	req = httptest.NewRequest(http.MethodGet, base+"api/notes", nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"days"`) {
+		t.Fatalf("notes get: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPut, base+"api/notes", strings.NewReader(`{"days":{"1":"hi"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "hi") {
+		t.Fatalf("notes put: %s", rec.Body.String())
+	}
+
+	// redirect without trailing slash
+	req = httptest.NewRequest(http.MethodGet, "/t/cap-trip/"+created.Token, nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("redirect status=%d", rec.Code)
+	}
+}

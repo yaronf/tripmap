@@ -17,11 +17,12 @@ import (
 
 // Mem is an in-memory Store for tests.
 type Mem struct {
-	mu   sync.Mutex
-	yaml map[string][]yamlVer // id -> versions (last is latest)
-	meta map[string]Meta
-	idem map[string][]byte
-	bund map[string]map[string][]byte // id -> relpath -> bytes
+	mu    sync.Mutex
+	yaml  map[string][]yamlVer // id -> versions (last is latest)
+	meta  map[string]Meta
+	idem  map[string][]byte
+	bund  map[string]map[string][]byte // id -> relpath -> bytes
+	notes map[string][]byte
 }
 
 type yamlVer struct {
@@ -33,10 +34,11 @@ type yamlVer struct {
 // NewMem returns an empty memory store.
 func NewMem() *Mem {
 	return &Mem{
-		yaml: map[string][]yamlVer{},
-		meta: map[string]Meta{},
-		idem: map[string][]byte{},
-		bund: map[string]map[string][]byte{},
+		yaml:  map[string][]yamlVer{},
+		meta:  map[string]Meta{},
+		idem:  map[string][]byte{},
+		bund:  map[string]map[string][]byte{},
+		notes: map[string][]byte{},
 	}
 }
 
@@ -170,6 +172,39 @@ func (m *Mem) UploadBundle(ctx context.Context, id string, root string) error {
 	return nil
 }
 
+func (m *Mem) GetBundleObject(ctx context.Context, id, rel string) ([]byte, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rel = path.Clean("/" + rel)
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" || rel == "." {
+		rel = "index.html"
+	}
+	b, ok := m.bund[id][rel]
+	if !ok {
+		return nil, "", fmt.Errorf("bundle object %s/%s not found", id, rel)
+	}
+	return append([]byte(nil), b...), contentTypeFor(rel), nil
+}
+
+func (m *Mem) GetNotes(ctx context.Context, id string) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	b, ok := m.notes[id]
+	if !ok {
+		empty, _ := json.Marshal(NotesDoc{Days: map[string]string{}, UpdatedAt: time.Time{}})
+		return empty, nil
+	}
+	return append([]byte(nil), b...), nil
+}
+
+func (m *Mem) PutNotes(ctx context.Context, id string, body []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.notes[id] = append([]byte(nil), body...)
+	return nil
+}
+
 // BundleFiles returns uploaded bundle paths (tests).
 func (m *Mem) BundleFiles(id string) map[string][]byte {
 	m.mu.Lock()
@@ -201,8 +236,30 @@ func idemKey(key string) string {
 	return path.Join("idempotency", key)
 }
 
+func notesKey(id string) string {
+	return path.Join("trips", id, "notes.json")
+}
+
+func contentTypeFor(rel string) string {
+	ct := ""
+	switch {
+	case strings.HasSuffix(rel, ".html"):
+		ct = "text/html; charset=utf-8"
+	case strings.HasSuffix(rel, ".js"):
+		ct = "text/javascript; charset=utf-8"
+	case strings.HasSuffix(rel, ".css"):
+		ct = "text/css; charset=utf-8"
+	case strings.HasSuffix(rel, ".json"), strings.HasSuffix(rel, ".webmanifest"):
+		ct = "application/json"
+	case strings.HasSuffix(rel, ".svg"):
+		ct = "image/svg+xml"
+	default:
+		ct = "application/octet-stream"
+	}
+	return ct
+}
+
 func tripIDFromYAMLKey(key string) (string, bool) {
-	// trips/{id}/itinerary.yaml
 	parts := strings.Split(key, "/")
 	if len(parts) != 3 || parts[0] != "trips" || parts[2] != "itinerary.yaml" {
 		return "", false

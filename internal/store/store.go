@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"io"
 	"time"
 )
 
@@ -27,7 +26,7 @@ type YAMLObject struct {
 	VersionID string
 }
 
-// Store is the itineraries bucket abstraction.
+// Store is the itineraries (+ comments) bucket abstraction.
 type Store interface {
 	ListTripIDs(ctx context.Context) ([]string, error)
 	GetYAML(ctx context.Context, id string) (YAMLObject, error)
@@ -39,10 +38,14 @@ type Store interface {
 	GetIdempotency(ctx context.Context, key string) ([]byte, bool, error)
 	PutIdempotency(ctx context.Context, key string, body []byte) error
 	UploadBundle(ctx context.Context, id string, root string) error
+	GetBundleObject(ctx context.Context, id, rel string) (body []byte, contentType string, err error)
+	GetNotes(ctx context.Context, id string) ([]byte, error)
+	PutNotes(ctx context.Context, id string, body []byte) error
 	Exists(ctx context.Context, id string) (bool, error)
 }
 
-// FileReader walks a directory for UploadBundle helpers.
-type FileReader interface {
-	Open(name string) (io.ReadCloser, error)
+// NotesDoc is the shared notes JSON shape (also used by the viewer).
+type NotesDoc struct {
+	Days      map[string]string `json:"days"`
+	UpdatedAt time.Time         `json:"updated_at"`
 }

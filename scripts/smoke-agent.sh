@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Post-deploy smoke for tripmapd agent API.
+# Post-deploy smoke for tripmapd agent API + capability viewer.
 # Usage:
 #   BASE_URL=https://….ecs.eu-central-1.on.aws TOKEN=… ./scripts/smoke-agent.sh
 #
@@ -41,12 +41,24 @@ echo ok
 
 echo "== create $ID =="
 body=$(jq -n --arg id "$ID" --arg yaml "$yaml" '{id: $id, yaml: $yaml}')
-curl -fsS -m 120 -X POST \
+create_json=$(curl -fsS -m 120 -X POST \
   -H "Authorization: Bearer $TOKEN" \
   -H "Idempotency-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d "$body" \
-  "$BASE_URL/api/agent/trips" | jq -e --arg id "$ID" '.id == $id' >/dev/null
+  "$BASE_URL/api/agent/trips")
+echo "$create_json" | jq -e --arg id "$ID" '.id == $id' >/dev/null
+CAP_TOKEN=$(echo "$create_json" | jq -r .token)
+VIEWER_URL=$(echo "$create_json" | jq -r .viewer_url)
+if [[ -z "$CAP_TOKEN" || "$CAP_TOKEN" == null ]]; then
+  echo "create response missing token" >&2
+  exit 1
+fi
+# Normalize relative viewer_url
+if [[ "$VIEWER_URL" == /* ]]; then
+  VIEWER_URL="${BASE_URL}${VIEWER_URL}"
+fi
+VIEWER_URL="${VIEWER_URL%/}/"
 echo ok
 
 echo "== get yaml =="
@@ -63,4 +75,22 @@ curl -fsS -m 120 -X PUT \
   "$BASE_URL/api/agent/trips/$ID/yaml" | jq -e 'has("bundle_ok")' >/dev/null
 echo ok
 
+echo "== capability index =="
+curl -fsS -m 30 "${VIEWER_URL}index.html" | grep -q "<title>"
+echo ok
+
+echo "== capability notes =="
+curl -fsS -m 20 "${VIEWER_URL}api/notes" | jq -e 'has("days")' >/dev/null
+curl -fsS -m 20 -X PUT \
+  -H "Content-Type: application/json" \
+  -d '{"days":{"1":"smoke note"}}' \
+  "${VIEWER_URL}api/notes" | jq -e '.days["1"] == "smoke note"' >/dev/null
+echo ok
+
+echo "== capability bad token =="
+code=$(curl -sS -o /dev/null -w "%{http_code}" -m 20 "${BASE_URL}/t/${ID}/not-a-real-token/index.html" || true)
+[[ "$code" == "404" ]] || { echo "want 404 got $code" >&2; exit 1; }
+echo ok
+
 echo "SMOKE PASS id=$ID"
+echo "Open viewer (keep private): ${VIEWER_URL}"

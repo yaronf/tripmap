@@ -3,7 +3,7 @@
 Authoritative plan for hosting tripmap **beyond** the current GitHub Pages static PWA.  
 Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/architecture), [itinerary-display-ux.md](itinerary-display-ux.md) (UI).
 
-**Status:** Phase A live; Phase B agent API + write-through bundles implemented (capability-URL viewer is Phase C).  
+**Status:** Phase A–C live (capability-URL viewer + shared notes). Custom GPT / seeding still open.  
 **Current production (static):** GitHub Pages (`www.sheffer.org/tripmap/`).  
 **In-season compute:** ECS Express Mode endpoint from `tripmap-compute` stack outputs.
 
@@ -298,7 +298,9 @@ BASE_URL="https://$ENDPOINT" TOKEN="$TOKEN" ./scripts/smoke-agent.sh
 
 ### Phase C — Comments + PWA
 
-- [ ] Comments under capability URL; offline read-only
+- [x] Comments under capability URL; offline read-only
+
+Capability URL format: `https://{ServiceUrl}/t/{id}/{token}/` (token plaintext only on create/rotate). Shared notes: `GET|PUT …/api/notes`.
 
 ### Phase D — Ergonomics
 

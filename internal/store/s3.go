@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"mime"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -16,10 +17,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-// S3 implements Store against a versioned itineraries bucket.
+// S3 implements Store against itineraries + comments buckets.
 type S3 struct {
-	Client *s3.Client
-	Bucket string
+	Client         *s3.Client
+	Bucket         string // itineraries (versioned)
+	CommentsBucket string // comments (unversioned)
 }
 
 func (s *S3) ListTripIDs(ctx context.Context) ([]string, error) {
@@ -222,4 +224,61 @@ func (s *S3) UploadBundle(ctx context.Context, id string, root string) error {
 		})
 		return err
 	})
+}
+
+func (s *S3) GetBundleObject(ctx context.Context, id, rel string) ([]byte, string, error) {
+	rel = filepath.ToSlash(path.Clean("/" + rel))
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" || rel == "." {
+		rel = "index.html"
+	}
+	if strings.Contains(rel, "..") {
+		return nil, "", fmt.Errorf("invalid path")
+	}
+	out, err := s.Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.Bucket),
+		Key:    aws.String(bundlePrefix(id) + rel),
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("bundle %s/%s: %w", id, rel, err)
+	}
+	defer out.Body.Close()
+	body, err := io.ReadAll(out.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	ct := aws.ToString(out.ContentType)
+	if ct == "" {
+		ct = contentTypeFor(rel)
+	}
+	return body, ct, nil
+}
+
+func (s *S3) GetNotes(ctx context.Context, id string) ([]byte, error) {
+	if s.CommentsBucket == "" {
+		return nil, fmt.Errorf("comments bucket not configured")
+	}
+	out, err := s.Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.CommentsBucket),
+		Key:    aws.String(notesKey(id)),
+	})
+	if err != nil {
+		empty, _ := json.Marshal(NotesDoc{Days: map[string]string{}})
+		return empty, nil
+	}
+	defer out.Body.Close()
+	return io.ReadAll(out.Body)
+}
+
+func (s *S3) PutNotes(ctx context.Context, id string, body []byte) error {
+	if s.CommentsBucket == "" {
+		return fmt.Errorf("comments bucket not configured")
+	}
+	_, err := s.Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.CommentsBucket),
+		Key:         aws.String(notesKey(id)),
+		Body:        bytes.NewReader(body),
+		ContentType: aws.String("application/json"),
+	})
+	return err
 }

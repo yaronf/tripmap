@@ -308,6 +308,12 @@ body {
   resize: vertical;
 }
 
+.notes-offline-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: #7a6a55;
+}
+
 .day-nav {
   display: none;
 }

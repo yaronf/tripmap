@@ -30,7 +30,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("aws config: %v", err)
 		}
-		st = &store.S3{Client: s3.NewFromConfig(awsCfg), Bucket: cfg.ItinerariesBucket}
+		st = &store.S3{
+			Client:         s3.NewFromConfig(awsCfg),
+			Bucket:         cfg.ItinerariesBucket,
+			CommentsBucket: cfg.CommentsBucket,
+		}
 	}
 
 	srv := httpserver.New(cfg, st)

@@ -58,6 +58,7 @@ func (s *Server) routes() {
 	agent.HandleFunc("POST /trips/{id}/restore", s.handleRestore)
 
 	s.mux.Handle("/api/agent/", http.StripPrefix("/api/agent", bearerAuth(s.cfg.AgentBearerToken, agent)))
+	s.mux.Handle("/t/", http.HandlerFunc(s.handleCapability))
 }
 
 type mutateResult struct {
