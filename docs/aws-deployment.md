@@ -14,20 +14,22 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 |-------|----------|
 | Edge CDN | **No CloudFront / WAF** in v1 — App Runner HTTPS only |
 | S3 encryption | **SSE-S3** (default); no SSE-KMS |
-| Infra as code | **Console** setup for v1 (not Terraform/CDK) |
+| Infra as code | **Console** setup for v1 (not Terraform/CDK); agent assists with click-paths and policies |
 | Viewer access | **Capability URL** (unguessable token in path) — no separate comments login |
-| Comments visibility | **Shared** with anyone who has the capability URL (partners included) |
-| Comments writes | **Anyone with the URL can edit** comments (owner and partner alike) |
-| Comments offline | Read from cache; **no writes** offline; no device-only `localStorage` fallback |
-| MCP auth | Bearer token (see [ChatGPT / Cursor](#chatgpt-and-cursor-auth) below) |
-| Agent protocols | **Cursor → MCP**; **ChatGPT → Custom GPT Actions (OpenAPI)** so the Bearer is stored encrypted in the GPT editor. Same server secret and handlers. Optional ChatGPT MCP later if useful |
-| Patch retries | **`Idempotency-Key` required** on mutating MCP tools |
-| MCP delete trip | **Omit** initially (S3 versions remain; no delete tool) |
-| Source of truth (live) | **S3** after cutover — App Runner / viewer always read S3 |
-| Schema evolution | **Version the itinerary schema** (e.g. `schema_version` in YAML + server-side migrations / compatibility) |
-| GitHub YAML | **Supported via Cursor MCP** — full YAML read/write so the agent can mirror into `itineraries/{id}.yaml` and commit/push to GH (backup, review, local CLI). Not an automatic bi-directional sync; Cursor-driven |
-| Public hostname (v1) | **Raw App Runner URL** (`*.awsapprunner.com`). Custom domain / GH Pages path mapping deferred |
-| Cursor AWS IAM | **Not needed** — Cursor talks HTTPS→MCP only; only App Runner’s instance role touches S3 |
+| Comments visibility | **Shared** with anyone who has the capability URL |
+| Comments writes | **Anyone with the URL can edit** comments |
+| Comments offline | Read from cache; **no writes** offline; no device-only notes fallback |
+| Custom tripmap MCP | **No** — do not build `/mcp` on App Runner |
+| Cursor agents | **Repo + git** for YAML; optional **AWS MCP** (official) for direct S3 get/put. No custom MCP. |
+| ChatGPT agents | **Custom GPT + Actions (OpenAPI)**; Bearer stored encrypted in the GPT editor |
+| Agent API | Thin authenticated **OpenAPI** on App Runner (`/openapi.yaml` + `/api/agent/*`) — used by ChatGPT; Cursor may call it too or use AWS MCP + local files |
+| Patch retries | **`Idempotency-Key` required** on mutating agent API calls |
+| Delete trip | **Omit** initially |
+| Source of truth (live) | **S3** — App Runner / viewer always read S3 |
+| Schema evolution | **`schema_version`** in YAML + server validate/migrate |
+| GitHub YAML | Cursor edits `itineraries/{id}.yaml` and commits; sync to/from S3 via OpenAPI and/or AWS MCP (explicit, not auto) |
+| Public hostname (v1) | **Raw App Runner URL** (`*.awsapprunner.com`) |
+| Cursor AWS IAM | Only if using **AWS MCP** — then your AWS login / IAM user-role via OAuth or local creds. App Runner still has its own instance role. |
 
 ---
 
@@ -35,70 +37,71 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 
 | Requirement | Approach |
 |-------------|----------|
-| Run application code on AWS | **AWS App Runner** (HTTPS service) |
-| Canonical itinerary YAML | **Versioned S3** bucket (object versioning on) |
-| User comments (synced) | **Separate S3** bucket (**no** versioning) |
-| Agent edits itineraries | **Authenticated MCP** (Bearer) — read / patch / **put full YAML** / create + schema |
-| Persist YAML to GitHub | Cursor uses MCP `get_yaml` / `put_yaml` and writes the same document into the repo for commit |
-| Viewer + comments | **One capability URL per trip**; comments REST keyed by that URL (no bearer for browsers) |
-| Stable viewer URLs | App Runner paths like `/t/{id}/{token}/` |
-| Multiple itineraries | Named objects `itineraries/{id}.yaml`; MCP can **create** |
-| Offline comments | Cache last fetch; **read-only** offline |
+| Run application code on AWS | **AWS App Runner** |
+| Canonical itinerary YAML | **Versioned S3** |
+| User comments (synced) | **Separate unversioned S3** |
+| Agent edits (ChatGPT) | Custom GPT **Actions** → OpenAPI Bearer |
+| Agent edits (Cursor) | Local YAML + git; optional AWS MCP ↔ S3; or same OpenAPI |
+| Persist to GitHub | Natural Cursor/git workflow on `itineraries/` |
+| Viewer + comments | Capability URL `/t/{id}/{token}/` |
+| Offline comments | Cached read-only |
 
 ### Non-goals (this plan)
 
-- CloudFront, WAF, custom AWS CDN setup
-- Replacing OSRM with a self-hosted router
+- Custom MCP server in `tripmapd`
+- CloudFront / WAF
+- Terraform/CDK for v1
 - Multi-tenant SaaS
-- Real-time collaborative YAML editing
-- Photos as primary S3 binaries (keep HTTPS URLs in YAML)
-- Device-only notes when “unauthenticated”
+- Device-only notes
 
 ---
 
-## Target architecture
+## Target architecture (simplified)
 
 ```mermaid
 flowchart TB
   subgraph clients [Clients]
-    partner[Travel partner browser]
-    you[Owner browser / PWA]
-    agent[Cursor MCP / ChatGPT Actions]
+    partner[Travel partner]
+    you[Owner PWA]
+    cursor[Cursor]
+    gpt[ChatGPT Custom GPT]
   end
 
-  subgraph compute [Compute]
-    ar[App Runner<br/>tripmapd]
+  subgraph existing [Existing agent tooling]
+    awsmcp[AWS MCP optional]
+    ghtools[Repo files + git]
+  end
+
+  subgraph compute [What we build]
+    ar[App Runner tripmapd<br/>viewer + comments + OpenAPI]
   end
 
   subgraph data [Data]
-    s3y[(S3 itineraries<br/>versioned)]
-    s3c[(S3 comments<br/>not versioned)]
-    sm[Secrets Manager]
+    s3y[(S3 itineraries versioned)]
+    s3c[(S3 comments)]
+    sm[Secrets Manager<br/>Actions Bearer]
   end
 
-  subgraph build [Build inside App Runner]
-    bundle[tripmap --bundle]
-    osrm[OSRM public API]
-  end
-
-  partner -->|HTTPS capability URL| ar
-  you -->|HTTPS capability URL| ar
-  agent -->|HTTPS + MCP Bearer| ar
-
+  partner -->|capability URL| ar
+  you -->|capability URL| ar
+  gpt -->|Actions + Bearer| ar
+  cursor --> ghtools
+  cursor -.->|optional| awsmcp
+  cursor -.->|optional same OpenAPI| ar
+  awsmcp --> s3y
+  ghtools -->|commit| gh[GitHub repo]
   ar --> s3y
   ar --> s3c
   ar --> sm
-  ar --> bundle
-  bundle --> osrm
 ```
+
+**Why this is simpler:** one HTTP app (viewer + comments + OpenAPI). Cursor and ChatGPT use **existing** product surfaces (workspace/git, AWS MCP, Custom GPT Actions) instead of a bespoke MCP protocol on App Runner.
 
 ### Why App Runner
 
-- Managed HTTPS + TLS, simple container deploy, no ECS/EKS.
-- One Go binary: static viewer, comments REST, MCP server for agents.
-- **v1 public URL:** default App Runner hostname  
-  `https://<service-id>.<region>.awsapprunner.com`  
-  Custom domain deferred (GH Pages path mapping is awkward without CloudFront).
+- HTTPS + TLS, container deploy, no ECS/EKS.
+- Serves capability-URL PWA, comments API, agent OpenAPI, bundle regeneration.
+- **v1 URL:** `https://<service-id>.<region>.awsapprunner.com`
 
 ---
 
@@ -106,26 +109,26 @@ flowchart TB
 
 | Component | Responsibility |
 |-----------|----------------|
-| **App Runner** | HTTP API + MCP + serve/regenerate viewer |
-| **S3 itineraries** | `itineraries/{id}.yaml` — source of truth; **versioning ON** |
-| **S3 comments** | Per-trip/day JSON — **versioning OFF** |
-| **ECR** | Container images |
-| **Secrets Manager** | MCP bearer token(s) only (viewer uses capability URLs, not a second API key in the browser) |
-| **IAM — App Runner instance role** | Least-privilege S3 + read MCP secret |
-| **IAM — Cursor / ChatGPT** | **None.** Agents never hold AWS keys; they call App Runner over HTTPS |
+| **App Runner `tripmapd`** | Viewer, comments, OpenAPI agent API, bundle from YAML |
+| **S3 itineraries** | Live YAML; versioning ON |
+| **S3 comments** | Day notes; versioning OFF |
+| **ECR** | Container image |
+| **Secrets Manager** | **Agent Bearer** for OpenAPI / GPT Actions |
+| **IAM — App Runner role** | Least-privilege S3 + read agent secret |
+| **AWS MCP (optional, Cursor)** | Official AWS MCP → S3 under your IAM (not App Runner’s role) |
+| **Custom GPT** | Actions → OpenAPI; encrypted API key in GPT settings |
 
 ### Request surface
 
 | Surface | Audience | Auth |
 |---------|----------|------|
-| `GET /t/{id}/{token}/…` | Anyone with the link | **Capability URL** (token ∊ URL) |
-| Comments REST under that prefix | Same | Same token in path (or validated cookie derived from it) |
-| `GET /health` | Load balancers | Public |
-| MCP `/mcp` | Cursor (agents) | **`Authorization: Bearer <mcp_token>`** |
-| OpenAPI `/api/agent/*` + `/openapi.yaml` | ChatGPT Actions | **Same Bearer** |
-| Admin (list versions, restore) | Agent via MCP | MCP bearer |
+| `GET /t/{id}/{token}/…` | Anyone with link | Capability URL |
+| Comments under that prefix | Same | Same token |
+| `GET /health` | Probes | Public |
+| `GET /openapi.yaml` | GPT editor / humans | Public (spec only; no secrets) |
+| `/api/agent/*` | ChatGPT Actions (and Cursor if desired) | **Bearer** |
 
-No public trip index listing all IDs (would defeat capability URLs). MCP `list_trips` is authenticated.
+No public trip index (protects capability URLs). `list_trips` is Bearer-authenticated.
 
 ---
 
@@ -136,53 +139,35 @@ No public trip index listing all IDs (would defeat capability URLs). MCP `list_t
 ```
 s3://tripmap-itineraries-{account}-{region}/
   itineraries/
-    holland.yaml          # includes schema_version; metadata: capability token hash
-    nz-4weeks.yaml
-  # Object Versioning: Enabled  (YAML content history)
-  # Encryption: SSE-S3 (default)
+    holland.yaml       # schema_version + trip body
+    holland.meta.json  # token_hash, created_at (not in git)
 ```
 
-**Schema versioning:** every itinerary YAML carries `schema_version: N` (integer). The server:
+- Object versioning ON; SSE-S3.
+- Capability token **hashed** in meta; never commit tokens to git.
+- ID regex: `^[a-z0-9][a-z0-9_-]{0,63}$`.
+- Rollback via agent API `restore_version` (no delete in v1).
 
-- rejects writes with unknown / future versions it cannot handle;
-- may migrate older versions on read or on patch (document migrations in code);
-- exposes the current schema via MCP `get_schema` (include version in the schema document).
+**Schema versioning:** `schema_version: N` in every YAML; server rejects/migrates; `GET /api/agent/schema` returns current schema + version.
 
-S3 **object** versioning remains orthogonal (undo bad patches). Schema versioning is about document shape evolution.
+### Bundles
 
-Store the **capability token** (or a hash of it) in object metadata or a small sidecar `itineraries/{id}.meta.json` so the server can authorize `/t/{id}/{token}/`. Prefer **hashing** the token at rest (like a password): store `token_hash`, compare on request.
+Write-through after successful YAML mutation; on-demand regenerate if missing. Store under App Runner disk and/or `bundles/{id}/` in S3.
 
-- **ID** = YAML key stem (`holland`), strict regex `^[a-z0-9][a-z0-9_-]{0,63}$`.
-- MCP `create` / `patch` → validate → `PutObject` (new version).
-- Rollback = MCP `restore_version` (copy prior version → current). **No delete tool** in v1.
-
-### Derived bundles
-
-**Write-through on mutation (v1):** after successful YAML put, regenerate bundle to local disk or `s3://…/bundles/{id}/` and serve from App Runner.  
-No CloudFront cache invalidation to worry about.
-
-On-demand regenerate remains a fallback if a bundle is missing.
-
-### Comments (unversioned S3)
+### Comments
 
 ```
-s3://tripmap-comments-{account}-{region}/
-  {tripId}/
-    days/
-      1.json    # { "text": "...", "updated_at": "..." }
-# Versioning: Disabled
+s3://tripmap-comments-…/{tripId}/days/{n}.json
 ```
 
-**Conflict policy:** last-write-wins with `If-Match` ETag when possible.
+Last-write-wins + optional `If-Match` ETag.
 
 ### Offline comments
 
 | Online | Offline |
 |--------|---------|
-| `GET` → cache | Serve cache |
-| `PUT`/`PATCH` | UI rejects (“Connect to save”) |
-
-No queued offline writes; no parallel “device only” notes feature.
+| GET → cache | Serve cache |
+| PUT | UI blocked |
 
 ---
 
@@ -194,148 +179,84 @@ No queued offline writes; no parallel “device only” notes feature.
 https://<app-runner-host>/t/{id}/{token}/
 ```
 
-| Property | Choice |
-|----------|--------|
-| Token | 128+ bits unguessable (`crypto/rand`); shown once on create / rotate |
-| Grants | Read itinerary bundle **and** read/write comments for that trip (**any** holder of the URL may edit notes) |
-| Partners | Share the same URL — they see comments too |
-| Agent | MCP `get_viewer_url` returns this URL (agent **will** see the secret — accepted) |
-| Rotation | MCP `rotate_viewer_token` → new URL; old URL 404s |
-| Leak paths | Chat logs, Referer, history, screenshots — treat like a password; rotate if leaked |
-
-**No separate browser bearer / login** for comments in v1.
-
-Comment API shape (conceptual):
+Anyone with the link: read itinerary, read/write comments. Rotate via agent API. `Referrer-Policy: no-referrer`.
 
 ```http
 GET  /t/{id}/{token}/api/comments
 PUT  /t/{id}/{token}/api/comments/{day}
 ```
 
-Server: verify token for `{id}`, then S3. Timing-safe compare on hash.
-
-### MCP (agents only)
+### Agent OpenAPI (ChatGPT Actions; optional for Cursor)
 
 | Item | Choice |
 |------|--------|
-| Mechanism | `Authorization: Bearer <mcp_token>` |
-| Storage | Secrets Manager → App Runner env |
-| Scope | All trips in this deployment (single-tenant) |
-| Rotation | New secret → update ChatGPT/Cursor → revoke old |
+| Mechanism | `Authorization: Bearer <agent_token>` |
+| Storage | Secrets Manager → App Runner; **same value** pasted into Custom GPT Actions (OpenAI encrypts at rest in GPT config) |
+| Rotation | New secret → update Secrets Manager + GPT Actions → revoke old |
 
-#### ChatGPT and Cursor auth
+### Cursor (no custom MCP)
 
-| Client | How auth works |
-|--------|----------------|
-| **Cursor** | **MCP** — remote server URL + `Authorization: Bearer <token>`. No AWS IAM on the Cursor side. |
-| **ChatGPT** | **Custom GPT Actions** — import `GET /openapi.yaml`; Authentication → API Key → Auth Type **Bearer**. OpenAI **encrypts and stores** the key in the GPT config (good secret UX). Calls hit the same App Runner handlers as MCP tools. |
+| Path | When to use |
+|------|-------------|
+| Edit `itineraries/*.yaml` + `git commit` | Default for planning and GH history |
+| **AWS MCP** → S3 `PutObject` / `GetObject` | Push/pull live YAML without going through App Runner (still must trigger regenerate — prefer OpenAPI `put_yaml` so bundle rebuilds) |
+| OpenAPI Bearer from Cursor | Same as ChatGPT; ensures validation + bundle write-through |
 
-Same Bearer secret in Secrets Manager. Two front doors, one authorization realm:
+**Recommendation:** Cursor publishes live changes via **OpenAPI `put_yaml` / `patch_trip`** (correct validation + regenerate). Use AWS MCP only for break-glass / inspection, or accept that raw S3 puts need a follow-up `POST /api/agent/trips/{id}/regenerate`.
 
-- `/mcp` — Cursor (and any future ChatGPT MCP connector)
-- OpenAPI paths (e.g. `/api/agent/...`) — ChatGPT Actions
+### Agent API operations (v1)
 
-Actions is not “less secure than MCP”; for ChatGPT it is often the **better** place to keep the agent credential. We had dropped it only to avoid a second protocol — that was the wrong tradeoff given Actions’ encrypted key storage.
+| Operation | Effect |
+|-----------|--------|
+| `GET /api/agent/trips` | List IDs |
+| `GET /api/agent/trips/{id}` | Structured trip JSON |
+| `GET /api/agent/trips/{id}/yaml` | Full YAML text |
+| `PUT /api/agent/trips/{id}/yaml` | Replace YAML (**Idempotency-Key**) |
+| `PATCH /api/agent/trips/{id}` | Structured patch (**Idempotency-Key**) |
+| `POST /api/agent/trips` | Create trip + capability token + `viewer_url` |
+| `GET /api/agent/schema` | JSON Schema + version |
+| `GET /api/agent/trips/{id}/viewer-url` | Capability URL |
+| `POST /api/agent/trips/{id}/rotate-token` | New URL |
+| `GET /api/agent/trips/{id}/versions` | List S3 versions |
+| `POST /api/agent/trips/{id}/restore` | Restore version |
 
-### MCP tools (v1)
+No delete in v1.
 
-| Tool | Effect |
-|------|--------|
-| `list_trips` | List itinerary IDs |
-| `get_trip` | Trip summary / structured JSON from YAML |
-| `get_yaml` | **Full YAML text** (for editing and GH persistence) |
-| `put_yaml` | **Replace** entire YAML in S3 after schema validation (**requires Idempotency-Key**) |
-| `get_schema` | JSON Schema for YAML (+ `schema_version`) |
-| `create_trip` | New YAML + capability token + viewer URL |
-| `patch_trip` | Structured patch + validate + put (**requires Idempotency-Key**) |
-| `get_viewer_url` | Capability URL for `{id}` |
-| `rotate_viewer_token` | Invalidate old link; issue new |
-| `list_yaml_versions` / `restore_version` | S3 version rollback |
-
-No `delete_trip` in v1.
-
-### Cursor ↔ GitHub YAML workflow
-
-Live viewer data stays in **S3**. GitHub is the place for diffable backups and local `tripmap` CLI — maintained **through Cursor**, not a nightly job.
-
-Typical flows:
+### Cursor ↔ GitHub workflow
 
 | Intent | Steps |
 |--------|--------|
-| Edit in S3, then commit to GH | `get_yaml` → write `itineraries/{id}.yaml` in the workspace → `git commit` / push |
-| Edit in the repo, publish live | Read local YAML → `put_yaml` (or `patch_trip`) → S3 + bundle regenerate |
-| ChatGPT on the road | Custom GPT **Actions** against S3 (Bearer in GPT config); Cursor later `get_yaml` if you want GH updated |
-
-Rules:
-
-- `put_yaml` / `patch_trip` always validate `schema_version` and the schema before S3 write.
-- Repo files are **not** auto-updated when ChatGPT patches S3 — Cursor (or you) runs an explicit pull-to-repo when you want GH current.
-- Do not store capability tokens in committed YAML; tokens live in S3 metadata / sidecar only.
+| Edit for GH | Change `itineraries/{id}.yaml` → commit → push |
+| Publish live | `PUT .../yaml` (or patch) with Bearer → S3 + bundle |
+| Pull live into repo | `GET .../yaml` → overwrite local file → commit |
+| ChatGPT on the road | Actions mutate S3; later Cursor pulls YAML into git if desired |
 
 ---
 
 ## Security architecture
 
-### Threat model
+| Threat | Mitigations |
+|--------|-------------|
+| Leaked agent Bearer | Rotate; Secrets Manager; rate limit; S3 versions; don’t log Authorization |
+| Leaked capability URL | Rotate token; HTTPS; no-referrer |
+| Guessed URL | 128-bit token; no public index; rate-limit 404s |
+| ID injection | Strict regex; server-built keys |
+| Bundle SSRF | `https:` photos only; fixed OSRM URL |
+| Over-broad AWS MCP | IAM user/role scoped to itineraries (+ comments if needed) prefixes only — **manual IAM help required** |
+| App Runner compromise | Least-privilege instance role; separate buckets |
 
-| Threat | Impact | Mitigations |
-|--------|--------|-------------|
-| Leaked MCP token | Rewrite itineraries | Rotate; Secrets Manager; rate limit; S3 versions + restore; don’t log Authorization |
-| Leaked capability URL | Read/write that trip’s comments + read itinerary | Rotate token; HTTPS only; `Referrer-Policy: no-referrer`; avoid putting URL in third-party image `Referer` |
-| Guessed capability URL | Same | 128-bit token; no trip index; rate-limit 404s on `/t/*` |
-| Path traversal / ID injection | Cross-trip access | Strict id regex; server builds S3 keys; constant-time token check |
-| Prompt injection in YAML | Agent misbehavior | Don’t store secrets in YAML; agent policies |
-| Bundle SSRF (`photo:`) | SSRF | `https:` only; timeouts; size caps; fixed OSRM URL |
-| Comment overwrite | Lost notes | ETag / If-Match |
-| App Runner compromise | Bucket access | Least-privilege IAM; separate buckets; no long-lived keys in image |
-| Cost bomb | Bill shock | Max YAML size; max trips; in-process rate limits; **AWS Budget alarm** |
-
-### IAM (App Runner instance role only)
+### IAM — App Runner instance role
 
 ```text
-s3:ListBucket / GetObject / PutObject on itineraries prefix
-s3:GetObjectVersion / ListBucketVersions on itineraries bucket
-# no DeleteObject / DeleteObjectVersion in v1
-
-s3:ListBucket / GetObject / PutObject / DeleteObject on comments prefix only
-
-secretsmanager:GetSecretValue on the MCP secret ARN only
+s3: List/Get/Put on itineraries prefix; GetObjectVersion + ListBucketVersions
+s3: List/Get/Put/Delete on comments prefix
+secretsmanager:GetSecretValue on agent Bearer secret ARN
+# no DeleteObject on itineraries in v1
 ```
 
-### Encryption & edge
+### IAM — Cursor AWS MCP (optional)
 
-| Layer | v1 |
-|-------|-----|
-| S3 | SSE-S3 |
-| TLS | App Runner HTTPS |
-| CDN / WAF | **None** |
-| Security headers | CSP, `Referrer-Policy: no-referrer`, `X-Frame-Options` |
-| Rate limits | In-process on `/mcp`, `/api/agent/*`, and `/t/*` token failures |
-
-### Input validation
-
-- YAML max **512 KiB**; known structs; enum types; finite coords.
-- Comments max **8 KiB**/day; plain text.
-- Idempotency keys retained (e.g. 24h in memory or small S3/Dynamo) for `patch_trip`.
-
-### Audit & recovery
-
-- CloudWatch: 5xx, MCP 401s, capability 404 bursts.
-- AWS Budget alert day one.
-- YAML recovery: S3 versions + `restore_version`.
-- Comments: no versions — accept lossier recovery; optional infrequent backup later.
-- Live recovery: S3 object versions + `restore_version`.
-- GitHub copy: refreshed when Cursor runs `get_yaml` → repo file → commit (see workflow above).
-
----
-
-## MCP design notes
-
-- After `create` / `patch_trip` / `put_yaml`: regenerate bundle; return `{ "id", "viewer_url", "version_id", "schema_version" }`.
-- Mutating tools accept and honor **`Idempotency-Key`**.
-- Quotas: e.g. max 50 itineraries; ~1 mutating call / 2s / token.
-- `get_schema` returns the current schema **and** its version; reject/migrate writes with older or unknown `schema_version` per server rules.
-- Prefer `patch_trip` for small agent edits; use `put_yaml` when Cursor (or you) is replacing the whole document from a repo file.
+Separate role/user: same itineraries prefix read/write; **no** need for Secrets Manager; prefer no comments access unless intentional.
 
 ---
 
@@ -343,77 +264,142 @@ secretsmanager:GetSecretValue on the MCP secret ARN only
 
 | Area | Change |
 |------|--------|
-| Origin | Raw App Runner URL (custom domain later if needed) |
-| Routing | Load from `/t/{id}/{token}/` |
-| Comments | REST under that prefix; offline **read cache** only |
-| Auth UX | None beyond “open the link” |
-| SW | Cache bundle + comments GET; never queue writes |
-| Title / OG | Keep build-time title injection |
+| Origin | App Runner URL |
+| Routing | `/t/{id}/{token}/` |
+| Comments | REST under prefix; offline read cache |
+| SW | Cache bundle + comments GET; no queued writes |
+| Title / OG | Keep build-time injection |
 
 ---
 
-## Migration from GitHub Pages
+## Manual config work (agent-assisted)
 
-1. **Console:** create two buckets (versioning on itineraries only), ECR, App Runner, Secrets Manager secret, instance role, Budget alarm.
-2. Upload current `itineraries/*.yaml` into S3 with `schema_version`; generate capability tokens; store hashes. **S3 is canonical thereafter** — stop treating git YAML as live.
-3. Deploy `tripmapd`; verify MCP (Cursor + ChatGPT) + capability URL + shared comment edits.
-4. Share App Runner capability URLs; Pages can linger briefly, then deprecate.
-5. Point both agents at the MCP endpoint.
+Console-heavy steps. **You run the AWS/OpenAI/Cursor UI; the agent provides exact click-paths, JSON policies, values to paste, and verifies via CLI (`aws`, `curl`, `gh`) where possible.** Mark each item when done.
+
+### M1 — AWS account hygiene
+
+- [ ] Confirm account/region (prefer one region, e.g. `eu-west-1` or `us-east-1`)
+- [ ] Enable **AWS Budget** alert (e.g. $20/$50)
+- [ ] Agent: draft budget JSON / console steps
+
+### M2 — S3 buckets
+
+- [ ] Create `tripmap-itineraries-…` — Block Public Access ON, versioning **ON**, SSE-S3
+- [ ] Create `tripmap-comments-…` — Block Public Access ON, versioning **OFF**, SSE-S3
+- [ ] Agent: bucket names, CORS if needed (usually none), verify with `aws s3api get-bucket-versioning`
+
+### M3 — Secrets Manager
+
+- [ ] Create secret `tripmap/agent-bearer` (random 32+ bytes)
+- [ ] Agent: generate token (`openssl rand -hex 32`), confirm secret ARN for App Runner
+- [ ] **Never** commit the token; store in password manager too
+
+### M4 — IAM role for App Runner
+
+- [ ] Trust policy for App Runner
+- [ ] Permissions policy (least privilege above)
+- [ ] Agent: full policy JSON + attach steps; verify with IAM policy simulator if useful
+
+### M5 — ECR + first image
+
+- [ ] Create ECR repo `tripmapd`
+- [ ] Agent: `docker build` / `docker push` commands (or GitHub Actions later)
+- [ ] Note image URI for App Runner
+
+### M6 — App Runner service
+
+- [ ] Create service from ECR image
+- [ ] Attach instance role; inject env: buckets, region, `PUBLIC_BASE_URL`, `OSRM_BASE_URL`, secret ref for Bearer
+- [ ] Health check → `/health`
+- [ ] Agent: env table to paste; after deploy, record default HTTPS URL
+- [ ] Smoke: `curl /health`
+
+### M7 — Seed itineraries
+
+- [ ] Upload `holland.yaml` / `nz-4weeks.yaml` with `schema_version`
+- [ ] Generate capability tokens; write `*.meta.json` hashes (agent script or one-shot CLI)
+- [ ] Call create/regenerate so bundles exist
+- [ ] Agent: provide upload commands + print **viewer URLs** (save offline; treat as secrets)
+
+### M8 — Custom GPT (ChatGPT)
+
+- [ ] Create GPT; paste instructions (“edit tripmap via Actions; GET before PATCH/PUT; never invent coords”)
+- [ ] Actions → import `https://<app-runner>/openapi.yaml`
+- [ ] Authentication → API Key → Bearer → paste agent token (**encrypted by OpenAI**)
+- [ ] Agent: draft GPT instructions + test prompt checklist (“list trips”, “show holland day 4”, “patch notes”)
+- [ ] Verify Action calls succeed in GPT builder test panel
+
+### M9 — Cursor (local + optional AWS MCP)
+
+- [ ] Confirm repo clone; agent can edit `itineraries/` and commit as today
+- [ ] Optional: add **AWS MCP** in Cursor MCP settings (official AWS endpoint / OAuth)
+- [ ] Optional: IAM user or SSO role scoped to itineraries bucket for AWS MCP
+- [ ] Optional: store App Runner Bearer in Cursor env/secret for OpenAPI calls (or use `curl` recipes in a skill)
+- [ ] Agent: `mcp.json` snippet, IAM policy for AWS MCP, and a short Cursor rule/skill: “publish via PUT yaml; pull before commit when syncing from ChatGPT”
+
+### M10 — Cutover from GitHub Pages
+
+- [ ] Share App Runner capability URLs with partner
+- [ ] Keep Pages live until URLs verified
+- [ ] Update README “live URLs” section
+- [ ] Agent: PR text for README; deprecate Pages workflow when ready
+
+### M11 — Drills (with agent)
+
+- [ ] Rotate agent Bearer (Secrets Manager + GPT Actions)
+- [ ] Rotate one capability token; confirm old URL 404s
+- [ ] Restore prior S3 YAML version after a bad PUT
+- [ ] Confirm Budget alarm email works
 
 ---
 
 ## Implementation phases
 
-### Phase A — Foundation
+### Phase A — Foundation + manual M1–M6
 
-- [ ] Console: buckets, IAM role, ECR, App Runner, Secrets Manager, Budget
-- [ ] `cmd/tripmapd`: health, capability-URL static serve stub, MCP Bearer middleware
-- [ ] CloudWatch basic alarms + rotation runbook
+- [ ] Console work M1–M6 (agent-assisted)
+- [ ] `cmd/tripmapd`: `/health`, static stub, Bearer middleware for `/api/agent/*`
+- [ ] CloudWatch 5xx + auth-failure filters
 
-### Phase B — Itineraries + MCP
+### Phase B — Itineraries + OpenAPI
 
-- [ ] S3 YAML load/save + object versions + `schema_version`
-- [ ] MCP tools for Cursor, including **`get_yaml` / `put_yaml`**
-- [ ] OpenAPI twin (`/openapi.yaml` + `/api/agent/*`) for ChatGPT Actions; same Bearer + handlers
-- [ ] Bundle write-through; `viewer_url` with capability token
-- [ ] Idempotency-Key; rate limits; max size
-- [ ] `restore_version`, `rotate_viewer_token`; no delete
-- [ ] Schema document + compatibility rules for older `schema_version`
-- [ ] Document Cursor pull-to-repo / push-from-repo workflow for GH persistence
+- [ ] S3 YAML + versions + `schema_version`
+- [ ] OpenAPI + handlers (table above); Idempotency-Key; quotas
+- [ ] Bundle write-through; capability tokens
+- [ ] Seed data (M7)
+- [ ] Custom GPT setup (M8)
 
 ### Phase C — Comments + PWA
 
-- [ ] Comments CRUD under `/t/{id}/{token}/api/…` (any URL holder can write)
+- [ ] Comments under `/t/{id}/{token}/api/…`
 - [ ] PWA online write / offline read-only
 - [ ] CSP + Referrer-Policy
-- [ ] UX: shared notes (partner edits are expected)
 
-### Phase D — Hardening (still no CloudFront)
+### Phase D — Cursor ergonomics
 
-- [ ] Token-rotation drill; bad-patch restore drill
+- [ ] Cursor rule/skill for publish/pull (M9)
+- [ ] Optional AWS MCP wiring
+- [ ] Document “ChatGPT changed S3 → pull into git”
+
+### Phase E — Hardening
+
+- [ ] Rotation + restore drills (M11)
 - [ ] Image scan in CI
-- [ ] (Deferred) App Runner custom domain — only if raw URL becomes painful
-
-### Phase E — Ops
-
-- [ ] Staging service + separate buckets (optional)
-- [ ] Disaster tabletop (leaked MCP token, leaked capability URL)
+- [ ] Cutover (M10)
 
 ---
 
-## Configuration
+## Configuration (runtime)
 
 | Name | Where | Notes |
 |------|-------|-------|
-| `MCP_BEARER_TOKEN` | Secrets Manager → App Runner | Agents only |
+| `AGENT_BEARER_TOKEN` | Secrets Manager → App Runner | GPT Actions + optional Cursor |
 | `ITINERARIES_BUCKET` | Env | |
 | `COMMENTS_BUCKET` | Env | |
 | `AWS_REGION` | Env | |
-| `PUBLIC_BASE_URL` | Env | e.g. default App Runner URL |
-| `OSRM_BASE_URL` | Env | Fixed allowlisted host |
-| `MAX_YAML_BYTES` | Env | |
-
-No `COMMENTS_BEARER_TOKEN` — capability URL replaces it.
+| `PUBLIC_BASE_URL` | Env | App Runner default URL |
+| `OSRM_BASE_URL` | Env | Fixed allowlist |
+| `MAX_YAML_BYTES` | Env | e.g. 512KiB |
 
 ---
 
@@ -421,41 +407,38 @@ No `COMMENTS_BEARER_TOKEN` — capability URL replaces it.
 
 | Item | Notes |
 |------|-------|
-| App Runner | Dominant cost — check idle/always-on pricing |
-| S3 + versions | Low; prune old versions occasionally |
+| App Runner | Main cost |
+| S3 + versions | Low |
 | Secrets Manager | ~$0.40/secret/month |
-| CloudFront / WAF | **$0** (skipped) |
+| AWS MCP | No extra MCP fee; pay for API/S3 usage only |
+| CloudFront / WAF | $0 (skipped) |
 
 ---
 
-## Simplest AWS URL (v1)
+## Migration from GitHub Pages
 
-Use the **default App Runner URL** — zero DNS setup:
-
-`https://xxx.<region>.awsapprunner.com/t/holland/{token}/`
-
-Custom domain and any attempt to keep `www.sheffer.org/tripmap/…` via GH Pages are **out of scope for v1**.
+1. Complete M1–M7 (infra + seed).
+2. Deploy `tripmapd`; verify capability URL + agent OpenAPI.
+3. Complete M8 (Custom GPT).
+4. Complete M9 (Cursor habits / optional AWS MCP).
+5. Share new URLs; M10 cutover when stable.
 
 ---
 
 ## Relation to existing roadmap
 
-Replaces the Fly.io / "API commits to git" hosting sketch. After cutover, **live itineraries are in S3** (object + schema versioning). The git repo holds Go/PWA code and a **Cursor-maintained** YAML mirror under `itineraries/` for GH history and local CLI — updated via MCP `get_yaml` / `put_yaml`, not auto-synced. GitHub Pages can linger until capability URLs replace shared links.
+Replaces Fly.io / “API commits to git” and **drops custom MCP**. Live data in S3; ChatGPT via **Actions**; Cursor via **git + optional AWS MCP / OpenAPI**. GitHub Pages remains until capability URLs replace shared links.
 
 ---
 
 ## Acceptance criteria
 
-- [ ] Capability URL opens itinerary **and** shared comments; **owner and partner can both edit** comments
-- [ ] Unknown token → 404
-- [ ] Offline: itinerary + cached comments readable; comment writes blocked
-- [ ] MCP Bearer from **Cursor**; ChatGPT **Actions** Bearer (encrypted in GPT config): create/patch/`put_yaml`/restore/rotate; `get_schema` + `schema_version` work
-- [ ] Cursor can `get_yaml` → write repo file → commit to GH, and `put_yaml` from a repo file to publish live
-- [ ] Neither agent needs AWS credentials
-- [ ] No MCP Bearer → no YAML mutation
-- [ ] Idempotent re-send of mutating tools does not double-apply
-- [ ] Invalid id / oversized / unknown schema version rejected appropriately
-- [ ] Bad patch recoverable via `restore_version` in ≤ 15 minutes (runbook)
-- [ ] Leaked URL mitigated via `rotate_viewer_token`
-- [ ] No secrets (MCP token, capability tokens) in git; Budget alarm on
-- [ ] Live viewer does not depend on git after migration
+- [ ] Capability URL: itinerary + shared comments; both parties can edit notes
+- [ ] Unknown token → 404; offline comments read-only
+- [ ] Custom GPT Actions (Bearer in GPT config) can list/get/put/patch/restore/rotate
+- [ ] Cursor can maintain `itineraries/*.yaml` in git and publish/pull via OpenAPI (and/or AWS MCP + regenerate)
+- [ ] No custom `/mcp` endpoint required
+- [ ] Invalid id / oversized / bad schema version rejected
+- [ ] Bearer leak and URL leak recoverable via rotation runbooks
+- [ ] No secrets in git; Budget alarm on
+- [ ] Manual checklist M1–M11 completed once with agent help
