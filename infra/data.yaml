@@ -1,0 +1,203 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  tripmap persistent data plane (eu-central-1): S3 itineraries + comments,
+  agent Bearer secret, ECR, and IAM roles for seasonal ECS compute.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: tripmap
+    AllowedPattern: "^[a-z0-9-]+$"
+
+Resources:
+  ItinerariesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${ProjectName}-itineraries-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Stack
+          Value: data
+
+  CommentsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${ProjectName}-comments-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Suspended
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Stack
+          Value: data
+
+  AgentBearerSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}/agent-bearer"
+      Description: Bearer token for tripmap OpenAPI / Custom GPT Actions
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: token
+        PasswordLength: 48
+        ExcludeCharacters: '"@/\'
+        RequireEachIncludedType: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${ProjectName}d"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Pull images + write CloudWatch Logs (used by ECS/Fargate)
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-task-execution"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadAgentSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref AgentBearerSecret
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # App runtime access to S3 + secret
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-task"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: TripmapDataAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ItinerariesList
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                Resource: !GetAtt ItinerariesBucket.Arn
+              - Sid: ItinerariesObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource: !Sub "${ItinerariesBucket.Arn}/*"
+              - Sid: CommentsList
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt CommentsBucket.Arn
+              - Sid: CommentsObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${CommentsBucket.Arn}/*"
+              - Sid: ReadAgentSecret
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref AgentBearerSecret
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+Outputs:
+  ItinerariesBucketName:
+    Description: Versioned itinerary YAML bucket
+    Value: !Ref ItinerariesBucket
+    Export:
+      Name: !Sub "${ProjectName}-ItinerariesBucket"
+
+  CommentsBucketName:
+    Description: Unversioned comments bucket
+    Value: !Ref CommentsBucket
+    Export:
+      Name: !Sub "${ProjectName}-CommentsBucket"
+
+  AgentBearerSecretArn:
+    Description: Secrets Manager ARN for agent Bearer token
+    Value: !Ref AgentBearerSecret
+    Export:
+      Name: !Sub "${ProjectName}-AgentBearerSecretArn"
+
+  EcrRepositoryUri:
+    Description: ECR repository URI for tripmapd image
+    Value: !GetAtt EcrRepository.RepositoryUri
+    Export:
+      Name: !Sub "${ProjectName}-EcrRepositoryUri"
+
+  EcrRepositoryName:
+    Value: !Ref EcrRepository
+    Export:
+      Name: !Sub "${ProjectName}-EcrRepositoryName"
+
+  TaskExecutionRoleArn:
+    Value: !GetAtt TaskExecutionRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-TaskExecutionRoleArn"
+
+  TaskRoleArn:
+    Value: !GetAtt TaskRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-TaskRoleArn"
