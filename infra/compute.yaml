@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  tripmap seasonal compute (eu-central-1): ECS Express Mode service.
+  Delete this stack off-season to stop ALB/Fargate charges. Requires tripmap-data.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: tripmap
+    AllowedPattern: "^[a-z0-9-]+$"
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: ECR image tag to run
+  Cpu:
+    Type: String
+    Default: "256"
+    AllowedValues: ["256", "512", "1024", "2048", "4096"]
+  Memory:
+    Type: String
+    Default: "512"
+    AllowedValues: ["512", "1024", "2048", "4096", "8192"]
+  MinTaskCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 10
+  MaxTaskCount:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 20
+
+Resources:
+  ExpressService:
+    Type: AWS::ECS::ExpressGatewayService
+    Properties:
+      ServiceName: !Ref ProjectName
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub "${ProjectName}-TaskExecutionRoleArn"
+      InfrastructureRoleArn:
+        Fn::ImportValue: !Sub "${ProjectName}-InfrastructureRoleArn"
+      TaskRoleArn:
+        Fn::ImportValue: !Sub "${ProjectName}-TaskRoleArn"
+      HealthCheckPath: /health
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      PrimaryContainer:
+        Image: !Sub
+          - "${RepoUri}:${ImageTag}"
+          - RepoUri:
+              Fn::ImportValue: !Sub "${ProjectName}-EcrRepositoryUri"
+            ImageTag: !Ref ImageTag
+        ContainerPort: 8080
+        Environment:
+          - Name: ADDR
+            Value: ":8080"
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+          - Name: ITINERARIES_BUCKET
+            Value:
+              Fn::ImportValue: !Sub "${ProjectName}-ItinerariesBucket"
+          - Name: COMMENTS_BUCKET
+            Value:
+              Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
+        Secrets:
+          # Injects the JSON key "token" from tripmap/agent-bearer
+          - Name: AGENT_BEARER_TOKEN
+            ValueFrom: !Sub
+              - "${SecretArn}:token::"
+              - SecretArn:
+                  Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
+      ScalingTarget:
+        MinTaskCount: !Ref MinTaskCount
+        MaxTaskCount: !Ref MaxTaskCount
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Stack
+          Value: compute
+
+Outputs:
+  ServiceArn:
+    Description: Express Gateway service ARN
+    Value: !GetAtt ExpressService.ServiceArn
+  Endpoint:
+    Description: HTTPS endpoint for the service (may change on redeploy)
+    Value: !GetAtt ExpressService.Endpoint
+  ServiceUrlHint:
+    Description: Use https:// + Endpoint as PUBLIC_BASE_URL / GPT Actions server
+    Value: !Sub "https://${ExpressService.Endpoint}"

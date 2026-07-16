@@ -162,6 +162,24 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # ECS Express Mode: lets ECS create ALB, SGs, certs, autoscaling on our behalf
+  InfrastructureRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ecs-infrastructure"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
 Outputs:
   ItinerariesBucketName:
     Description: Versioned itinerary YAML bucket
@@ -201,3 +219,8 @@ Outputs:
     Value: !GetAtt TaskRole.Arn
     Export:
       Name: !Sub "${ProjectName}-TaskRoleArn"
+
+  InfrastructureRoleArn:
+    Value: !GetAtt InfrastructureRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-InfrastructureRoleArn"
