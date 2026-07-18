@@ -3,9 +3,10 @@
 # Usage:
 #   BASE_URL=https://….ecs.eu-central-1.on.aws TOKEN=… ./scripts/smoke-agent.sh
 #
-# Fetch TOKEN without pasting it into chat:
-#   TOKEN=$(aws secretsmanager get-secret-value --secret-id tripmap/agent-bearer \
-#     --region eu-central-1 --query SecretString --output text | jq -r .token)
+# Put the agent Bearer in a gitignored .env (not via tripmap-deploy IAM):
+#   AGENT_BEARER_TOKEN=…   # from password manager / Custom GPT secret store
+#   set -a && source .env && set +a
+#   BASE_URL=https://$ENDPOINT TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
 set -euo pipefail
 
 BASE_URL="${BASE_URL:?set BASE_URL (https://… no trailing slash)}"

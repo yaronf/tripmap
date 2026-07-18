@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Least-privilege IAM user for Cursor / day-to-day tripmap deploys.
+  Can push ECR, manage tripmap-compute, read data outputs, smoke against
+  the agent secret, and seed S3. Cannot administer the account or delete
+  tripmap-data.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: tripmap
+    AllowedPattern: "^[a-z0-9-]+$"
+  DeployUserName:
+    Type: String
+    Default: tripmap-deploy
+    AllowedPattern: "^[\\w+=,.@-]+$"
+
+Resources:
+  DeployPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${ProjectName}-deploy"
+      Description: Day-to-day tripmap deploy / seed / smoke (not account admin)
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ECRAuth
+            Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+            Resource: "*"
+
+          - Sid: ECRPushPull
+            Effect: Allow
+            Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:BatchGetImage
+              - ecr:CompleteLayerUpload
+              - ecr:DescribeImages
+              - ecr:DescribeRepositories
+              - ecr:GetDownloadUrlForLayer
+              - ecr:InitiateLayerUpload
+              - ecr:ListImages
+              - ecr:PutImage
+              - ecr:UploadLayerPart
+            Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectName}d"
+
+          - Sid: CloudFormationCompute
+            Effect: Allow
+            Action:
+              - cloudformation:CreateChangeSet
+              - cloudformation:CreateStack
+              - cloudformation:DeleteChangeSet
+              - cloudformation:DeleteStack
+              - cloudformation:DescribeChangeSet
+              - cloudformation:DescribeStackEvents
+              - cloudformation:DescribeStackResource
+              - cloudformation:DescribeStackResources
+              - cloudformation:DescribeStacks
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:GetTemplate
+              - cloudformation:GetTemplateSummary
+              - cloudformation:ListChangeSets
+              - cloudformation:ListStackResources
+              - cloudformation:UpdateStack
+            Resource:
+              - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-compute/*"
+              - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-compute"
+
+          - Sid: CloudFormationReadDataAndList
+            Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+              - cloudformation:ListExports
+              - cloudformation:ListImports
+              - cloudformation:GetTemplateSummary
+            Resource: "*"
+
+          - Sid: DenyDeleteDataStack
+            Effect: Deny
+            Action:
+              - cloudformation:DeleteStack
+            Resource:
+              - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-data/*"
+              - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-data"
+
+          - Sid: PassTripmapRoles
+            Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource:
+              - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-task"
+              - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-task-execution"
+              - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-ecs-infrastructure"
+            Condition:
+              StringEquals:
+                iam:PassedToService: ecs.amazonaws.com
+
+          - Sid: ECSExpressGateway
+            Effect: Allow
+            Action:
+              - ecs:CreateExpressGatewayService
+              - ecs:UpdateExpressGatewayService
+              - ecs:DeleteExpressGatewayService
+              - ecs:DescribeExpressGatewayService
+              - ecs:ListExpressGatewayServices
+              - ecs:TagResource
+              - ecs:UntagResource
+              - ecs:ListTagsForResource
+              # Express Mode registers a new task definition on each image roll
+              - ecs:RegisterTaskDefinition
+              - ecs:DeregisterTaskDefinition
+              # Task/status visibility while rolling
+              - ecs:DescribeServices
+              - ecs:DescribeTasks
+              - ecs:DescribeTaskDefinition
+              - ecs:ListTasks
+              - ecs:DescribeClusters
+            Resource: "*"
+
+          - Sid: ItinerariesS3
+            Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:ListBucketVersions
+            Resource: !Sub "arn:aws:s3:::${ProjectName}-itineraries-${AWS::AccountId}-${AWS::Region}"
+
+          - Sid: ItinerariesObjects
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub "arn:aws:s3:::${ProjectName}-itineraries-${AWS::AccountId}-${AWS::Region}/*"
+
+          - Sid: CommentsS3
+            Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+            Resource: !Sub "arn:aws:s3:::${ProjectName}-comments-${AWS::AccountId}-${AWS::Region}"
+
+          - Sid: CommentsObjects
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub "arn:aws:s3:::${ProjectName}-comments-${AWS::AccountId}-${AWS::Region}/*"
+
+  # Group tripmap-deploy is managed outside this stack (created via CLI) so we
+  # do not fight AlreadyExists on updates. Attach DeployPolicy +
+  # SignInLocalDevelopmentAccess to that group; add DeployUser as a member.
+  DeployUser:
+    Type: AWS::IAM::User
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserName: !Ref DeployUserName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Purpose
+          Value: day-to-day-deploy
+
+Outputs:
+  DeployUserName:
+    Description: IAM user for Cursor / day-to-day tripmap work
+    Value: !Ref DeployUser
+  DeployUserArn:
+    Value: !GetAtt DeployUser.Arn
+  DeployPolicyArn:
+    Value: !Ref DeployPolicy
+  DeployGroupHint:
+    Description: Attach DeployPolicy + SignInLocalDevelopmentAccess to this existing group
+    Value: !Ref DeployUserName
+  NextSteps:
+    Description: Finish console login outside CloudFormation
+    Value: !Sub >
+      Group ${DeployUserName} (CLI): attach policy ${ProjectName}-deploy and
+      SignInLocalDevelopmentAccess; add user ${DeployUserName}. Enable MFA.
+      Agent Bearer is NOT in this policy — use .env / Custom GPT only.

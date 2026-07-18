@@ -3,7 +3,7 @@
 Authoritative plan for hosting tripmap **beyond** the current GitHub Pages static PWA.  
 Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/architecture), [itinerary-display-ux.md](itinerary-display-ux.md) (UI).
 
-**Status:** Phase A–C live (capability-URL viewer + shared notes). Custom GPT / seeding still open.  
+**Status:** Phase A–C live; itineraries seeded; Custom GPT Actions working (paste OpenAPI until live image is rolled).  
 **Current production (static):** GitHub Pages (`www.sheffer.org/tripmap/`).  
 **In-season compute:** ECS Express Mode endpoint from `tripmap-compute` stack outputs.
 
@@ -220,9 +220,28 @@ Prefer **CloudFormation** over click-ops for buckets/roles/compute. You still ap
 ### M1 — Account hygiene
 
 - [x] Budget configured
-- [ ] Region: work in **eu-central-1** for all tripmap stacks
+- [x] Region: work in **eu-central-1** for all tripmap stacks
 - [ ] Optional: CLI default `il-central-1`; alias or always pass `--region eu-central-1`
-- [ ] Skip App Runner gate — compute is Express Mode
+- [x] Skip App Runner gate — compute is Express Mode
+- [x] Daily work as `yaron-admin` (not root)
+- [ ] Day-to-day Cursor deploys as `tripmap-deploy` (see `infra/deploy-iam.yaml`) — not `AdministratorAccess`
+
+### Deploy IAM (`tripmap-deploy`)
+
+Least-privilege user for ECR push, `tripmap-compute` create/update/delete, and S3 inspect/seed. **Cannot** delete `tripmap-data`, read `tripmap/agent-bearer`, or administer the account.
+
+Stack `tripmap-deploy-iam` owns the **managed policy** + **user**. Group `tripmap-deploy` is CLI-managed (avoids CFN AlreadyExists): attach policy `tripmap-deploy` and AWS managed **`SignInLocalDevelopmentAccess`**, add the user as a member.
+
+```bash
+aws cloudformation deploy --stack-name tripmap-deploy-iam \
+  --template-file infra/deploy-iam.yaml --region eu-central-1 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides ProjectName=tripmap DeployUserName=tripmap-deploy
+```
+
+Enable **console access + MFA** on user `tripmap-deploy`. Use `aws login` as that user for tripmap work.
+
+**Agent Bearer** stays out of IAM deploy rights: store in a password manager, put in a gitignored local `.env` for smoke/CLI, and paste into Custom GPT Actions (encrypted in the GPT editor). Capability viewer URLs are fine in Cursor chat.
 
 ### M2 — Data stack (once)
 
@@ -243,26 +262,54 @@ Prefer **CloudFormation** over click-ops for buckets/roles/compute. You still ap
 - [x] `curl $ServiceUrl/health`
 - [ ] **Undeploy drill:** delete `tripmap-compute`; confirm data stack intact; recreate; confirm new ServiceUrl
 
-Agent API smoke (after image push):
+Agent API smoke (after image push). Load Bearer from a **local** `.env` (never commit; never fetch via `tripmap-deploy`):
 
 ```bash
+# .env (gitignored) — set once from password manager / Secrets Manager as yaron-admin
+# AGENT_BEARER_TOKEN=…
+
+set -a && source .env && set +a
 ENDPOINT=$(aws cloudformation describe-stacks --stack-name tripmap-compute --region eu-central-1 \
   --query "Stacks[0].Outputs[?OutputKey=='Endpoint'].OutputValue" --output text)
-TOKEN=$(aws secretsmanager get-secret-value --secret-id tripmap/agent-bearer --region eu-central-1 \
-  --query SecretString --output text | jq -r .token)
-BASE_URL="https://$ENDPOINT" TOKEN="$TOKEN" ./scripts/smoke-agent.sh
+BASE_URL="https://$ENDPOINT" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
 ```
-
 ### M5 — Seed itineraries
 
-- [ ] Upload YAML + meta (tokens); regenerate via agent API once compute is up
-- [ ] Save capability URLs (host + token)
+- [x] Upload YAML + meta (tokens); regenerate via agent API once compute is up
+- [ ] Save capability URLs (host + token) — password manager / private note
 
 ### M6 — Custom GPT
 
-- [ ] Actions → `$ServiceUrl/openapi.yaml` + Bearer
+- [x] Actions → OpenAPI + Bearer (paste until live `/openapi.yaml` is 0.2.2)
 - [ ] After every compute redeploy: update Actions **server URL** if host changed
-- [ ] Agent: GPT instruction blurb + test prompts
+- [x] Agent: GPT instruction blurb + test prompts
+
+#### Setup (ChatGPT → Create a GPT)
+
+1. Confirm compute is up: `curl -fsS https://$ENDPOINT/health`
+2. **Actions** → import the OpenAPI schema:
+   - Prefer **Import from URL** once the live image serves OpenAPI **3.1.0**: `https://$ENDPOINT/openapi.yaml`
+   - Until then (or if ChatGPT still chokes): **Create new action** → paste from `tmp/openapi-chatgpt.yaml` (export with `python3 scripts/export_openapi.py "$ENDPOINT"`). That file already has the public `servers[0].url`.
+   - ChatGPT Actions requires `openapi: 3.1.0`/`3.1.1`, rejects parameter `$ref`s, empty `schemas`, and `http://localhost` under an `https://localhost` root — the 0.2.2 spec avoids those.
+3. **Authentication**: API Key → Auth Type **Bearer** → paste agent Bearer from password manager / `.env` (`AGENT_BEARER_TOKEN`). Never put this in the GPT instructions text.
+4. **Instructions** (paste):
+
+```text
+You edit tripmap road-trip itineraries via the tripmap agent API Actions.
+
+Rules:
+- Always list or GET before changing a trip. Prefer GET /api/agent/trips/{id}/yaml before PUT/PATCH.
+- Mutating calls require a unique Idempotency-Key header (use a new UUID each distinct user request; reuse only when retrying the same failed call).
+- schema_version must be 1. Do not invent unsupported schema versions.
+- Prefer PATCH for small edits (swap_days, days.{n}.title/notes/hike/ferry/route/stops, insert_day, delete_day). Use PUT /yaml only for full document replacement.
+- After create/rotate-token, tell the user the viewer_url (capability link). Do not invent tokens.
+- Trips holland and nz-4weeks are the main itineraries. Do not delete trips (API has no delete).
+- If the API returns 401/404/5xx, report the error briefly; do not invent itinerary data.
+- Keep answers short; show day titles and key fields when summarizing.
+```
+
+5. **Test prompts**: “List trips.” → “What’s on day 4 of holland?” → “Rename day 4 title to … (PATCH).”
+6. Save the GPT. After any compute stack recreate, update the Actions server URL if the hostname changed.
 
 ### M7 — Cursor
 
@@ -294,7 +341,7 @@ BASE_URL="https://$ENDPOINT" TOKEN="$TOKEN" ./scripts/smoke-agent.sh
 - [x] `infra/compute.yaml` (Express Mode)
 - [x] OpenAPI agent API + schema_version + bundles
 - [ ] Deploy/undeploy drill (M4)
-- [ ] Seed + Custom GPT (M5–M6)
+- [x] Seed + Custom GPT (M5–M6; save capability URLs still open)
 
 ### Phase C — Comments + PWA
 

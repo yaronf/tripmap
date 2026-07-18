@@ -67,6 +67,19 @@ func TestOpenAPIPublic(t *testing.T) {
 	}
 }
 
+func TestOpenAPIUsesRequestHost(t *testing.T) {
+	mem := store.NewMem()
+	srv := New(Config{AgentBearerToken: "secret", MaxYAMLBytes: 512 * 1024, RouteMode: "straight"}, mem)
+	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	req.Host = "tr-example.ecs.eu-central-1.on.aws"
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	body := rec.Body.String()
+	if !strings.Contains(body, "https://tr-example.ecs.eu-central-1.on.aws") {
+		t.Fatalf("expected host-derived servers.url, got %s", body[:min(200, len(body))])
+	}
+}
+
 func TestLoadConfigFromJSONSecret(t *testing.T) {
 	t.Setenv("AGENT_BEARER_TOKEN", "")
 	t.Setenv("AGENT_BEARER_SECRET_JSON", `{"token":"from-json"}`)

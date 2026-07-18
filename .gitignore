@@ -4,3 +4,7 @@
 /itineraries/photos/*
 !/itineraries/photos/README.md
 !/itineraries/photos/CREDITS.md
+.env
+.env.*
+!.env.example
+/tmp/
