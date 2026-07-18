@@ -260,7 +260,7 @@ Enable **console access + MFA** on user `tripmap-deploy`. Use `aws login` as tha
 - [x] Create stack `tripmap-compute` with ImageTag + data stack exports
 - [ ] Copy **ServiceUrl** output → password manager
 - [x] `curl $ServiceUrl/health`
-- [ ] **Undeploy drill:** delete `tripmap-compute`; confirm data stack intact; recreate; confirm new ServiceUrl
+- [x] **Undeploy drill:** delete `tripmap-compute`; confirm data stack intact; recreate; confirm new ServiceUrl
 
 Agent API smoke (after image push). Load Bearer from a **local** `.env` (never commit; never fetch via `tripmap-deploy`):
 
@@ -276,12 +276,12 @@ BASE_URL="https://$ENDPOINT" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.s
 ### M5 — Seed itineraries
 
 - [x] Upload YAML + meta (tokens); regenerate via agent API once compute is up
-- [ ] Save capability URLs (host + token) — password manager / private note
+- [x] Save capability URLs (host + token) — password manager / private note
 
 ### M6 — Custom GPT
 
 - [x] Actions → Import from URL (`/openapi.yaml`) + Bearer
-- [ ] After every compute redeploy: update Actions **server URL** if host changed
+- [ ] After every compute redeploy: update Actions **server URL** if host changed (see [runbook-deploy-compute.md](runbook-deploy-compute.md))
 - [x] Agent: GPT instruction blurb + test prompts
 
 #### Setup (ChatGPT → Create a GPT)
@@ -319,12 +319,12 @@ Rules:
 ### M8 — Cutover / Pages
 
 - [ ] Share capability URLs when in season
-- [ ] README: note seasonal hosting + link to runbook
+- [x] README: note seasonal hosting + link to runbook
 
 ### M9 — Runbooks (in-repo)
 
-- [ ] `docs/runbook-deploy-compute.md` — one-click create + GPT URL update checklist
-- [ ] `docs/runbook-undeploy-compute.md` — delete stack + “links offline until next season”
+- [x] [`docs/runbook-deploy-compute.md`](runbook-deploy-compute.md) — create/update + GPT URL checklist
+- [x] [`docs/runbook-undeploy-compute.md`](runbook-undeploy-compute.md) — delete stack + “links offline until next season”
 
 ---
 
@@ -340,8 +340,8 @@ Rules:
 
 - [x] `infra/compute.yaml` (Express Mode)
 - [x] OpenAPI agent API + schema_version + bundles
-- [ ] Deploy/undeploy drill (M4)
-- [x] Seed + Custom GPT (M5–M6; save capability URLs still open)
+- [x] Deploy/undeploy drill (M4)
+- [x] Seed + Custom GPT (M5–M6)
 
 ### Phase C — Comments + PWA
 
@@ -351,7 +351,7 @@ Capability URL format: `https://{ServiceUrl}/t/{id}/{token}/` (token plaintext o
 
 ### Phase D — Ergonomics
 
-- [ ] Runbooks M9; optional `workflow_dispatch` deploy/destroy
+- [x] Runbooks M9; optional `workflow_dispatch` deploy/destroy still open
 - [ ] Cursor skill
 - [ ] **TODO:** durable public URL (custom domain or stable alias) so GPT Actions + capability links do not need a hostname update after every compute recreate — see [TODO.md](../TODO.md)
 

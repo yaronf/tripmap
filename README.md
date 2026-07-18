@@ -190,6 +190,18 @@ go test ./...
 The test suite includes a golden-file check for KML output, OSRM client tests
 with a mock server, and tests for typed-stop and route behavior.
 
+## Seasonal AWS hosting
+
+In season, `tripmapd` runs on ECS Express Mode with capability-URL viewers and a
+Custom GPT Actions API. Off season, delete the compute stack to stop ALB/Fargate
+charges; itineraries and comments stay in S3.
+
+- Plan: [docs/aws-deployment.md](docs/aws-deployment.md)
+- Deploy: [docs/runbook-deploy-compute.md](docs/runbook-deploy-compute.md)
+- Undeploy: [docs/runbook-undeploy-compute.md](docs/runbook-undeploy-compute.md)
+
+Static GitHub Pages PWA remains at `https://www.sheffer.org/tripmap/`.
+
 ## Roadmap
 
 See [TODO.md](TODO.md) for planned features (GraphHopper/Valhalla backends,

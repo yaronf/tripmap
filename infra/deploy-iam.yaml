@@ -110,6 +110,16 @@ Resources:
               # Express Mode registers a new task definition on each image roll
               - ecs:RegisterTaskDefinition
               - ecs:DeregisterTaskDefinition
+              # After compute delete, recreate needs the default cluster again
+              - ecs:CreateCluster
+              - ecs:DeleteCluster
+              # Express Mode create polls classic ECS deployment APIs
+              - ecs:ListServiceDeployments
+              - ecs:DescribeServiceDeployments
+              - ecs:DescribeServiceRevisions
+              - ecs:CreateService
+              - ecs:UpdateService
+              - ecs:DeleteService
               # Task/status visibility while rolling
               - ecs:DescribeServices
               - ecs:DescribeTasks
