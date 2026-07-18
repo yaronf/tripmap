@@ -3,7 +3,7 @@
 Authoritative plan for hosting tripmap **beyond** the current GitHub Pages static PWA.  
 Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/architecture), [itinerary-display-ux.md](itinerary-display-ux.md) (UI).
 
-**Status:** Phase A–C live; itineraries seeded; Custom GPT Actions working (paste OpenAPI until live image is rolled).  
+**Status:** Phase A–C live; itineraries seeded; Custom GPT Actions working; live `/openapi.yaml` is 0.2.2.  
 **Current production (static):** GitHub Pages (`www.sheffer.org/tripmap/`).  
 **In-season compute:** ECS Express Mode endpoint from `tripmap-compute` stack outputs.
 
@@ -30,7 +30,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Schema evolution | **`schema_version`** in YAML |
 | GitHub YAML | Cursor-maintained mirror under `itineraries/` |
 | Region | **All tripmap resources in `eu-central-1` (Frankfurt)**. CLI default may stay `il-central-1`; always `--region eu-central-1` for tripmap |
-| Public hostname (v1) | ALB / Express Mode default HTTPS URL. **May change on each redeploy** unless/until custom domain — update GPT Actions base URL + shared links after deploy (runbook) |
+| Public hostname (v1) | ALB / Express Mode default HTTPS URL. **May change on each redeploy** — update GPT Actions base URL + shared links after deploy (runbook). **TODO:** durable URL (custom domain / stable alias); tracked in [TODO.md](../TODO.md) |
 
 ---
 
@@ -280,7 +280,7 @@ BASE_URL="https://$ENDPOINT" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.s
 
 ### M6 — Custom GPT
 
-- [x] Actions → OpenAPI + Bearer (paste until live `/openapi.yaml` is 0.2.2)
+- [x] Actions → Import from URL (`/openapi.yaml`) + Bearer
 - [ ] After every compute redeploy: update Actions **server URL** if host changed
 - [x] Agent: GPT instruction blurb + test prompts
 
@@ -353,6 +353,7 @@ Capability URL format: `https://{ServiceUrl}/t/{id}/{token}/` (token plaintext o
 
 - [ ] Runbooks M9; optional `workflow_dispatch` deploy/destroy
 - [ ] Cursor skill
+- [ ] **TODO:** durable public URL (custom domain or stable alias) so GPT Actions + capability links do not need a hostname update after every compute recreate — see [TODO.md](../TODO.md)
 
 ### Phase E — Hardening
 
