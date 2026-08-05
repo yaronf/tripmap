@@ -43,6 +43,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /openapi.yaml", s.handleOpenAPI)
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
+	s.mux.HandleFunc("GET /auth/hello/login", s.handleHelloLogin)
+	s.mux.HandleFunc("GET /auth/hello/callback", s.handleHelloCallback)
+	s.mux.HandleFunc("GET /auth/me", s.handleAuthMe)
+	s.mux.HandleFunc("GET /auth/logout", s.handleAuthLogout)
 
 	agent := http.NewServeMux()
 	agent.HandleFunc("GET /trips", s.handleListTrips)
@@ -75,9 +79,46 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (s *Server) handleRoot(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte("tripmapd\n"))
+func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	hello := s.helloEnabled()
+	sess, authed := s.sessionFromRequest(r)
+	var body string
+	if !hello {
+		body = `<p>tripmapd — Hellō login not configured (<code>HELLO_CLIENT_ID</code>).</p>`
+	} else if authed {
+		body = fmt.Sprintf(`
+<p>Signed in as <strong>%s</strong> (%s)</p>
+<p><a href="/auth/me">/auth/me</a> · <a href="/auth/logout">Sign out</a></p>
+<p>Capability trip links still use <code>/t/{id}/{token}/</code>.</p>`,
+			htmlEscape(sess.Name), htmlEscape(sess.Email))
+	} else {
+		body = `
+<link href="https://cdn.hello.coop/css/hello-btn.css" rel="stylesheet"/>
+<p>tripmap seasonal API &amp; viewers.</p>
+<div class="hello-container">
+  <button class="hello-btn" type="button" onclick="login(event)">ō&nbsp;&nbsp;Continue with Hellō</button>
+</div>
+<script>
+function login(event){
+  event.target.classList.add('hello-btn-loader');
+  event.target.disabled = true;
+  window.location.href = '/auth/hello/login';
+}
+</script>
+<p>Trip viewers still use private capability URLs.</p>`
+	}
+	_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>tripmap</title>
+<style>body{font-family:system-ui,sans-serif;max-width:36rem;margin:2.5rem auto;padding:0 1rem;line-height:1.5;color:#1a1f1c;background:#f3efe6}
+a{color:#0f5c5c}code{font-size:.9em}</style>
+</head><body><h1>tripmap</h1>%s</body></html>`, body)
+}
+
+func htmlEscape(s string) string {
+	repl := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
+	return repl.Replace(s)
 }
 
 func (s *Server) handleListTrips(w http.ResponseWriter, r *http.Request) {

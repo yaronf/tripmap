@@ -30,6 +30,10 @@ Parameters:
     Default: 2
     MinValue: 1
     MaxValue: 20
+  HelloClientID:
+    Type: String
+    Default: ""
+    Description: Hellō OAuth Client ID (public). Empty disables /auth/hello/*.
 
 Resources:
   ExpressService:
@@ -68,6 +72,13 @@ Resources:
           - Name: PUBLIC_BASE_URL
             Value:
               Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
+          - Name: HELLO_CLIENT_ID
+            Value: !Ref HelloClientID
+          - Name: HELLO_REDIRECT_URI
+            Value: !Sub
+              - "${Base}/auth/hello/callback"
+              - Base:
+                  Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
         Secrets:
           # Injects the JSON key "token" from tripmap/agent-bearer
           - Name: AGENT_BEARER_TOKEN

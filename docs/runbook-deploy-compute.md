@@ -41,12 +41,20 @@ Skip this section if reusing an existing tag (e.g. last known-good `openapi-gpt-
 
 ```bash
 TAG=…   # from step 1, or an existing ECR tag
+# HelloClientID is public (Hellō console). Empty disables /auth/hello/*.
+HELLO_CLIENT_ID=app_slcuDgxAEmgXkpHPePh9Acgp_hi6
+
 aws cloudformation deploy \
   --stack-name tripmap-compute \
   --template-file infra/compute.yaml \
   --region eu-central-1 \
-  --parameter-overrides ProjectName=tripmap ImageTag="$TAG"
+  --parameter-overrides \
+    ProjectName=tripmap \
+    ImageTag="$TAG" \
+    HelloClientID="$HELLO_CLIENT_ID"
 ```
+
+Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/callback`.
 
 Express Mode updates often take several minutes.
 
@@ -89,6 +97,7 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 
 - [ ] Open a capability URL: `https://tripmap.sheffer.org/t/{id}/{token}/`
 - [ ] Confirm shared notes still load
+- [ ] If `HelloClientID` set: open `https://tripmap.sheffer.org/` → Continue with Hellō → land signed in; `GET /auth/me` returns `authenticated: true`
 
 ## 5. Custom GPT Actions
 

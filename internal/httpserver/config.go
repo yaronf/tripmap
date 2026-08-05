@@ -10,28 +10,36 @@ import (
 
 // Config is runtime configuration for tripmapd.
 type Config struct {
-	Addr              string
-	AgentBearerToken  string
-	PublicBaseURL     string
-	ItinerariesBucket string
-	CommentsBucket    string
-	AWSRegion         string
-	MaxYAMLBytes      int64
-	OSRMBaseURL       string
-	RouteMode         string // straight | osrm
+	Addr               string
+	AgentBearerToken   string
+	PublicBaseURL      string
+	ItinerariesBucket  string
+	CommentsBucket     string
+	AWSRegion          string
+	MaxYAMLBytes       int64
+	OSRMBaseURL        string
+	RouteMode          string // straight | osrm
+	HelloClientID      string
+	HelloClientSecret  string
+	HelloRedirectURI   string
+	HelloSessionSecret string
 }
 
 // LoadConfig reads configuration from the environment.
 func LoadConfig() (Config, error) {
 	cfg := Config{
-		Addr:              envOr("ADDR", ":8080"),
-		PublicBaseURL:     strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
-		ItinerariesBucket: os.Getenv("ITINERARIES_BUCKET"),
-		CommentsBucket:    os.Getenv("COMMENTS_BUCKET"),
-		AWSRegion:         envOr("AWS_REGION", "eu-central-1"),
-		MaxYAMLBytes:      512 * 1024,
-		OSRMBaseURL:       strings.TrimRight(os.Getenv("OSRM_BASE_URL"), "/"),
-		RouteMode:         envOr("ROUTE_MODE", "osrm"),
+		Addr:               envOr("ADDR", ":8080"),
+		PublicBaseURL:      strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
+		ItinerariesBucket:  os.Getenv("ITINERARIES_BUCKET"),
+		CommentsBucket:     os.Getenv("COMMENTS_BUCKET"),
+		AWSRegion:          envOr("AWS_REGION", "eu-central-1"),
+		MaxYAMLBytes:       512 * 1024,
+		OSRMBaseURL:        strings.TrimRight(os.Getenv("OSRM_BASE_URL"), "/"),
+		RouteMode:          envOr("ROUTE_MODE", "osrm"),
+		HelloClientID:      strings.TrimSpace(os.Getenv("HELLO_CLIENT_ID")),
+		HelloClientSecret:  strings.TrimSpace(os.Getenv("HELLO_CLIENT_SECRET")),
+		HelloRedirectURI:   strings.TrimSpace(os.Getenv("HELLO_REDIRECT_URI")),
+		HelloSessionSecret: strings.TrimSpace(os.Getenv("HELLO_SESSION_SECRET")),
 	}
 	if v := os.Getenv("MAX_YAML_BYTES"); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)
