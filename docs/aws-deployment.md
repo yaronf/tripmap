@@ -317,6 +317,7 @@ Rules:
 
 - [ ] Share capability URLs when in season
 - [x] README: note seasonal hosting + link to runbook
+- [x] GitHub Pages: stub only (`pages-stub/`); no public trip bundles (live = `tripmap.sheffer.org`)
 
 ### M9 — Runbooks (in-repo)
 

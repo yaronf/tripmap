@@ -72,25 +72,19 @@ See [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) for UI design a
 
 ### Public site (GitHub Pages)
 
-Pushing to `main` (or running **Deploy Pages** manually) builds every
-`itineraries/*.yaml` and publishes:
+This repo’s Pages deploy is a **stub** only (`pages-stub/`), at
+`https://www.sheffer.org/tripmap/` (also `https://yaronf.github.io/tripmap/`).
+It does **not** publish itinerary bundles.
 
-| Trip | URL |
-|------|-----|
-| Index | https://www.sheffer.org/tripmap/ |
-| Holland | https://www.sheffer.org/tripmap/trips/holland/ |
-| NZ | https://www.sheffer.org/tripmap/trips/nz-4weeks/ |
+Live viewers / API: **`https://tripmap.sheffer.org`** (capability URLs are private).
 
-(Also reachable as `https://yaronf.github.io/tripmap/…`.)
+**One-time repo setup:** Settings → Pages → **Source: GitHub Actions**. Do **not**
+set this project’s custom domain to `www.sheffer.org` — that host belongs to the
+user/org Pages site (other properties). This project is meant to stay under
+`/tripmap/`.
 
-**One-time repo setup:** Settings → Pages → **Source: GitHub Actions** (already
-enabled for this repo).
-
-**Custom domain notes:** this site is served under `/tripmap/` on
-`www.sheffer.org`. If you later put a one-line hostname in a repo-root `CNAME`
-file, the workflow copies it into the published site — only do that if that
-hostname should map cleanly to this Pages deployment (and will not fight another
-app on the same host).
+Pushing changes under `pages-stub/` or the workflow file redeploys the stub;
+`itineraries/*.yaml` edits no longer trigger Pages.
 
 ### Google Earth / My Maps
 
