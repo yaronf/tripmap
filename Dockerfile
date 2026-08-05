@@ -11,7 +11,9 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /tripmapd /tripmapd
+COPY config/hello-allowlist.csv /config/hello-allowlist.csv
 USER nonroot:nonroot
 EXPOSE 8080
 ENV ADDR=:8080
+ENV HELLO_ALLOWLIST_FILE=/config/hello-allowlist.csv
 ENTRYPOINT ["/tripmapd"]

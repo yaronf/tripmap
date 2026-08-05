@@ -56,7 +56,7 @@ aws cloudformation deploy \
 
 Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/callback` (exact path).
 
-`HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer.
+`HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer. Signed-in ACL is `config/hello-allowlist.csv` (baked into the image).
 
 Express Mode updates often take several minutes.
 

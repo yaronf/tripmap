@@ -39,8 +39,9 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 
 ### AWS / hosting
 - [x] Durable public URL: `https://tripmap.sheffer.org` (CloudFront `tripmap-edge` → Express). See [docs/aws-deployment.md](docs/aws-deployment.md).
-- [x] Hellō sign-in for human viewers (`/auth/hello/*`, Client ID on compute). Trip ACL vs capability URLs still open.
-- [ ] Remove `itineraries/` from the git repo (live SoT is already S3). Privacy: public GitHub history exposes trip detail; keep editing via API/GPT or private pull. Plan purge/rewrite of git history if old commits must not retain YAML — S3 + capability URLs remain the working copies.
+- [x] Hellō sign-in for human viewers (`/auth/hello/*`, Client ID on compute). Signed-in home lists itineraries at `/me/trips/{id}/`. Allowlist: `config/hello-allowlist.csv`.
+- [ ] Remove capability-token sharing (`/t/{id}/{token}/`) once Hellō ACL covers viewers; keep agent Bearer for GPT/API.
+- [ ] Remove `itineraries/` from the git repo (live SoT is already S3). Privacy: public GitHub history exposes trip detail; keep editing via API/GPT or private pull. Plan purge/rewrite of git history if old commits must not retain YAML — S3 + Hellō-gated viewers remain the working copies.
 
 ### Export
 - [ ] GPX

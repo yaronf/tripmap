@@ -366,6 +366,7 @@ Capability URL format: `https://tripmap.sheffer.org/t/{id}/{token}/` (token plai
 |------|--------|
 | `AGENT_BEARER_TOKEN` | Secrets Manager (data stack) |
 | `HELLO_SESSION_SECRET` | Secrets Manager `tripmap/hello-session` (data stack) |
+| Hellō allowlist | `config/hello-allowlist.csv` in the image (`HELLO_ALLOWLIST_FILE`) |
 | `ITINERARIES_BUCKET` / `COMMENTS_BUCKET` | Data stack outputs |
 | `AWS_REGION` | `eu-central-1` |
 | `PUBLIC_BASE_URL` | Import from `tripmap-edge` → `https://tripmap.sheffer.org` |

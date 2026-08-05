@@ -23,6 +23,8 @@ type Config struct {
 	HelloClientSecret  string
 	HelloRedirectURI   string
 	HelloSessionSecret string
+	HelloAllowedEmails []string // lowercase
+	HelloAllowedSubs   []string
 }
 
 // LoadConfig reads configuration from the environment.
@@ -57,6 +59,18 @@ func LoadConfig() (Config, error) {
 
 	if cfg.HelloClientID != "" && cfg.HelloSessionSecret == "" {
 		return Config{}, fmt.Errorf("HELLO_SESSION_SECRET required when HELLO_CLIENT_ID is set")
+	}
+	if cfg.HelloClientID != "" {
+		path := resolveAllowlistPath()
+		emails, subs, err := loadHelloAllowlistFile(path)
+		if err != nil {
+			return Config{}, fmt.Errorf("HELLO allowlist %s: %w", path, err)
+		}
+		cfg.HelloAllowedEmails = emails
+		cfg.HelloAllowedSubs = subs
+		if len(cfg.HelloAllowedEmails) == 0 && len(cfg.HelloAllowedSubs) == 0 {
+			return Config{}, fmt.Errorf("HELLO allowlist %s is empty", path)
+		}
 	}
 	return cfg, nil
 }

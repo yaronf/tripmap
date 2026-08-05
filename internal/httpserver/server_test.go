@@ -83,6 +83,8 @@ func TestOpenAPIUsesRequestHost(t *testing.T) {
 func TestLoadConfigFromJSONSecret(t *testing.T) {
 	t.Setenv("AGENT_BEARER_TOKEN", "")
 	t.Setenv("AGENT_BEARER_SECRET_JSON", `{"token":"from-json"}`)
+	t.Setenv("HELLO_CLIENT_ID", "")
+	t.Setenv("HELLO_SESSION_SECRET", "")
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -95,6 +97,8 @@ func TestLoadConfigFromJSONSecret(t *testing.T) {
 func TestLoadConfigRequiresToken(t *testing.T) {
 	t.Setenv("AGENT_BEARER_TOKEN", "")
 	t.Setenv("AGENT_BEARER_SECRET_JSON", "")
+	t.Setenv("HELLO_CLIENT_ID", "")
+	t.Setenv("HELLO_SESSION_SECRET", "")
 	if _, err := LoadConfig(); err == nil {
 		t.Fatal("expected error")
 	}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 const maxNotesBytes = 64 * 1024
 
 func (s *Server) handleCapability(w http.ResponseWriter, r *http.Request) {
-	// /t/{id}/{token} or /t/{id}/{token}/… 
+	// /t/{id}/{token} or /t/{id}/{token}/…
 	rest := strings.TrimPrefix(r.URL.Path, "/t/")
 	parts := strings.SplitN(rest, "/", 3)
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
@@ -41,6 +42,45 @@ func (s *Server) handleCapability(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.serveTripBundle(w, r, id, rel)
+}
+
+// handleSessionTrip serves /me/trips/{id}/… to signed-in Hellō users (no capability token).
+func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.sessionFromRequest(r); !ok {
+		http.Redirect(w, r, "/auth/hello/login?return_to="+url.QueryEscape(r.URL.Path), http.StatusFound)
+		return
+	}
+
+	rest := strings.TrimPrefix(r.URL.Path, "/me/trips/")
+	if rest == "" || rest == "/" {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	parts := strings.SplitN(rest, "/", 2)
+	id := parts[0]
+	if id == "" {
+		http.NotFound(w, r)
+		return
+	}
+	rel := ""
+	if len(parts) == 2 {
+		rel = parts[1]
+	}
+	if rel == "" && !strings.HasSuffix(r.URL.Path, "/") {
+		http.Redirect(w, r, r.URL.Path+"/", http.StatusFound)
+		return
+	}
+
+	ok, err := s.store.Exists(r.Context(), id)
+	if err != nil || !ok {
+		http.NotFound(w, r)
+		return
+	}
+	s.serveTripBundle(w, r, id, rel)
+}
+
+func (s *Server) serveTripBundle(w http.ResponseWriter, r *http.Request, id, rel string) {
 	if rel == "api/notes" || strings.HasPrefix(rel, "api/notes/") {
 		s.handleNotes(w, r, id)
 		return

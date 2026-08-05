@@ -15,6 +15,7 @@ func TestSignedSessionCookieRoundTrip(t *testing.T) {
 		AgentBearerToken:   "secret",
 		HelloClientID:      "app_test",
 		HelloSessionSecret: "session-test-key",
+		HelloAllowedEmails: []string{"a@b.c"},
 		PublicBaseURL:      "https://tripmap.sheffer.org",
 		MaxYAMLBytes:       1024,
 		RouteMode:          "straight",
@@ -72,12 +73,40 @@ func TestHelloLoginRequiresConfig(t *testing.T) {
 	}
 }
 
+func TestHelloLoginUsesRequestHostOnLoopback(t *testing.T) {
+	mem := store.NewMem()
+	srv := New(Config{
+		AgentBearerToken:   "secret",
+		HelloClientID:      "app_test",
+		HelloSessionSecret: "session-test-key",
+		HelloAllowedEmails: []string{"a@b.c"},
+		HelloRedirectURI:   "http://localhost:8080/auth/hello/callback",
+		PublicBaseURL:      "http://localhost:8080",
+		MaxYAMLBytes:       1024,
+		RouteMode:          "straight",
+	}, mem)
+	req := httptest.NewRequest(http.MethodGet, "/auth/hello/login", nil)
+	req.Host = "127.0.0.1:8080"
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d", rec.Code)
+	}
+	if !stringsContains(rec.Body.String(), "redirect_uri=http%3A%2F%2F127.0.0.1%3A8080%2Fauth%2Fhello%2Fcallback") {
+		t.Fatalf("body should use 127.0.0.1 redirect: %s", rec.Body.String()[:min(400, rec.Body.Len())])
+	}
+	if len(rec.Result().Cookies()) != 1 || rec.Result().Cookies()[0].Name != oauthCookieName {
+		t.Fatalf("expected oauth cookie")
+	}
+}
+
 func TestRootShowsHelloButton(t *testing.T) {
 	mem := store.NewMem()
 	srv := New(Config{
 		AgentBearerToken:   "secret",
 		HelloClientID:      "app_test",
 		HelloSessionSecret: "session-test-key",
+		HelloAllowedEmails: []string{"a@b.c"},
 		PublicBaseURL:      "https://tripmap.sheffer.org",
 		MaxYAMLBytes:       1024,
 		RouteMode:          "straight",
@@ -90,6 +119,25 @@ func TestRootShowsHelloButton(t *testing.T) {
 	}
 	if !stringsContains(rec.Body.String(), "Continue with Hellō") {
 		t.Fatalf("body=%s", rec.Body.String())
+	}
+}
+
+func TestIdentityAllowed(t *testing.T) {
+	srv := New(Config{
+		AgentBearerToken:   "secret",
+		HelloAllowedEmails: []string{"yaronf@gmx.com"},
+		HelloAllowedSubs:   []string{"sub_allowed"},
+		MaxYAMLBytes:       1024,
+		RouteMode:          "straight",
+	}, store.NewMem())
+	if !srv.identityAllowed("other", "YaronF@gmx.com") {
+		t.Fatal("email allowlist should match case-insensitively")
+	}
+	if !srv.identityAllowed("sub_allowed", "nope@example.com") {
+		t.Fatal("sub allowlist")
+	}
+	if srv.identityAllowed("nope", "nope@example.com") {
+		t.Fatal("expected deny")
 	}
 }
 

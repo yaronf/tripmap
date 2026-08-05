@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ type oauthCookie struct {
 	State        string `json:"state"`
 	Nonce        string `json:"nonce"`
 	CodeVerifier string `json:"cv"`
+	RedirectURI  string `json:"ru,omitempty"`
 	ReturnTo     string `json:"rt,omitempty"`
 	Exp          int64  `json:"exp"`
 }
@@ -53,6 +55,39 @@ func (s *Server) helloRedirectURI() string {
 		return ""
 	}
 	return base + "/auth/hello/callback"
+}
+
+// helloRedirectURIForRequest prefers the browser Host on loopback so cookies and
+// Hellō redirect_uri stay on the same site (localhost vs 127.0.0.1).
+func (s *Server) helloRedirectURIForRequest(r *http.Request) string {
+	host := r.Host
+	if host != "" && isLoopbackHost(host) {
+		return requestScheme(r) + "://" + host + "/auth/hello/callback"
+	}
+	return s.helloRedirectURI()
+}
+
+func isLoopbackHost(hostport string) bool {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		host = hostport
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	if strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		return "https"
+	}
+	return "http"
 }
 
 func (s *Server) sessionKey() []byte {
@@ -81,7 +116,7 @@ func (s *Server) handleHelloLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Hellō login not configured", http.StatusServiceUnavailable)
 		return
 	}
-	redirect := s.helloRedirectURI()
+	redirect := s.helloRedirectURIForRequest(r)
 	if redirect == "" {
 		http.Error(w, "PUBLIC_BASE_URL or HELLO_REDIRECT_URI required", http.StatusServiceUnavailable)
 		return
@@ -103,19 +138,62 @@ func (s *Server) handleHelloLogin(w http.ResponseWriter, r *http.Request) {
 		State:        state,
 		Nonce:        nonce,
 		CodeVerifier: verifier,
+		RedirectURI:  redirect,
 		ReturnTo:     sanitizeReturnTo(r.URL.Query().Get("return_to")),
 		Exp:          time.Now().Add(oauthCookieTTL).Unix(),
 	}
-	if err := s.setSignedCookie(w, r, oauthCookieName, oc, oauthCookieTTL); err != nil {
+	// Prefer server-side state: some browsers drop Lax cookies across the Hellō round-trip.
+	if raw, err := json.Marshal(oc); err != nil {
 		writeAuthErr(w, http.StatusInternalServerError, "login failed", err)
 		return
+	} else if err := s.store.PutIdempotency(r.Context(), oauthPendingKey(state), raw); err != nil {
+		writeAuthErr(w, http.StatusInternalServerError, "login failed", fmt.Errorf("store oauth state: %w", err))
+		return
 	}
+	_ = s.setSignedCookie(w, r, oauthCookieName, oc, oauthCookieTTL)
 
 	authURL := s.oauth2Config(redirect).AuthCodeURL(state,
 		oauth2.S256ChallengeOption(verifier),
 		oidc.Nonce(nonce),
+		oauth2.SetAuthURLParam("response_mode", "query"),
 	)
-	http.Redirect(w, r, authURL, http.StatusFound)
+	// 200 + client navigate (not 302) so browsers reliably store Set-Cookie when present.
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<meta http-equiv="refresh" content="0;url=%s"/>
+<title>Continuing to Hellō…</title></head><body>
+<p>Continuing to Hellō…</p>
+<script>location.replace(%q)</script>
+</body></html>`, htmlEscape(authURL), authURL)
+}
+
+func oauthPendingKey(state string) string {
+	return "hello-oauth:" + state
+}
+
+func (s *Server) loadOAuthPending(r *http.Request, state string) (oauthCookie, error) {
+	if state == "" {
+		return oauthCookie{}, fmt.Errorf("missing state")
+	}
+	var oc oauthCookie
+	if err := s.readSignedCookie(r, oauthCookieName, &oc); err == nil && oc.State == state {
+		return oc, nil
+	}
+	raw, ok, err := s.store.GetIdempotency(r.Context(), oauthPendingKey(state))
+	if err != nil {
+		return oauthCookie{}, err
+	}
+	if !ok {
+		return oauthCookie{}, fmt.Errorf("oauth state not found")
+	}
+	if err := json.Unmarshal(raw, &oc); err != nil {
+		return oauthCookie{}, err
+	}
+	if oc.State != state {
+		return oauthCookie{}, fmt.Errorf("oauth state mismatch")
+	}
+	return oc, nil
 }
 
 func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
@@ -129,18 +207,16 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var oc oauthCookie
-	if err := s.readSignedCookie(r, oauthCookieName, &oc); err != nil {
-		http.Error(w, "missing or invalid oauth state cookie", http.StatusBadRequest)
+	state := r.URL.Query().Get("state")
+	oc, err := s.loadOAuthPending(r, state)
+	if err != nil {
+		log.Printf("hello oauth state: %v (host=%q)", err, r.Host)
+		http.Error(w, "missing or expired login state — try Continue with Hellō again", http.StatusBadRequest)
 		return
 	}
 	s.clearCookie(w, r, oauthCookieName)
 	if time.Now().Unix() > oc.Exp {
 		http.Error(w, "oauth state expired", http.StatusBadRequest)
-		return
-	}
-	if r.URL.Query().Get("state") != oc.State {
-		http.Error(w, "state mismatch", http.StatusBadRequest)
 		return
 	}
 	code := r.URL.Query().Get("code")
@@ -149,7 +225,10 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirect := s.helloRedirectURI()
+	redirect := oc.RedirectURI
+	if redirect == "" {
+		redirect = s.helloRedirectURIForRequest(r)
+	}
 	ctx := r.Context()
 	provider, err := oidc.NewProvider(ctx, helloIssuer)
 	if err != nil {
@@ -162,6 +241,8 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 		writeAuthErr(w, http.StatusBadGateway, "login failed", fmt.Errorf("token exchange: %w", err))
 		return
 	}
+	// Best-effort consume so the pending state cannot be replayed.
+	_ = s.store.PutIdempotency(ctx, oauthPendingKey(state), []byte(`{"consumed":true}`))
 	rawID, ok := tok.Extra("id_token").(string)
 	if !ok || rawID == "" {
 		writeAuthErr(w, http.StatusBadGateway, "login failed", fmt.Errorf("missing id_token"))
@@ -183,6 +264,12 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = idToken.Claims(&claims)
 
+	if !s.identityAllowed(idToken.Subject, claims.Email) {
+		log.Printf("hello auth denied: not on allowlist email=%q sub=%q", claims.Email, idToken.Subject)
+		http.Error(w, "This Hellō account is not authorized for tripmap.", http.StatusForbidden)
+		return
+	}
+
 	sess := sessionCookie{
 		Sub:   idToken.Subject,
 		Email: claims.Email,
@@ -196,6 +283,26 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, oc.ReturnTo, http.StatusFound)
 }
 
+func (s *Server) identityAllowed(sub, email string) bool {
+	email = strings.ToLower(strings.TrimSpace(email))
+	sub = strings.TrimSpace(sub)
+	for _, e := range s.cfg.HelloAllowedEmails {
+		if e != "" && e == email {
+			return true
+		}
+	}
+	for _, id := range s.cfg.HelloAllowedSubs {
+		if id != "" && id == sub {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) sessionAllowed(sess sessionCookie) bool {
+	return s.identityAllowed(sess.Sub, sess.Email)
+}
+
 func writeAuthErr(w http.ResponseWriter, status int, public string, err error) {
 	if err != nil {
 		log.Printf("hello auth: %v", err)
@@ -205,7 +312,7 @@ func writeAuthErr(w http.ResponseWriter, status int, public string, err error) {
 
 func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	sess, ok := s.sessionFromRequest(r)
-	if !ok {
+	if !ok || !s.sessionAllowed(sess) {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"authenticated": false})
 		return
 	}
@@ -232,6 +339,9 @@ func (s *Server) sessionFromRequest(r *http.Request) (sessionCookie, bool) {
 	if time.Now().Unix() > sess.Exp || sess.Sub == "" {
 		return sessionCookie{}, false
 	}
+	if !s.sessionAllowed(sess) {
+		return sessionCookie{}, false
+	}
 	return sess, true
 }
 
@@ -245,10 +355,15 @@ func (s *Server) setSignedCookie(w http.ResponseWriter, r *http.Request, name st
 	_, _ = mac.Write([]byte(payload))
 	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	val := payload + "." + sig
+	// Hellō SDK scopes the short-lived OIDC cookie to the auth endpoint; session stays "/".
+	path := "/"
+	if name == oauthCookieName {
+		path = "/auth/hello"
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    val,
-		Path:     "/",
+		Path:     path,
 		MaxAge:   int(ttl.Seconds()),
 		HttpOnly: true,
 		Secure:   s.cookieSecure(r),
@@ -281,10 +396,14 @@ func (s *Server) readSignedCookie(r *http.Request, name string, dest any) error 
 }
 
 func (s *Server) clearCookie(w http.ResponseWriter, r *http.Request, name string) {
+	path := "/"
+	if name == oauthCookieName {
+		path = "/auth/hello"
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     "/",
+		Path:     path,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   s.cookieSecure(r),

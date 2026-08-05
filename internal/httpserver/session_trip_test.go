@@ -1,0 +1,102 @@
+package httpserver
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestSignedInRootListsTrips(t *testing.T) {
+	srv, _ := testServer(t)
+	srv.cfg.HelloClientID = "app_test"
+	srv.cfg.HelloSessionSecret = "session-test-key"
+	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+
+	createBody, _ := json.Marshal(map[string]string{"id": "list-trip", "yaml": sampleYAML})
+	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))
+	req.Header.Set("Idempotency-Key", "list-c")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	sess := sessionCookie{Sub: "user-1", Email: "a@b.c", Name: "Ada", Exp: time.Now().Add(time.Hour).Unix()}
+	if err := srv.setSignedCookie(rec, req, sessionCookieName, sess, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	cookie := rec.Result().Cookies()[0]
+
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `/me/trips/list-trip/`) {
+		t.Fatalf("missing trip link: %s", body)
+	}
+	if !strings.Contains(body, "Smoke Trip") && !strings.Contains(body, "list-trip") {
+		t.Fatalf("missing title: %s", body)
+	}
+}
+
+func TestSessionTripRequiresLogin(t *testing.T) {
+	srv, _ := testServer(t)
+	srv.cfg.HelloClientID = "app_test"
+	srv.cfg.HelloSessionSecret = "session-test-key"
+	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+
+	req := httptest.NewRequest(http.MethodGet, "/me/trips/x/", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("code=%d want 302", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "/auth/hello/login") || !strings.Contains(loc, "return_to") {
+		t.Fatalf("location=%s", loc)
+	}
+}
+
+func TestSessionTripServesBundle(t *testing.T) {
+	srv, _ := testServer(t)
+	srv.cfg.HelloClientID = "app_test"
+	srv.cfg.HelloSessionSecret = "session-test-key"
+	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+
+	createBody, _ := json.Marshal(map[string]string{"id": "sess-trip", "yaml": sampleYAML})
+	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))
+	req.Header.Set("Idempotency-Key", "sess-c")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	sess := sessionCookie{Sub: "user-1", Email: "a@b.c", Name: "Ada", Exp: time.Now().Add(time.Hour).Unix()}
+	if err := srv.setSignedCookie(rec, req, sessionCookieName, sess, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	cookie := rec.Result().Cookies()[0]
+
+	req = httptest.NewRequest(http.MethodGet, "/me/trips/sess-trip/", nil)
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<title>") {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String()[:min(200, rec.Body.Len())])
+	}
+}

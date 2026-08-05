@@ -47,6 +47,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /auth/hello/callback", s.handleHelloCallback)
 	s.mux.HandleFunc("GET /auth/me", s.handleAuthMe)
 	s.mux.HandleFunc("GET /auth/logout", s.handleAuthLogout)
+	s.mux.Handle("/me/trips/", http.HandlerFunc(s.handleSessionTrip))
 
 	agent := http.NewServeMux()
 	agent.HandleFunc("GET /trips", s.handleListTrips)
@@ -89,9 +90,10 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	} else if authed {
 		body = fmt.Sprintf(`
 <p>Signed in as <strong>%s</strong> (%s)</p>
-<p><a href="/auth/me">/auth/me</a> · <a href="/auth/logout">Sign out</a></p>
-<p>Capability trip links still use <code>/t/{id}/{token}/</code>.</p>`,
-			htmlEscape(sess.Name), htmlEscape(sess.Email))
+<p><a href="/auth/logout">Sign out</a></p>
+%s
+<p class="muted">Shared links still use capability URLs <code>/t/{id}/{token}/</code>.</p>`,
+			htmlEscape(sess.Name), htmlEscape(sess.Email), s.tripListHTML(r))
 	} else {
 		body = `
 <link href="https://cdn.hello.coop/css/hello-btn.css" rel="stylesheet"/>
@@ -112,8 +114,34 @@ function login(event){
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>tripmap</title>
 <style>body{font-family:system-ui,sans-serif;max-width:36rem;margin:2.5rem auto;padding:0 1rem;line-height:1.5;color:#1a1f1c;background:#f3efe6}
-a{color:#0f5c5c}code{font-size:.9em}</style>
+a{color:#0f5c5c}code{font-size:.9em}.muted{color:#5c6560;font-size:.9rem}ul.trips{list-style:none;padding:0;margin:1.25rem 0}ul.trips li{margin:.55rem 0;padding:.55rem 0;border-top:1px solid #ddd6c8}ul.trips li:first-child{border-top:0}ul.trips a{font-weight:600;text-decoration:none}ul.trips a:hover{text-decoration:underline}ul.trips .id{display:block;font-size:.85rem;color:#5c6560;font-weight:400}</style>
 </head><body><h1>tripmap</h1>%s</body></html>`, body)
+}
+
+func (s *Server) tripListHTML(r *http.Request) string {
+	ids, err := s.store.ListTripIDs(r.Context())
+	if err != nil {
+		return `<p>Could not load itineraries.</p>`
+	}
+	if len(ids) == 0 {
+		return `<h2>Itineraries</h2><p class="muted">No itineraries yet.</p>`
+	}
+	var b strings.Builder
+	b.WriteString(`<h2>Itineraries</h2><ul class="trips">`)
+	for _, id := range ids {
+		title := id
+		if obj, err := s.store.GetYAML(r.Context(), id); err == nil {
+			if trip, err := itinerary.ParseYAML(obj.Body); err == nil {
+				if t := strings.TrimSpace(trip.Trip); t != "" {
+					title = t
+				}
+			}
+		}
+		fmt.Fprintf(&b, `<li><a href="/me/trips/%s/">%s</a><span class="id">%s</span></li>`,
+			htmlEscape(id), htmlEscape(title), htmlEscape(id))
+	}
+	b.WriteString(`</ul>`)
+	return b.String()
 }
 
 func htmlEscape(s string) string {
