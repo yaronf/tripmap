@@ -54,6 +54,10 @@ func LoadConfig() (Config, error) {
 		return Config{}, err
 	}
 	cfg.AgentBearerToken = token
+
+	if cfg.HelloClientID != "" && cfg.HelloSessionSecret == "" {
+		return Config{}, fmt.Errorf("HELLO_SESSION_SECRET required when HELLO_CLIENT_ID is set")
+	}
 	return cfg, nil
 }
 

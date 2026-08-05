@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -39,7 +40,8 @@ type sessionCookie struct {
 }
 
 func (s *Server) helloEnabled() bool {
-	return strings.TrimSpace(s.cfg.HelloClientID) != ""
+	return strings.TrimSpace(s.cfg.HelloClientID) != "" &&
+		strings.TrimSpace(s.cfg.HelloSessionSecret) != ""
 }
 
 func (s *Server) helloRedirectURI() string {
@@ -54,12 +56,7 @@ func (s *Server) helloRedirectURI() string {
 }
 
 func (s *Server) sessionKey() []byte {
-	if k := strings.TrimSpace(s.cfg.HelloSessionSecret); k != "" {
-		sum := sha256.Sum256([]byte(k))
-		return sum[:]
-	}
-	// Shared across tasks when SESSION secret unset (ECS today).
-	sum := sha256.Sum256([]byte("tripmap-session:" + s.cfg.AgentBearerToken))
+	sum := sha256.Sum256([]byte(s.cfg.HelloSessionSecret))
 	return sum[:]
 }
 
@@ -92,12 +89,12 @@ func (s *Server) handleHelloLogin(w http.ResponseWriter, r *http.Request) {
 
 	state, err := randomURLString(24)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeAuthErr(w, http.StatusInternalServerError, "login failed", err)
 		return
 	}
 	nonce, err := randomURLString(24)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeAuthErr(w, http.StatusInternalServerError, "login failed", err)
 		return
 	}
 	verifier := oauth2.GenerateVerifier()
@@ -110,7 +107,7 @@ func (s *Server) handleHelloLogin(w http.ResponseWriter, r *http.Request) {
 		Exp:          time.Now().Add(oauthCookieTTL).Unix(),
 	}
 	if err := s.setSignedCookie(w, r, oauthCookieName, oc, oauthCookieTTL); err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeAuthErr(w, http.StatusInternalServerError, "login failed", err)
 		return
 	}
 
@@ -127,7 +124,8 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errMsg := r.URL.Query().Get("error"); errMsg != "" {
-		http.Error(w, "Hellō error: "+errMsg+": "+r.URL.Query().Get("error_description"), http.StatusBadRequest)
+		log.Printf("hello auth denied: error=%q desc=%q", errMsg, r.URL.Query().Get("error_description"))
+		http.Error(w, "Hellō login failed", http.StatusBadRequest)
 		return
 	}
 
@@ -136,7 +134,7 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing or invalid oauth state cookie", http.StatusBadRequest)
 		return
 	}
-	clearCookie(w, r, oauthCookieName)
+	s.clearCookie(w, r, oauthCookieName)
 	if time.Now().Unix() > oc.Exp {
 		http.Error(w, "oauth state expired", http.StatusBadRequest)
 		return
@@ -155,24 +153,24 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	provider, err := oidc.NewProvider(ctx, helloIssuer)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, fmt.Errorf("oidc provider: %w", err))
+		writeAuthErr(w, http.StatusBadGateway, "login failed", fmt.Errorf("oidc provider: %w", err))
 		return
 	}
 	oauthCfg := s.oauth2Config(redirect)
 	tok, err := oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(oc.CodeVerifier))
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, fmt.Errorf("token exchange: %w", err))
+		writeAuthErr(w, http.StatusBadGateway, "login failed", fmt.Errorf("token exchange: %w", err))
 		return
 	}
 	rawID, ok := tok.Extra("id_token").(string)
 	if !ok || rawID == "" {
-		http.Error(w, "missing id_token", http.StatusBadGateway)
+		writeAuthErr(w, http.StatusBadGateway, "login failed", fmt.Errorf("missing id_token"))
 		return
 	}
 	verifier := provider.Verifier(&oidc.Config{ClientID: s.cfg.HelloClientID})
 	idToken, err := verifier.Verify(ctx, rawID)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, fmt.Errorf("id_token verify: %w", err))
+		writeAuthErr(w, http.StatusBadGateway, "login failed", fmt.Errorf("id_token verify: %w", err))
 		return
 	}
 	if idToken.Nonce != oc.Nonce {
@@ -192,10 +190,17 @@ func (s *Server) handleHelloCallback(w http.ResponseWriter, r *http.Request) {
 		Exp:   time.Now().Add(sessionCookieTTL).Unix(),
 	}
 	if err := s.setSignedCookie(w, r, sessionCookieName, sess, sessionCookieTTL); err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeAuthErr(w, http.StatusInternalServerError, "login failed", err)
 		return
 	}
 	http.Redirect(w, r, oc.ReturnTo, http.StatusFound)
+}
+
+func writeAuthErr(w http.ResponseWriter, status int, public string, err error) {
+	if err != nil {
+		log.Printf("hello auth: %v", err)
+	}
+	writeJSON(w, status, map[string]string{"error": public})
 }
 
 func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
@@ -214,8 +219,8 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
-	clearCookie(w, r, sessionCookieName)
-	clearCookie(w, r, oauthCookieName)
+	s.clearCookie(w, r, sessionCookieName)
+	s.clearCookie(w, r, oauthCookieName)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -246,7 +251,7 @@ func (s *Server) setSignedCookie(w http.ResponseWriter, r *http.Request, name st
 		Path:     "/",
 		MaxAge:   int(ttl.Seconds()),
 		HttpOnly: true,
-		Secure:   cookieSecure(r),
+		Secure:   s.cookieSecure(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 	return nil
@@ -275,19 +280,25 @@ func (s *Server) readSignedCookie(r *http.Request, name string, dest any) error 
 	return json.Unmarshal(raw, dest)
 }
 
-func clearCookie(w http.ResponseWriter, r *http.Request, name string) {
+func (s *Server) clearCookie(w http.ResponseWriter, r *http.Request, name string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   cookieSecure(r),
+		Secure:   s.cookieSecure(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func cookieSecure(r *http.Request) bool {
+// cookieSecure is true for https PublicBaseURL (prod) so clients cannot weaken
+// the flag via a spoofed X-Forwarded-Proto on a direct origin hit. Local http
+// bases still honor TLS / forwarded proto for dev.
+func (s *Server) cookieSecure(r *http.Request) bool {
+	if strings.HasPrefix(strings.ToLower(s.cfg.PublicBaseURL), "https://") {
+		return true
+	}
 	if r.TLS != nil {
 		return true
 	}
@@ -309,6 +320,14 @@ func sanitizeReturnTo(v string) string {
 	}
 	if strings.Contains(v, "://") {
 		return "/"
+	}
+	for _, r := range v {
+		switch {
+		case r == '/' || r == '_' || r == '-' || r == '.' || r == '~':
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		default:
+			return "/"
+		}
 	}
 	return v
 }

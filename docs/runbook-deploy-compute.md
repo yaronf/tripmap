@@ -54,7 +54,9 @@ aws cloudformation deploy \
     HelloClientID="$HELLO_CLIENT_ID"
 ```
 
-Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/callback`.
+Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/callback` (exact path).
+
+`HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer.
 
 Express Mode updates often take several minutes.
 

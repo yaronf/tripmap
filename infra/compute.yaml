@@ -86,6 +86,12 @@ Resources:
               - "${SecretArn}:token::"
               - SecretArn:
                   Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
+          # Injects the JSON key "secret" from tripmap/hello-session
+          - Name: HELLO_SESSION_SECRET
+            ValueFrom: !Sub
+              - "${SecretArn}:secret::"
+              - SecretArn:
+                  Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
       ScalingTarget:
         MinTaskCount: !Ref MinTaskCount
         MaxTaskCount: !Ref MaxTaskCount

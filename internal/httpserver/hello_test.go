@@ -43,12 +43,16 @@ func TestSignedSessionCookieRoundTrip(t *testing.T) {
 
 func TestSanitizeReturnTo(t *testing.T) {
 	cases := map[string]string{
-		"":                    "/",
-		"/t/holland/x/":       "/t/holland/x/",
-		"//evil.com":          "/",
-		"https://evil.com":    "/",
-		"/auth/me":            "/auth/me",
-		"relative":            "/",
+		"":                 "/",
+		"/t/holland/x/":    "/t/holland/x/",
+		"//evil.com":       "/",
+		"https://evil.com": "/",
+		"/auth/me":         "/auth/me",
+		"relative":         "/",
+		`/\evil.com`:       "/",
+		"/%2f%2fevil.com":  "/",
+		"/ok?x=1":          "/",
+		"/a b":             "/",
 	}
 	for in, want := range cases {
 		if got := sanitizeReturnTo(in); got != want {
@@ -71,11 +75,12 @@ func TestHelloLoginRequiresConfig(t *testing.T) {
 func TestRootShowsHelloButton(t *testing.T) {
 	mem := store.NewMem()
 	srv := New(Config{
-		AgentBearerToken: "secret",
-		HelloClientID:    "app_test",
-		PublicBaseURL:    "https://tripmap.sheffer.org",
-		MaxYAMLBytes:     1024,
-		RouteMode:        "straight",
+		AgentBearerToken:   "secret",
+		HelloClientID:      "app_test",
+		HelloSessionSecret: "session-test-key",
+		PublicBaseURL:      "https://tripmap.sheffer.org",
+		MaxYAMLBytes:       1024,
+		RouteMode:          "straight",
 	}, mem)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()

@@ -71,6 +71,21 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  HelloSessionSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}/hello-session"
+      Description: HMAC key for tripmap Hellō session cookies (not the agent Bearer)
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: secret
+        PasswordLength: 48
+        ExcludeCharacters: '"@/\'
+        RequireEachIncludedType: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
   EcrRepository:
     Type: AWS::ECR::Repository
     Properties:
@@ -99,14 +114,16 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Policies:
-        - PolicyName: ReadAgentSecret
+        - PolicyName: ReadInjectedSecrets
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref AgentBearerSecret
+                Resource:
+                  - !Ref AgentBearerSecret
+                  - !Ref HelloSessionSecret
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -158,6 +175,11 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref AgentBearerSecret
+              - Sid: ReadHelloSessionSecret
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref HelloSessionSecret
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -198,6 +220,12 @@ Outputs:
     Value: !Ref AgentBearerSecret
     Export:
       Name: !Sub "${ProjectName}-AgentBearerSecretArn"
+
+  HelloSessionSecretArn:
+    Description: Secrets Manager ARN for Hellō session HMAC secret
+    Value: !Ref HelloSessionSecret
+    Export:
+      Name: !Sub "${ProjectName}-HelloSessionSecretArn"
 
   EcrRepositoryUri:
     Description: ECR repository URI for tripmapd image

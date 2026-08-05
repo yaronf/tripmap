@@ -96,6 +96,7 @@ Repo path (to add): `infra/`
 - S3 itineraries (versioning ON, Block Public Access)
 - S3 comments (versioning OFF)
 - Secrets Manager `tripmap/agent-bearer` (generate or pass as parameter — prefer generate-once and leave)
+- Secrets Manager `tripmap/hello-session` (HMAC for Hellō session cookies; separate from the agent Bearer)
 - ECR repository `tripmapd`
 - IAM task/execution roles used by compute (or export role ARNs via stack outputs)
 - Outputs: bucket names, secret ARN, ECR URI, role ARNs
@@ -148,7 +149,7 @@ When compute is deleted, GPT Actions and capability URLs are simply **offline** 
 | **tripmapd container** | compute | Viewer, comments, OpenAPI, bundle regenerate |
 | **S3 itineraries / comments** | data | Live data |
 | **ECR** | data | Image kept between seasons |
-| **Secrets Manager** | data | Agent Bearer |
+| **Secrets Manager** | data | Agent Bearer + Hellō session HMAC |
 | **Task role** | data (or compute) | S3 + secret access |
 | **AWS MCP (optional)** | — | Cursor → S3 under your IAM |
 
@@ -228,7 +229,7 @@ Prefer **CloudFormation** over click-ops for buckets/roles/compute. You still ap
 
 ### Deploy IAM (`tripmap-deploy`)
 
-Least-privilege user for ECR push, `tripmap-compute` create/update/delete, and S3 inspect/seed. **Cannot** delete `tripmap-data`, read `tripmap/agent-bearer`, or administer the account.
+Least-privilege user for ECR push, `tripmap-compute` create/update/delete, and S3 inspect/seed. **Cannot** delete `tripmap-data`, read `tripmap/agent-bearer` or `tripmap/hello-session`, or administer the account.
 
 Stack `tripmap-deploy-iam` owns the **managed policy** + **user**. Group `tripmap-deploy` is CLI-managed (avoids CFN AlreadyExists): attach policy `tripmap-deploy` and AWS managed **`SignInLocalDevelopmentAccess`**, add the user as a member.
 
@@ -364,6 +365,7 @@ Capability URL format: `https://tripmap.sheffer.org/t/{id}/{token}/` (token plai
 | Name | Source |
 |------|--------|
 | `AGENT_BEARER_TOKEN` | Secrets Manager (data stack) |
+| `HELLO_SESSION_SECRET` | Secrets Manager `tripmap/hello-session` (data stack) |
 | `ITINERARIES_BUCKET` / `COMMENTS_BUCKET` | Data stack outputs |
 | `AWS_REGION` | `eu-central-1` |
 | `PUBLIC_BASE_URL` | Import from `tripmap-edge` → `https://tripmap.sheffer.org` |
