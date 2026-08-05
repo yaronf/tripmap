@@ -130,7 +130,18 @@ paths:
           description: Not found
     patch:
       operationId: patchTrip
-      summary: Structured patch
+      summary: Structured patch (swap/insert/delete days, or update fields on an existing day)
+      description: |
+        Prefer this over putTripYAML for small edits.
+
+        Update an existing day with the `days` map keyed by day number (string).
+        Example — set Day 8 notes (replaces the whole notes string for that day;
+        getTripYAML first if you need to append to the previous notes):
+
+          {"days":{"8":{"notes":"Prior notes.\n\nAllTrails: https://…"}}}
+
+        Also supports `swap_days`, `insert_day`, and `delete_day`.
+        Use putTripYAML only for large rewrites or when many unrelated fields change.
       security:
         - bearerAuth: []
       parameters:
@@ -361,15 +372,20 @@ components:
           type: integer
     TripPatch:
       type: object
+      description: |
+        One or more structured ops. The `days` property patches fields on existing
+        days (title, notes, hike, ferry). Day keys are strings matching the day number.
       properties:
         swap_days:
           type: array
+          description: Exactly two day numbers to swap
           items:
             type: integer
           minItems: 2
           maxItems: 2
         days:
           type: object
+          description: Map of day-number string to partial day fields to merge
           additionalProperties:
             type: object
             properties:
@@ -377,6 +393,7 @@ components:
                 type: string
               notes:
                 type: string
+                description: Replaces the day's notes entirely (not a string append)
               hike:
                 type: boolean
               ferry:

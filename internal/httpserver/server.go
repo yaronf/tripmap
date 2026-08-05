@@ -173,6 +173,11 @@ func (s *Server) handleSchema(w http.ResponseWriter, _ *http.Request) {
 			"days":           "array of day objects with day, title, route/stops, flags",
 		},
 		"patch_ops": []string{"swap_days", "days", "insert_day", "delete_day"},
+		"days_patch_example": map[string]any{
+			"days": map[string]any{
+				"8": map[string]string{"notes": "Full replacement notes for day 8"},
+			},
+		},
 	})
 }
 
