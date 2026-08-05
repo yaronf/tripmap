@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  tripmap durable edge: CloudFront in front of seasonal Express ALB.
+  ACM cert must already exist in us-east-1. DNS (GoDaddy) CNAME is manual.
+  After compute recreate, update OriginDomainName to the new ALB DNS name.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: tripmap
+    AllowedPattern: "^[a-z0-9-]+$"
+  AlternateDomainName:
+    Type: String
+    Default: tripmap.sheffer.org
+  AcmCertificateArn:
+    Type: String
+    Description: ACM certificate ARN in us-east-1 for AlternateDomainName
+  OriginDomainName:
+    Type: String
+    Description: >
+      Express Mode public hostname from tripmap-compute Endpoint output
+      (e.g. tr-….ecs.eu-central-1.on.aws). Not the raw ALB DNS name —
+      TLS on Express is issued for *.on.aws only.
+
+Resources:
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${ProjectName} durable HTTPS (${AlternateDomainName})"
+        Aliases:
+          - !Ref AlternateDomainName
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        IPV6Enabled: true
+        DefaultRootObject: ""
+        Origins:
+          - Id: express-alb
+            DomainName: !Ref OriginDomainName
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: express-alb
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - POST
+            - PATCH
+            - DELETE
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          # Managed-CachingDisabled
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          # Managed-AllViewerExceptHostHeader (Host = ALB DNS for Express TLS/routing)
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Stack
+          Value: edge
+
+Outputs:
+  DistributionId:
+    Value: !Ref Distribution
+    Export:
+      Name: !Sub "${ProjectName}-CloudFrontDistributionId"
+  DistributionDomainName:
+    Description: Target for GoDaddy CNAME tripmap → this hostname
+    Value: !GetAtt Distribution.DomainName
+    Export:
+      Name: !Sub "${ProjectName}-CloudFrontDomainName"
+  PublicBaseURL:
+    Value: !Sub "https://${AlternateDomainName}"
+    Export:
+      Name: !Sub "${ProjectName}-PublicBaseURL"
+  OriginDomainName:
+    Value: !Ref OriginDomainName

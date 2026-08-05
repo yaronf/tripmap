@@ -66,6 +66,8 @@ Resources:
             Resource:
               - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-compute/*"
               - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-compute"
+              - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-edge/*"
+              - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-edge"
 
           - Sid: CloudFormationReadDataAndList
             Effect: Allow
@@ -126,6 +128,16 @@ Resources:
               - ecs:DescribeTaskDefinition
               - ecs:ListTasks
               - ecs:DescribeClusters
+            Resource: "*"
+
+          - Sid: CloudFrontOriginUpdate
+            Effect: Allow
+            Action:
+              - cloudfront:GetDistribution
+              - cloudfront:GetDistributionConfig
+              - cloudfront:UpdateDistribution
+              - cloudfront:ListDistributions
+              - cloudfront:CreateInvalidation
             Resource: "*"
 
           - Sid: ItinerariesS3

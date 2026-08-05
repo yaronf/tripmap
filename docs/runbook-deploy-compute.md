@@ -10,6 +10,7 @@ After a full compute **delete**, recreate needs `ecs:CreateCluster` on the deplo
 ## 0. Preconditions
 
 - [ ] `tripmap-data` stack is `CREATE_COMPLETE` / `UPDATE_COMPLETE`
+- [ ] `tripmap-edge` (CloudFront) exists — durable URL `https://tripmap.sheffer.org`
 - [ ] Image exists in ECR `tripmapd` (build/push if you changed code)
 - [ ] Local `.env` has `AGENT_BEARER_TOKEN` (never commit; not readable by `tripmap-deploy`)
 - [ ] Custom GPT Bearer already configured (unchanged across seasons)
@@ -49,41 +50,51 @@ aws cloudformation deploy \
 
 Express Mode updates often take several minutes.
 
-## 3. Record ServiceUrl
+## 3. Point CloudFront at the new Express origin
+
+Express TLS is on `*.ecs.*.on.aws` (stack `Endpoint`), not the raw ALB DNS name. After create/recreate:
 
 ```bash
 ENDPOINT=$(aws cloudformation describe-stacks \
   --stack-name tripmap-compute --region eu-central-1 \
   --query "Stacks[0].Outputs[?OutputKey=='Endpoint'].OutputValue" \
   --output text)
-echo "https://$ENDPOINT"
+CERT_ARN=arn:aws:acm:us-east-1:077804408159:certificate/db2fef17-5f20-4863-a0ef-3819c83a8ec9
+
+aws cloudformation deploy \
+  --stack-name tripmap-edge \
+  --template-file infra/edge.yaml \
+  --region eu-central-1 \
+  --parameter-overrides \
+    ProjectName=tripmap \
+    AlternateDomainName=tripmap.sheffer.org \
+    AcmCertificateArn="$CERT_ARN" \
+    OriginDomainName="$ENDPOINT"
+
+DID=$(aws cloudformation describe-stacks --stack-name tripmap-edge --region eu-central-1 \
+  --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text)
+aws cloudfront wait distribution-deployed --id "$DID"
 ```
 
-- [ ] Save `https://$ENDPOINT` in password manager (hostname **may change** on recreate)
-- [ ] Rebuild partner/capability links as `https://$ENDPOINT/t/{id}/{token}/` (tokens unchanged in S3)
+Public URL stays **`https://tripmap.sheffer.org`** (GoDaddy CNAME → CloudFront; do not change DNS on recreate).
 
 ## 4. Smoke
 
 ```bash
 set -a && source .env && set +a
-curl -fsS "https://$ENDPOINT/health"
-curl -fsS "https://$ENDPOINT/openapi.yaml" | head
-BASE_URL="https://$ENDPOINT" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
+curl -fsS "https://tripmap.sheffer.org/health"
+curl -fsS "https://tripmap.sheffer.org/openapi.yaml" | head
+BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
 ```
 
-- [ ] Open one saved capability URL in a browser
+- [ ] Open a capability URL: `https://tripmap.sheffer.org/t/{id}/{token}/`
 - [ ] Confirm shared notes still load
 
 ## 5. Custom GPT Actions
 
-Hostname may have changed after a **stack recreate** (delete + create). Image-only updates often keep the same host.
-
-- [ ] GPT → Actions → confirm **server** is `https://$ENDPOINT`
-- [ ] Prefer **Import from URL**: `https://$ENDPOINT/openapi.yaml` (refresh schema after OpenAPI changes)
+- [ ] Server / Import from URL: `https://tripmap.sheffer.org` (and `/openapi.yaml`)
 - [ ] Quick test: “List trips.”
-
-**TODO:** durable public URL so this step is rarely needed — see [TODO.md](../TODO.md).
 
 ## 6. Done when
 
-- `/health` OK, OpenAPI importable, GPT list-trips works, one capability URL + notes OK.
+- `https://tripmap.sheffer.org/health` OK, OpenAPI importable, GPT list-trips works, one capability URL + notes OK.

@@ -3,9 +3,9 @@
 Authoritative plan for hosting tripmap **beyond** the current GitHub Pages static PWA.  
 Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/architecture), [itinerary-display-ux.md](itinerary-display-ux.md) (UI).
 
-**Status:** Phase A–C live; itineraries seeded; Custom GPT Actions working; live `/openapi.yaml` is 0.2.2.  
+**Status:** Phase A–C live; durable URL + Custom GPT on `https://tripmap.sheffer.org`; OpenAPI 0.2.2.  
 **Current production (static):** GitHub Pages (`www.sheffer.org/tripmap/`).  
-**In-season compute:** ECS Express Mode endpoint from `tripmap-compute` stack outputs.
+**In-season compute:** ECS Express Mode behind CloudFront (`tripmap-edge` → `tripmap-compute`).
 
 ---
 
@@ -13,7 +13,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 
 | Topic | Decision |
 |-------|----------|
-| Edge CDN | **No CloudFront / WAF** in v1 |
+| Edge CDN | **CloudFront** for durable `tripmap.sheffer.org` only (`tripmap-edge`); **no WAF** in v1 |
 | S3 encryption | **SSE-S3** (default); no SSE-KMS |
 | Compute | **ECS Express Mode** (Fargate + managed ALB) — not App Runner (sunset / closed to many new accounts) |
 | Scale to zero | **No** on Express Mode — instead **seasonal one-click deploy / undeploy** via CloudFormation |
@@ -30,7 +30,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Schema evolution | **`schema_version`** in YAML |
 | GitHub YAML | Cursor-maintained mirror under `itineraries/` |
 | Region | **All tripmap resources in `eu-central-1` (Frankfurt)**. CLI default may stay `il-central-1`; always `--region eu-central-1` for tripmap |
-| Public hostname (v1) | ALB / Express Mode default HTTPS URL. **May change on each redeploy** — update GPT Actions base URL + shared links after deploy (runbook). **TODO:** durable URL (custom domain / stable alias); tracked in [TODO.md](../TODO.md) |
+| Public hostname | **`https://tripmap.sheffer.org`** via CloudFront (`tripmap-edge`) → Express origin. Express `Endpoint` may change; update CloudFront origin only (runbook). Static Pages remains `www.sheffer.org/tripmap/`. |
 
 ---
 
@@ -45,7 +45,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Comments | Unversioned S3 |
 | ChatGPT | Actions → OpenAPI Bearer |
 | Cursor / GH | Local YAML + git; publish/pull via OpenAPI |
-| Viewer + comments | `/t/{id}/{token}/` on the live compute URL |
+| Viewer + comments | `/t/{id}/{token}/` on `https://tripmap.sheffer.org` |
 | Offline comments | Cached read-only |
 
 ### Non-goals (this plan)
@@ -224,7 +224,7 @@ Prefer **CloudFormation** over click-ops for buckets/roles/compute. You still ap
 - [ ] Optional: CLI default `il-central-1`; alias or always pass `--region eu-central-1`
 - [x] Skip App Runner gate — compute is Express Mode
 - [x] Daily work as `yaron-admin` (not root)
-- [ ] Day-to-day Cursor deploys as `tripmap-deploy` (see `infra/deploy-iam.yaml`) — not `AdministratorAccess`
+- [x] Day-to-day Cursor deploys as `tripmap-deploy` (see `infra/deploy-iam.yaml`) — not `AdministratorAccess`
 
 ### Deploy IAM (`tripmap-deploy`)
 
@@ -258,9 +258,9 @@ Enable **console access + MFA** on user `tripmap-deploy`. Use `aws login` as tha
 ### M4 — Compute stack (seasonal)
 
 - [x] Create stack `tripmap-compute` with ImageTag + data stack exports
-- [ ] Copy **ServiceUrl** output → password manager
-- [x] `curl $ServiceUrl/health`
-- [x] **Undeploy drill:** delete `tripmap-compute`; confirm data stack intact; recreate; confirm new ServiceUrl
+- [x] Durable public URL `https://tripmap.sheffer.org` (`tripmap-edge` + GoDaddy CNAME)
+- [x] `curl https://tripmap.sheffer.org/health`
+- [x] **Undeploy drill:** delete `tripmap-compute`; confirm data stack intact; recreate; update CloudFront origin
 
 Agent API smoke (after image push). Load Bearer from a **local** `.env` (never commit; never fetch via `tripmap-deploy`):
 
@@ -269,29 +269,26 @@ Agent API smoke (after image push). Load Bearer from a **local** `.env` (never c
 # AGENT_BEARER_TOKEN=…
 
 set -a && source .env && set +a
-ENDPOINT=$(aws cloudformation describe-stacks --stack-name tripmap-compute --region eu-central-1 \
-  --query "Stacks[0].Outputs[?OutputKey=='Endpoint'].OutputValue" --output text)
-BASE_URL="https://$ENDPOINT" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
+BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
 ```
 ### M5 — Seed itineraries
 
 - [x] Upload YAML + meta (tokens); regenerate via agent API once compute is up
-- [x] Save capability URLs (host + token) — password manager / private note
+- [x] Save capability URLs (host + token) — password manager / private note  
+  Prefer `https://tripmap.sheffer.org/t/{id}/{token}/` (rewrite old `*.on.aws` hosts).
 
 ### M6 — Custom GPT
 
-- [x] Actions → Import from URL (`/openapi.yaml`) + Bearer
-- [ ] After every compute redeploy: update Actions **server URL** if host changed (see [runbook-deploy-compute.md](runbook-deploy-compute.md))
+- [x] Actions → Import from URL (`https://tripmap.sheffer.org/openapi.yaml`) + Bearer
+- [x] Durable host — no GPT server URL change on compute recreate (only CloudFront origin; see [runbook-deploy-compute.md](runbook-deploy-compute.md))
 - [x] Agent: GPT instruction blurb + test prompts
 
 #### Setup (ChatGPT → Create a GPT)
 
-1. Confirm compute is up: `curl -fsS https://$ENDPOINT/health`
-2. **Actions** → import the OpenAPI schema:
-   - Prefer **Import from URL** once the live image serves OpenAPI **3.1.0**: `https://$ENDPOINT/openapi.yaml`
-   - Until then (or if ChatGPT still chokes): **Create new action** → paste from `tmp/openapi-chatgpt.yaml` (export with `python3 scripts/export_openapi.py "$ENDPOINT"`). That file already has the public `servers[0].url`.
-   - ChatGPT Actions requires `openapi: 3.1.0`/`3.1.1`, rejects parameter `$ref`s, empty `schemas`, and `http://localhost` under an `https://localhost` root — the 0.2.2 spec avoids those.
-3. **Authentication**: API Key → Auth Type **Bearer** → paste agent Bearer from password manager / `.env` (`AGENT_BEARER_TOKEN`). Never put this in the GPT instructions text.
+1. Confirm edge is up: `curl -fsS https://tripmap.sheffer.org/health`
+2. **Actions** → **Import from URL**: `https://tripmap.sheffer.org/openapi.yaml`  
+   (OpenAPI **3.1.0**, inline parameters, `servers[0].url` = durable host. Fallback: paste via `python3 scripts/export_openapi.py tripmap.sheffer.org`.)
+3. **Authentication**: API Key → Auth Type **Bearer** → paste agent Bearer from password manager / `.env` (`AGENT_BEARER_TOKEN`). Never put this in the GPT instructions text. Recover from `.env` or Secrets Manager as `yaron-admin` if the GPT editor clears it.
 4. **Instructions** (paste):
 
 ```text
@@ -309,7 +306,7 @@ Rules:
 ```
 
 5. **Test prompts**: “List trips.” → “What’s on day 4 of holland?” → “Rename day 4 title to … (PATCH).”
-6. Save the GPT. After any compute stack recreate, update the Actions server URL if the hostname changed.
+6. Save the GPT. After compute recreate, re-point CloudFront origin (runbook); GPT Actions URL stays `https://tripmap.sheffer.org`.
 
 ### M7 — Cursor
 
@@ -347,13 +344,13 @@ Rules:
 
 - [x] Comments under capability URL; offline read-only
 
-Capability URL format: `https://{ServiceUrl}/t/{id}/{token}/` (token plaintext only on create/rotate). Shared notes: `GET|PUT …/api/notes`.
+Capability URL format: `https://tripmap.sheffer.org/t/{id}/{token}/` (token plaintext only on create/rotate). Shared notes: `GET|PUT …/api/notes`.
 
 ### Phase D — Ergonomics
 
 - [x] Runbooks M9; optional `workflow_dispatch` deploy/destroy still open
 - [ ] Cursor skill
-- [ ] **TODO:** durable public URL (custom domain or stable alias) so GPT Actions + capability links do not need a hostname update after every compute recreate — see [TODO.md](../TODO.md)
+- [x] Durable public URL: `tripmap.sheffer.org` + `infra/edge.yaml` (CloudFront)
 
 ### Phase E — Hardening
 
@@ -368,7 +365,7 @@ Capability URL format: `https://{ServiceUrl}/t/{id}/{token}/` (token plaintext o
 | `AGENT_BEARER_TOKEN` | Secrets Manager (data stack) |
 | `ITINERARIES_BUCKET` / `COMMENTS_BUCKET` | Data stack outputs |
 | `AWS_REGION` | `eu-central-1` |
-| `PUBLIC_BASE_URL` | Compute stack `ServiceUrl` |
+| `PUBLIC_BASE_URL` | Import from `tripmap-edge` → `https://tripmap.sheffer.org` |
 | `OSRM_BASE_URL` / `MAX_YAML_BYTES` | Template parameters / defaults |
 
 ---
@@ -391,10 +388,10 @@ Live data in S3; ChatGPT via Actions; Cursor via git/OpenAPI. Compute is **ECS E
 
 ## Acceptance criteria
 
-- [ ] `tripmap-data` survives compute delete; YAML/comments intact
-- [ ] One-click (console or single CLI) create/delete of `tripmap-compute`
-- [ ] In season: capability URL + shared comments + GPT Actions work
+- [x] `tripmap-data` survives compute delete; YAML/comments intact
+- [x] One-click (console or single CLI) create/delete of `tripmap-compute`
+- [x] In season: capability URL + shared comments + GPT Actions on `tripmap.sheffer.org`
 - [ ] Off season: no ALB/Fargate charges; GPT/links intentionally dead until redeploy
-- [ ] After redeploy: runbook updates ServiceUrl in GPT Actions
-- [ ] No custom MCP; no secrets in git; Budget on
-- [ ] Manual checklist M1–M9 done once with agent help
+- [x] After redeploy: runbook updates CloudFront origin (GPT URL unchanged)
+- [x] No custom MCP; no secrets in git; Budget on
+- [ ] Manual checklist M1–M9 done once with agent help (M7 Cursor skill still open)

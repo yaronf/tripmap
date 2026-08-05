@@ -192,15 +192,19 @@ with a mock server, and tests for typed-stop and route behavior.
 
 ## Seasonal AWS hosting
 
-In season, `tripmapd` runs on ECS Express Mode with capability-URL viewers and a
-Custom GPT Actions API. Off season, delete the compute stack to stop ALB/Fargate
-charges; itineraries and comments stay in S3.
+In season, `tripmapd` runs on ECS Express Mode behind CloudFront:
+
+- **Live API / capability viewers:** `https://tripmap.sheffer.org`
+- **Static Pages PWA:** `https://www.sheffer.org/tripmap/` (unchanged)
+
+Off season, delete the compute stack to stop ALB/Fargate charges; itineraries and
+comments stay in S3. CloudFront remains; the durable hostname returns origin
+errors until the next deploy (see undeploy runbook).
 
 - Plan: [docs/aws-deployment.md](docs/aws-deployment.md)
 - Deploy: [docs/runbook-deploy-compute.md](docs/runbook-deploy-compute.md)
 - Undeploy: [docs/runbook-undeploy-compute.md](docs/runbook-undeploy-compute.md)
-
-Static GitHub Pages PWA remains at `https://www.sheffer.org/tripmap/`.
+- Edge: [infra/edge.yaml](infra/edge.yaml) (`tripmap-edge`)
 
 ## Roadmap
 

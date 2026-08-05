@@ -7,14 +7,14 @@ Tear down `tripmap-compute` to stop ALB/Fargate charges off-season. **Do not** d
 
 ## What stays / what dies
 
-| Kept (`tripmap-data`) | Gone until next deploy |
-|----------------------|-------------------------|
-| Itinerary YAML + versions | HTTPS Express endpoint |
-| Capability token **hashes** in meta | Live capability URLs |
-| Comments bucket objects | Agent API + GPT Actions |
-| ECR images, agent Bearer secret | Viewer PWA on compute host |
+| Kept | Gone until next deploy |
+|------|-------------------------|
+| `tripmap-data` (YAML, comments, ECR, secret) | Express / ALB / Fargate |
+| `tripmap-edge` (CloudFront + ACM) | Working origin behind CF |
+| GoDaddy `tripmap` → CloudFront | Live API / viewer / GPT |
+| Capability token **hashes** | |
 
-Tokens themselves are unchanged; only the **hostname** is offline. After the next deploy, the same `/t/{id}/{token}/` paths work on the new (or same) host.
+`https://tripmap.sheffer.org` stays in DNS but returns origin errors (e.g. 502) until compute is back and CloudFront origin is updated (see deploy runbook). Tokens unchanged; paths `/t/{id}/{token}/` work again on the same durable host.
 
 ## 1. Optional: note current endpoint
 

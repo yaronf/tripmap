@@ -38,7 +38,8 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [ ] Geocoding
 
 ### AWS / hosting
-- [ ] Durable public URL (custom domain or stable alias) for Express Mode so Custom GPT Actions + capability links survive compute recreate — today `ServiceUrl` may change and GPT server URL must be updated by hand. See [docs/aws-deployment.md](docs/aws-deployment.md).
+- [x] Durable public URL: `https://tripmap.sheffer.org` (CloudFront `tripmap-edge` → Express). See [docs/aws-deployment.md](docs/aws-deployment.md).
+- [ ] Hellō (or similar) sign-in for human viewers — after durable URL.
 
 ### Export
 - [ ] GPX
