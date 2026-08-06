@@ -34,19 +34,11 @@ func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 const openAPIDoc = `openapi: 3.1.0
 info:
   title: tripmap agent API
-  version: 0.3.0
+  version: 0.3.1
   description: |
-    Authenticated itinerary API for Custom GPT Actions.
-
-    Schema (version 2): each trip has a places catalog (stable ids → title,
-    lat, lon, type, optional info) and days whose route/stops are place refs
-    ({place, type?, notes?}).
-
-    Notes policy: day notes and stop notes are human-authored. Do not modify
-    them and do not put links, trail stats, or other machine enrichment into
-    notes unless the user explicitly asks you to edit their notes. Put
-    enrichment under places.<id>.info instead. The API still accepts notes on
-    PATCH/PUT; this is a usage rule, not a server check.
+    Authenticated itinerary API for Custom GPT Actions. Schema v2: places
+    catalog plus day route/stops as place refs. Notes are human-authored —
+    put enrichment in places.id.info, not notes (usage rule, not enforced).
 servers:
   - url: {{BASE_URL}}
 paths:
@@ -141,22 +133,8 @@ paths:
           description: Not found
     patch:
       operationId: patchTrip
-      summary: Structured patch (places enrichment, day fields, swap/insert/delete)
-      description: |
-        Prefer this over putTripYAML for small edits.
-
-        Enrichment — patch places by stable id (deep-merges info; replaces
-        links/warnings/highlights arrays when sent):
-
-          {"places":{"tongariro-crossing":{"info":{"links":[{"type":"alltrails","title":"AllTrails","url":"https://example.com"}],"warnings":["Alpine weather"]}}}}
-
-        Day itinerary — rename etc. (do not put enrichment in notes):
-
-          {"days":{"8":{"title":"New title"}}}
-
-        Also supports upsert_stop / remove_stop (by place id), swap_days,
-        insert_day, delete_day, and day fields hike/ferry.
-        Use putTripYAML only for large rewrites.
+      summary: Patch places info, day fields, or swap/insert/delete
+      description: Prefer over putTripYAML. Enrich via places.id.info (deep-merge). Edit days.N.title/hike/ferry; do not put enrichment in notes. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day.
       security:
         - bearerAuth: []
       parameters:
@@ -430,9 +408,7 @@ components:
                 type: string
               notes:
                 type: string
-                description: |
-                  Human-authored day notes. Full replace if sent. Agents should
-                  not modify notes unless the user explicitly asks.
+                description: Human notes; agents should not modify unless asked
               hike:
                 type: boolean
               ferry:
