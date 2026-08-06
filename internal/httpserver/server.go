@@ -173,8 +173,15 @@ func (s *Server) handleSchema(w http.ResponseWriter, _ *http.Request) {
 			"places":         "map of place id -> {title, lat, lon, type?, info?}",
 			"days":           "array of day objects; route/stops are {place, type?, notes?}",
 		},
-		"patch_ops": []string{"swap_days", "days", "places", "upsert_stop", "remove_stop", "insert_day", "delete_day"},
+		"patch_ops": []string{"swap_days", "update_day", "days", "places", "upsert_stop", "remove_stop", "insert_day", "delete_day"},
 		"notes_policy": "Day and stop notes are human-authored. Agents should not modify them unless the user explicitly asks. Put enrichment in places.*.info. Not enforced by the API.",
+		"update_day_example": map[string]any{
+			"update_day": map[string]any{
+				"day":   1,
+				"title": "Arrive Auckland",
+				"notes": "Recover from flight after arriving on UA917 from SFO at 09:10 NZDT.",
+			},
+		},
 		"days_patch_example": map[string]any{
 			"days": map[string]any{
 				"8": map[string]string{"title": "New title for day 8"},

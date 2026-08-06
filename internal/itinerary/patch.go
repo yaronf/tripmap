@@ -9,11 +9,24 @@ import (
 type Patch struct {
 	SwapDays   []int          `json:"swap_days,omitempty"`
 	Days       map[string]any `json:"days,omitempty"` // day number string -> partial day
+	UpdateDay  *UpdateDay     `json:"update_day,omitempty"`
 	Places     map[string]any `json:"places,omitempty"` // place id -> partial place (info deep-merged)
 	UpsertStop *UpsertStop    `json:"upsert_stop,omitempty"`
 	RemoveStop *RemoveStop    `json:"remove_stop,omitempty"`
 	InsertDay  *InsertDay     `json:"insert_day,omitempty"`
 	DeleteDay  *int           `json:"delete_day,omitempty"`
+}
+
+// UpdateDay partially updates one existing day's narrative/flags.
+// Omitted pointer fields are left unchanged.
+type UpdateDay struct {
+	Day          int     `json:"day"`
+	Title        *string `json:"title,omitempty"`
+	Notes        *string `json:"notes,omitempty"`
+	Hike         *bool   `json:"hike,omitempty"`
+	Ferry        *bool   `json:"ferry,omitempty"`
+	Photo        *string `json:"photo,omitempty"`
+	PhotoCaption *string `json:"photo_caption,omitempty"`
 }
 
 // UpsertStop adds or replaces a route/stop ref on a day by place id.
@@ -91,6 +104,12 @@ func ApplyPatch(t *Trip, p Patch) error {
 		}
 		cur.Day = n
 		t.Days[i] = cur
+	}
+
+	if p.UpdateDay != nil {
+		if err := applyUpdateDay(t, *p.UpdateDay); err != nil {
+			return err
+		}
 	}
 
 	if p.UpsertStop != nil {
@@ -270,6 +289,36 @@ func mergeFacilities(cur, patch *PlaceFacilities) *PlaceFacilities {
 		out.DrinkingWater = patch.DrinkingWater
 	}
 	return &out
+}
+
+func applyUpdateDay(t *Trip, u UpdateDay) error {
+	if u.Day < 1 {
+		return fmt.Errorf("update_day: day is required")
+	}
+	i := dayIndex(*t, u.Day)
+	if i < 0 {
+		return fmt.Errorf("update_day: day %d not found", u.Day)
+	}
+	d := &t.Days[i]
+	if u.Title != nil {
+		d.Title = *u.Title
+	}
+	if u.Notes != nil {
+		d.Notes = *u.Notes
+	}
+	if u.Hike != nil {
+		d.Hike = *u.Hike
+	}
+	if u.Ferry != nil {
+		d.Ferry = *u.Ferry
+	}
+	if u.Photo != nil {
+		d.Photo = *u.Photo
+	}
+	if u.PhotoCaption != nil {
+		d.PhotoCaption = *u.PhotoCaption
+	}
+	return nil
 }
 
 func applyUpsertStop(t *Trip, u UpsertStop) error {

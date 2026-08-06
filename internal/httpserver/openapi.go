@@ -34,11 +34,12 @@ func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 const openAPIDoc = `openapi: 3.1.0
 info:
   title: tripmap agent API
-  version: 0.3.1
+  version: 0.3.2
   description: |
     Authenticated itinerary API for Custom GPT Actions. Schema v2: places
     catalog plus day route/stops as place refs. Notes are human-authored —
     put enrichment in places.id.info, not notes (usage rule, not enforced).
+    Use update_day to change a day's title/notes/hike/ferry when the user asks.
 servers:
   - url: {{BASE_URL}}
 paths:
@@ -133,8 +134,8 @@ paths:
           description: Not found
     patch:
       operationId: patchTrip
-      summary: Patch places info, day fields, or swap/insert/delete
-      description: Prefer over putTripYAML. Enrich via places.id.info (deep-merge). Edit days.N.title/hike/ferry; do not put enrichment in notes. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day.
+      summary: Patch places info, day narrative, or structure
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day. Do not put enrichment in notes.
       security:
         - bearerAuth: []
       parameters:
@@ -372,8 +373,8 @@ components:
     TripPatch:
       type: object
       description: |
-        One or more structured ops. Prefer places.<id>.info for enrichment.
-        Day keys are strings matching the day number.
+        One or more structured ops. Prefer update_day for day narrative and
+        places.<id>.info for enrichment.
       properties:
         swap_days:
           type: array
@@ -382,6 +383,27 @@ components:
             type: integer
           minItems: 2
           maxItems: 2
+        update_day:
+          type: object
+          description: Partial update of one existing day (omit fields to leave unchanged)
+          required:
+            - day
+          properties:
+            day:
+              type: integer
+            title:
+              type: string
+            notes:
+              type: string
+              description: Day narrative; set when the user asks to edit notes
+            hike:
+              type: boolean
+            ferry:
+              type: boolean
+            photo:
+              type: string
+            photo_caption:
+              type: string
         places:
           type: object
           description: Map of place id to partial place fields (info is deep-merged)
@@ -400,7 +422,7 @@ components:
                 $ref: "#/components/schemas/PlaceInfo"
         days:
           type: object
-          description: Map of day-number string to partial day fields to merge
+          description: Legacy map form; prefer update_day
           additionalProperties:
             type: object
             properties:

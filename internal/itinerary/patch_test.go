@@ -63,6 +63,32 @@ func TestApplyPatchPlacesInfo(t *testing.T) {
 	}
 }
 
+func TestApplyPatchUpdateDay(t *testing.T) {
+	trip := Trip{
+		Trip: "T",
+		Places: map[string]Place{
+			"a": {Title: "A", Lat: 1, Lon: 2, Type: "overnight"},
+		},
+		Days: []Day{{Day: 1, Title: "Arrive", Notes: "Recover.", Stops: []Stop{{Place: "a"}}}},
+	}
+	title := "Arrive Auckland"
+	notes := "Recover from flight after arriving on UA917 from SFO at 09:10 NZDT."
+	hike := false
+	if err := ApplyPatch(&trip, Patch{
+		UpdateDay: &UpdateDay{Day: 1, Title: &title, Notes: &notes, Hike: &hike},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	d := trip.Days[0]
+	if d.Title != title || d.Notes != notes || d.Hike {
+		t.Fatalf("day = %+v", d)
+	}
+	// omitted ferry unchanged
+	if d.Ferry {
+		t.Fatal("ferry should remain false/unchanged")
+	}
+}
+
 func TestApplyPatchUpsertRemoveStop(t *testing.T) {
 	trip := Trip{
 		Trip: "T",
