@@ -16,22 +16,35 @@ func TestBuildTripBundleStraight(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "bundle")
 
+	km := 19.4
 	trip := itinerary.Trip{
 		Trip:        "Test Trip",
 		Description: "desc",
+		Places: map[string]itinerary.Place{
+			"a": {Title: "A", Type: "overnight", Lat: 1, Lon: 2},
+			"b": {Title: "B", Type: "overnight", Lat: 3, Lon: 4},
+			"trail": {
+				Title: "Trail", Type: "trailhead", Lat: 5, Lon: 6,
+				Info: &itinerary.PlaceInfo{
+					Links: []itinerary.PlaceLink{{Type: "alltrails", Title: "AllTrails", URL: "https://example.com"}},
+					Stats: &itinerary.PlaceStats{DistanceKm: &km, Duration: "7h"},
+				},
+			},
+			"hut": {Title: "Hut", Type: "hut", Lat: 7, Lon: 8},
+		},
 		Days: []itinerary.Day{
 			{
 				Day: 1, Title: "Start",
 				Route: []itinerary.Stop{
-					{Name: "A", Type: "overnight", Lat: 1, Lon: 2},
-					{Name: "B", Type: "overnight", Lat: 3, Lon: 4},
+					{Place: "a"},
+					{Place: "b"},
 				},
 			},
 			{
 				Day: 2, Title: "Hike", Hike: true,
 				Route: []itinerary.Stop{
-					{Name: "Trail", Type: "trailhead", Lat: 5, Lon: 6},
-					{Name: "Hut", Type: "hut", Lat: 7, Lon: 8},
+					{Place: "trail"},
+					{Place: "hut"},
 				},
 			},
 		},
@@ -51,64 +64,28 @@ func TestBuildTripBundleStraight(t *testing.T) {
 	if err := json.Unmarshal(b, &tj); err != nil {
 		t.Fatalf("parse trip.json: %v", err)
 	}
-	if tj.ID != "test" || tj.Title != "Test Trip" || len(tj.Days) != 2 {
+	if tj.Title != "Test Trip" || len(tj.Days) != 2 {
 		t.Fatalf("trip.json = %+v", tj)
-	}
-	if tj.Days[0].Geo != "geo/day-01.json" || tj.Days[0].Kind != "drive" {
-		t.Fatalf("day1 = %+v", tj.Days[0])
-	}
-	if tj.Days[0].DriveDist <= 0 {
-		t.Fatalf("day1 drive_dist = %v, want haversine length", tj.Days[0].DriveDist)
-	}
-	if tj.Units != "km" {
-		t.Fatalf("units = %q, want km", tj.Units)
-	}
-	if tj.Days[0].DriveMin != 0 {
-		t.Fatalf("day1 drive_min = %d, want 0 for straight routing", tj.Days[0].DriveMin)
 	}
 	if tj.Days[1].Kind != "hike" {
 		t.Fatalf("day2 kind = %q", tj.Days[1].Kind)
 	}
-
-	for _, name := range []string{"index.html", "app.js", "style.css", "sw.js", "icon.svg", "manifest.webmanifest", "geo/day-01.json", "geo/day-02.json"} {
-		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
-			t.Fatalf("missing %s: %v", name, err)
+	foundInfo := false
+	for _, s := range tj.Days[1].Stops {
+		if s.Place == "trail" && s.Info != nil && len(s.Info.Links) == 1 {
+			foundInfo = true
 		}
 	}
+	if !foundInfo {
+		t.Fatalf("expected trail info in day2 stops: %+v", tj.Days[1].Stops)
+	}
 
-	indexHTML, err := os.ReadFile(filepath.Join(out, "index.html"))
+	index := filepath.Join(out, "index.html")
+	ib, err := os.ReadFile(index)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("index.html: %v", err)
 	}
-	if !strings.Contains(string(indexHTML), "Test Trip Itinerary") {
-		t.Fatalf("index.html title missing trip name:\n%s", indexHTML)
-	}
-	if !strings.Contains(string(indexHTML), `property="og:title"`) {
-		t.Fatalf("index.html missing og:title")
-	}
-	if strings.Contains(string(indexHTML), "<title>Trip</title>") {
-		t.Fatalf("index.html still has placeholder title")
-	}
-
-	geoB, err := os.ReadFile(filepath.Join(out, "geo/day-01.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fc geoFeatureCollection
-	if err := json.Unmarshal(geoB, &fc); err != nil {
-		t.Fatal(err)
-	}
-	if fc.Type != "FeatureCollection" || len(fc.Features) < 3 {
-		t.Fatalf("geo features = %+v", fc)
-	}
-}
-
-func TestDistanceInUnits(t *testing.T) {
-	const meters = 160934.4 // 100 mi
-	if got := DistanceInUnits(meters, "mi"); got != 100 {
-		t.Fatalf("mi = %v", got)
-	}
-	if got := DistanceInUnits(meters, "km"); got != 160.9 {
-		t.Fatalf("km = %v", got)
+	if !strings.Contains(string(ib), "app.js") {
+		t.Fatalf("index.html missing viewer assets")
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/yaronf/tripmap/internal/itinerary"
 )
 
 func straightOpts(mode string) RouteOptions {
@@ -36,6 +38,9 @@ func TestBuildKMLStraightGolden(t *testing.T) {
 	var trip Trip
 	if err := yaml.Unmarshal(b, &trip); err != nil {
 		t.Fatalf("parse yaml: %v", err)
+	}
+	if err := itinerary.ResolvePlaces(&trip); err != nil {
+		t.Fatalf("resolve places: %v", err)
 	}
 
 	doc, err := buildDocument(context.Background(), trip, straightOpts("straight"))

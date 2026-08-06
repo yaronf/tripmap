@@ -15,9 +15,12 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [ ] Phase 7: Custom GPT Action
 - [ ] Phase 8: Cursor skill (optional local alternative)
 - [x] Phase 9: Ephemeral PWA comments (`localStorage`)
+- [ ] Comments should display even when not in edit mode
+- [ ] Create a favicon
 
 ### Schema
-- [ ] Places registry: define `places:` once, reference by ID in route/stops
+- [x] Places registry: define `places:` once, reference by ID in route/stops
+- [x] Structured place enrichment (`info`: links, stats, logistics, facilities, warnings, highlights)
 - [ ] Stop priority flags: `optional`, `backup`, `must`
 - [ ] First-class overnight block (place, nights, notes)
 - [ ] Booking metadata on stops (required, opens, status) in KML descriptions

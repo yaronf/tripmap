@@ -76,6 +76,15 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := itinerary.EnsureSchemaVersion(&t); err != nil {
+		return err
+	}
+	if err := itinerary.ValidateBasic(t); err != nil {
+		return err
+	}
+	if err := itinerary.ResolvePlaces(&t); err != nil {
+		return err
+	}
 	if err := itinerary.ResolveDayDates(&t); err != nil {
 		return err
 	}

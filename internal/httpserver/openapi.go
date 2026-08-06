@@ -34,8 +34,19 @@ func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 const openAPIDoc = `openapi: 3.1.0
 info:
   title: tripmap agent API
-  version: 0.2.2
-  description: Authenticated itinerary API for Custom GPT Actions.
+  version: 0.3.0
+  description: |
+    Authenticated itinerary API for Custom GPT Actions.
+
+    Schema (version 2): each trip has a places catalog (stable ids → title,
+    lat, lon, type, optional info) and days whose route/stops are place refs
+    ({place, type?, notes?}).
+
+    Notes policy: day notes and stop notes are human-authored. Do not modify
+    them and do not put links, trail stats, or other machine enrichment into
+    notes unless the user explicitly asks you to edit their notes. Put
+    enrichment under places.<id>.info instead. The API still accepts notes on
+    PATCH/PUT; this is a usage rule, not a server check.
 servers:
   - url: {{BASE_URL}}
 paths:
@@ -130,18 +141,22 @@ paths:
           description: Not found
     patch:
       operationId: patchTrip
-      summary: Structured patch (swap/insert/delete days, or update fields on an existing day)
+      summary: Structured patch (places enrichment, day fields, swap/insert/delete)
       description: |
         Prefer this over putTripYAML for small edits.
 
-        Update an existing day with the days map keyed by day number (string).
-        Example — set Day 8 notes (replaces the whole notes string for that day;
-        getTripYAML first if you need to append to the previous notes):
+        Enrichment — patch places by stable id (deep-merges info; replaces
+        links/warnings/highlights arrays when sent):
 
-          {"days":{"8":{"notes":"Prior notes.\n\nAllTrails: https://example.com"}}}
+          {"places":{"tongariro-crossing":{"info":{"links":[{"type":"alltrails","title":"AllTrails","url":"https://example.com"}],"warnings":["Alpine weather"]}}}}
 
-        Also supports swap_days, insert_day, and delete_day.
-        Use putTripYAML only for large rewrites or when many unrelated fields change.
+        Day itinerary — rename etc. (do not put enrichment in notes):
+
+          {"days":{"8":{"title":"New title"}}}
+
+        Also supports upsert_stop / remove_stop (by place id), swap_days,
+        insert_day, delete_day, and day fields hike/ferry.
+        Use putTripYAML only for large rewrites.
       security:
         - bearerAuth: []
       parameters:
@@ -328,6 +343,9 @@ components:
           type: integer
         description:
           type: string
+        notes_policy:
+          type: string
+          description: Human-authored notes usage rule for agents (not enforced)
         fields:
           type: object
           additionalProperties:
@@ -336,6 +354,9 @@ components:
           type: array
           items:
             type: string
+        days_patch_example:
+          type: object
+          additionalProperties: true
     TripList:
       type: object
       properties:
@@ -373,8 +394,8 @@ components:
     TripPatch:
       type: object
       description: |
-        One or more structured ops. The days property patches fields on existing
-        days (title, notes, hike, ferry). Day keys are strings matching the day number.
+        One or more structured ops. Prefer places.<id>.info for enrichment.
+        Day keys are strings matching the day number.
       properties:
         swap_days:
           type: array
@@ -383,6 +404,22 @@ components:
             type: integer
           minItems: 2
           maxItems: 2
+        places:
+          type: object
+          description: Map of place id to partial place fields (info is deep-merged)
+          additionalProperties:
+            type: object
+            properties:
+              title:
+                type: string
+              lat:
+                type: number
+              lon:
+                type: number
+              type:
+                type: string
+              info:
+                $ref: "#/components/schemas/PlaceInfo"
         days:
           type: object
           description: Map of day-number string to partial day fields to merge
@@ -393,11 +430,37 @@ components:
                 type: string
               notes:
                 type: string
-                description: Replaces the day's notes entirely (not a string append)
+                description: |
+                  Human-authored day notes. Full replace if sent. Agents should
+                  not modify notes unless the user explicitly asks.
               hike:
                 type: boolean
               ferry:
                 type: boolean
+        upsert_stop:
+          type: object
+          properties:
+            day:
+              type: integer
+            list:
+              type: string
+              description: route or stops
+            place:
+              type: string
+            type:
+              type: string
+            notes:
+              type: string
+        remove_stop:
+          type: object
+          properties:
+            day:
+              type: integer
+            list:
+              type: string
+              description: route, stops, or empty for both
+            place:
+              type: string
         delete_day:
           type: integer
         insert_day:
@@ -412,6 +475,88 @@ components:
                   type: string
                 notes:
                   type: string
+                  description: Human-authored; agents should not set unless asked
+                hike:
+                  type: boolean
+                ferry:
+                  type: boolean
+                route:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/StopRef"
+                stops:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/StopRef"
+    PlaceInfo:
+      type: object
+      description: Structured enrichment for a place (optional throughout)
+      properties:
+        source:
+          type: object
+          properties:
+            generated_by:
+              type: string
+            generated_at:
+              type: string
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              title:
+                type: string
+              url:
+                type: string
+            required:
+              - type
+              - url
+        stats:
+          type: object
+          properties:
+            distance_km:
+              type: number
+            duration:
+              type: string
+            ascent_m:
+              type: number
+            difficulty:
+              type: string
+        logistics:
+          type: object
+          properties:
+            parking:
+              type: string
+            booking_required:
+              type: boolean
+        facilities:
+          type: object
+          properties:
+            toilets:
+              type: boolean
+            drinking_water:
+              type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        highlights:
+          type: array
+          items:
+            type: string
+    StopRef:
+      type: object
+      properties:
+        place:
+          type: string
+        type:
+          type: string
+        notes:
+          type: string
+      required:
+        - place
     MutateResult:
       type: object
       properties:

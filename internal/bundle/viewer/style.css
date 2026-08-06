@@ -282,6 +282,37 @@ body {
   cursor: zoom-in;
 }
 
+.stop-info {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.stop-info-row {
+  margin: 0.2rem 0;
+}
+
+.stop-info-link {
+  color: var(--accent, #0f5c5c);
+}
+
+.stop-info-label {
+  font-weight: 600;
+  color: var(--ink);
+  margin-right: 0.25rem;
+}
+
+.stop-info-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.stop-info-warnings li {
+  color: #8a4b00;
+}
+
+
 .notes-disclosure {
   margin-top: 1.25rem;
   border-top: 1px solid var(--rule);

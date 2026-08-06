@@ -44,13 +44,15 @@ type DayJSON struct {
 
 // StopJSON is a stop in trip.json.
 type StopJSON struct {
-	Name         string  `json:"name"`
-	Type         string  `json:"type,omitempty"`
-	Lat          float64 `json:"lat"`
-	Lon          float64 `json:"lon"`
-	Notes        string  `json:"notes,omitempty"`
-	Photo        string  `json:"photo,omitempty"`
-	PhotoCaption string  `json:"photo_caption,omitempty"`
+	Place        string              `json:"place,omitempty"`
+	Name         string              `json:"name"`
+	Type         string              `json:"type,omitempty"`
+	Lat          float64             `json:"lat"`
+	Lon          float64             `json:"lon"`
+	Notes        string              `json:"notes,omitempty"`
+	Photo        string              `json:"photo,omitempty"`
+	PhotoCaption string              `json:"photo_caption,omitempty"`
+	Info         *itinerary.PlaceInfo `json:"info,omitempty"`
 }
 
 type geoFeatureCollection struct {
@@ -85,6 +87,9 @@ func dayKind(d itinerary.Day) string {
 // Build writes a PWA bundle for trip id into outDir.
 // inputDir is used to resolve relative photo paths (may be empty).
 func Build(ctx context.Context, t itinerary.Trip, id, inputDir, outDir string, opts routebuild.RouteOptions) error {
+	if err := itinerary.ResolvePlaces(&t); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Join(outDir, "geo"), 0755); err != nil {
 		return err
 	}
@@ -172,7 +177,16 @@ func buildDayBundle(ctx context.Context, d itinerary.Day, inputDir, outDir strin
 			return nil
 		}
 		seen[key] = true
-		sj := StopJSON{Name: s.Name, Type: s.Type, Lat: s.Lat, Lon: s.Lon, Notes: s.Notes, PhotoCaption: s.PhotoCaption}
+		sj := StopJSON{
+			Place:        s.Place,
+			Name:         s.Name,
+			Type:         s.Type,
+			Lat:          s.Lat,
+			Lon:          s.Lon,
+			Notes:        s.Notes,
+			PhotoCaption: s.PhotoCaption,
+			Info:         s.Info,
+		}
 		if s.Photo != "" {
 			rel, err := copyPhoto(s.Photo, inputDir, outDir, photoMap)
 			if err != nil {

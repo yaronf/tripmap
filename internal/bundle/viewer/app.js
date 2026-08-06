@@ -116,6 +116,48 @@
     return labels[type] || type || "Stop";
   }
 
+  function formatStopInfo(info) {
+    if (!info) return "";
+    const parts = [];
+    if (info.links && info.links.length) {
+      const links = info.links
+        .map((l) => {
+          const label = l.title || l.type || "Link";
+          return `<a class="stop-info-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+        })
+        .join(" · ");
+      parts.push(`<div class="stop-info-row">${links}</div>`);
+    }
+    if (info.stats) {
+      const s = info.stats;
+      const bits = [];
+      if (s.distance_km != null) bits.push(`${s.distance_km} km`);
+      if (s.duration) bits.push(s.duration);
+      if (s.ascent_m != null) bits.push(`↑ ${s.ascent_m} m`);
+      if (s.difficulty) bits.push(s.difficulty);
+      if (bits.length) parts.push(`<div class="stop-info-row stop-info-stats">${escapeHtml(bits.join(" · "))}</div>`);
+    }
+    if (info.logistics && info.logistics.parking) {
+      parts.push(`<div class="stop-info-row"><span class="stop-info-label">Parking</span> ${escapeHtml(info.logistics.parking)}</div>`);
+    }
+    if (info.warnings && info.warnings.length) {
+      parts.push(
+        `<ul class="stop-info-list stop-info-warnings">${info.warnings
+          .map((w) => `<li>${escapeHtml(w)}</li>`)
+          .join("")}</ul>`
+      );
+    }
+    if (info.highlights && info.highlights.length) {
+      parts.push(
+        `<ul class="stop-info-list stop-info-highlights">${info.highlights
+          .map((h) => `<li>${escapeHtml(h)}</li>`)
+          .join("")}</ul>`
+      );
+    }
+    if (!parts.length) return "";
+    return `<div class="stop-info">${parts.join("")}</div>`;
+  }
+
   function formatDriveStats(d) {
     const dist = d.drive_dist ?? d.drive_km; // drive_km: older bundles
     const unit = state.trip?.units === "mi" ? "mi" : "km";
@@ -215,6 +257,7 @@
     const stops = (d.stops || [])
       .map((s) => {
         const stopCap = s.photo_caption || s.name;
+        const infoHtml = formatStopInfo(s.info);
         return `<li class="stop">
         <button type="button" data-lat="${s.lat}" data-lon="${s.lon}">
           <span class="stop-name">${escapeHtml(s.name)}</span>
@@ -225,6 +268,7 @@
             ? `<img class="stop-thumb" src="${escapeAttr(s.photo)}" alt="${escapeAttr(stopCap)}" title="${escapeAttr(stopCap)}" loading="lazy" data-photo="${escapeAttr(s.photo)}" data-caption="${escapeAttr(stopCap)}" />`
             : ""
         }
+        ${infoHtml}
       </li>`;
       })
       .join("");

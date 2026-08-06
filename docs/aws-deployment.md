@@ -290,20 +290,16 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 2. **Actions** → **Import from URL**: `https://tripmap.sheffer.org/openapi.yaml`  
    (OpenAPI **3.1.0**, inline parameters, `servers[0].url` = durable host. Fallback: paste via `python3 scripts/export_openapi.py tripmap.sheffer.org`.)
 3. **Authentication**: API Key → Auth Type **Bearer** → paste agent Bearer from password manager / `.env` (`AGENT_BEARER_TOKEN`). Never put this in the GPT instructions text. Recover from `.env` or Secrets Manager as `yaron-admin` if the GPT editor clears it.
-4. **Instructions** (paste):
+4. **Instructions** (optional short glue — durable agent rules live in the imported OpenAPI `info.description` and operation docs; this GPT does not read the git repo):
 
 ```text
 You edit tripmap road-trip itineraries via the tripmap agent API Actions.
-
-Rules:
-- Always list or GET before changing a trip. Prefer GET /api/agent/trips/{id}/yaml before PUT/PATCH.
-- Mutating calls require a unique Idempotency-Key header (use a new UUID each distinct user request; reuse only when retrying the same failed call).
-- schema_version must be 1. Do not invent unsupported schema versions.
-- Prefer PATCH for small edits (swap_days, days.{n}.title/notes/hike/ferry/route/stops, insert_day, delete_day). Use PUT /yaml only for full document replacement.
-- After create/rotate-token, tell the user the viewer_url (capability link). Do not invent tokens.
-- Trips holland and nz-4weeks are the main itineraries. Do not delete trips (API has no delete).
-- If the API returns 401/404/5xx, report the error briefly; do not invent itinerary data.
-- Keep answers short; show day titles and key fields when summarizing.
+Follow the OpenAPI description (schema_version 2 places catalog, notes policy, Idempotency-Key, prefer PATCH).
+Always list or GET before changing a trip. Prefer GET yaml before PUT/PATCH.
+Enrich places via PATCH places.<id>.info — do not put links/stats into notes.
+After create/rotate-token, tell the user the viewer_url. Do not invent tokens.
+Trips holland and nz-4weeks are the main itineraries. No trip delete API.
+Keep answers short; report API errors briefly.
 ```
 
 5. **Test prompts**: “List trips.” → “What’s on day 4 of holland?” → “Rename day 4 title to … (PATCH).”

@@ -106,11 +106,17 @@ func TestLoadConfigRequiresToken(t *testing.T) {
 
 const sampleYAML = `trip: Smoke Trip
 description: test
+places:
+  a:
+    title: A
+    lat: 1.0
+    lon: 2.0
+    type: overnight
 days:
   - day: 1
     title: Start
     stops:
-      - { name: A, type: overnight, lat: 1.0, lon: 2.0 }
+      - { place: a }
 `
 
 func TestCreatePutGetIdempotentPatch(t *testing.T) {
@@ -215,7 +221,7 @@ func TestCreatePutGetIdempotentPatch(t *testing.T) {
 	req = authReq(http.MethodGet, "/api/agent/schema", "secret", nil)
 	rec = httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"schema_version":1`) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"schema_version":2`) {
 		t.Fatalf("schema = %s", rec.Body.String())
 	}
 
@@ -245,13 +251,16 @@ func TestRejectBadSchemaVersion(t *testing.T) {
 func TestPatchSwapDays(t *testing.T) {
 	srv, _ := testServer(t)
 	yaml := `trip: Swap
+places:
+  a: { title: A, lat: 1, lon: 2, type: overnight }
+  b: { title: B, lat: 3, lon: 4, type: overnight }
 days:
   - day: 1
     title: One
-    stops: [{name: A, type: overnight, lat: 1, lon: 2}]
+    stops: [{ place: a }]
   - day: 2
     title: Two
-    stops: [{name: B, type: overnight, lat: 3, lon: 4}]
+    stops: [{ place: b }]
 `
 	body, _ := json.Marshal(map[string]string{"id": "swap-trip", "yaml": yaml})
 	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(body))

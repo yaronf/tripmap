@@ -7,7 +7,7 @@ import (
 )
 
 // CurrentSchemaVersion is the only schema_version accepted on write.
-const CurrentSchemaVersion = 1
+const CurrentSchemaVersion = 2
 
 // ParseYAML unmarshals itinerary YAML.
 func ParseYAML(b []byte) (Trip, error) {
@@ -40,13 +40,24 @@ func EnsureSchemaVersion(t *Trip) error {
 	return nil
 }
 
-// ValidateBasic checks required fields for storage.
+// ValidateBasic checks required fields for storage (place refs, not coords).
 func ValidateBasic(t Trip) error {
 	if t.Trip == "" {
 		return fmt.Errorf("trip title is required")
 	}
 	if len(t.Days) == 0 {
 		return fmt.Errorf("at least one day is required")
+	}
+	if len(t.Places) == 0 {
+		return fmt.Errorf("places catalog is required")
+	}
+	for id, p := range t.Places {
+		if id == "" {
+			return fmt.Errorf("place id must be non-empty")
+		}
+		if p.Title == "" {
+			return fmt.Errorf("place %q: title is required", id)
+		}
 	}
 	for _, d := range t.Days {
 		if d.Day < 1 {
@@ -56,8 +67,11 @@ func ValidateBasic(t Trip) error {
 			return fmt.Errorf("day %d title is required", d.Day)
 		}
 		for _, s := range append(append([]Stop{}, d.Route...), d.Stops...) {
-			if s.Name == "" {
-				return fmt.Errorf("day %d: stop missing name", d.Day)
+			if s.Place == "" {
+				return fmt.Errorf("day %d: stop missing place id", d.Day)
+			}
+			if _, ok := t.Places[s.Place]; !ok {
+				return fmt.Errorf("day %d: unknown place %q", d.Day, s.Place)
 			}
 		}
 	}
