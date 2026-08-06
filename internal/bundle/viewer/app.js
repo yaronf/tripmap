@@ -293,11 +293,17 @@
       ${d.notes ? `<p class="detail-notes">${escapeHtml(d.notes)}</p>` : ""}
       ${photo}
       <ul class="stops">${stops || "<li class=\"stop\"><span class=\"stop-type\">No stops</span></li>"}</ul>
-      <details class="notes-disclosure">
-        <summary>Shared notes</summary>
-        <textarea id="shared-notes" aria-label="Shared notes for this day">${escapeHtml(saved)}</textarea>
-        ${!navigator.onLine ? `<p class="notes-offline-hint">Offline — edits won’t sync until you’re online.</p>` : ""}
-      </details>
+      <section class="shared-notes" aria-label="Shared notes">
+        <h3 class="shared-notes-heading">Shared notes</h3>
+        <p id="shared-notes-display" class="shared-notes-body${saved ? "" : " is-empty"}">${
+          saved ? escapeHtml(saved) : "No shared notes yet."
+        }</p>
+        <details class="notes-disclosure">
+          <summary>${saved ? "Edit notes" : "Add notes"}</summary>
+          <textarea id="shared-notes" aria-label="Edit shared notes for this day">${escapeHtml(saved)}</textarea>
+          ${!navigator.onLine ? `<p class="notes-offline-hint">Offline — edits won’t sync until you’re online.</p>` : ""}
+        </details>
+      </section>
       <nav class="day-nav" aria-label="Adjacent days">
         <button type="button" class="day-nav-btn" data-dir="-1" ${prevDisabled} title="${prevTitle}">
           <span class="day-nav-dir" aria-hidden="true">‹</span> Prev
@@ -337,9 +343,17 @@
     });
 
     const ta = el.detail.querySelector("#shared-notes");
+    const display = el.detail.querySelector("#shared-notes-display");
+    const syncDisplay = (value) => {
+      if (!display) return;
+      const text = (value || "").trim();
+      display.textContent = text || "No shared notes yet.";
+      display.classList.toggle("is-empty", !text);
+    };
     if (ta) {
       ta.addEventListener("input", () => {
         setDayNote(d.day, ta.value);
+        syncDisplay(ta.value);
         scheduleSaveNotes(d.day);
       });
       ta.addEventListener("blur", () => {

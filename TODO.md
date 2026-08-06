@@ -15,8 +15,8 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [ ] Phase 7: Custom GPT Action
 - [ ] Phase 8: Cursor skill (optional local alternative)
 - [x] Phase 9: Ephemeral PWA comments (`localStorage`)
-- [ ] Comments should display even when not in edit mode
-- [ ] Create a favicon
+- [x] Comments should display even when not in edit mode
+- [x] Create a favicon
 
 ### Schema
 - [x] Places registry: define `places:` once, reference by ID in route/stops

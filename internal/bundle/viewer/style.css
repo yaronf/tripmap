@@ -313,10 +313,29 @@ body {
 }
 
 
-.notes-disclosure {
+.shared-notes {
   margin-top: 1.25rem;
   border-top: 1px solid var(--rule);
   padding-top: 0.75rem;
+}
+
+.shared-notes-heading {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.shared-notes-body {
+  font-family: var(--serif);
+  line-height: 1.55;
+  margin: 0 0 0.5rem;
+  white-space: pre-wrap;
+}
+
+.shared-notes-body.is-empty {
+  font-family: var(--sans, inherit);
+  color: var(--muted);
+  font-style: italic;
 }
 
 .notes-disclosure summary {
@@ -325,6 +344,7 @@ body {
   min-height: 44px;
   display: flex;
   align-items: center;
+  color: var(--accent, #0f5c5c);
 }
 
 .notes-disclosure textarea {
