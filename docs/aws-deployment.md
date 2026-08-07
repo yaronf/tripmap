@@ -3,7 +3,7 @@
 Authoritative plan for hosting tripmap **beyond** the current GitHub Pages static PWA.  
 Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/architecture), [itinerary-display-ux.md](itinerary-display-ux.md) (UI).
 
-**Status:** Phase A–C live; durable URL + Custom GPT on `https://tripmap.sheffer.org`; OpenAPI 0.2.2.  
+**Status:** Phase A–C live; durable URL + agent MCP on `https://tripmap.sheffer.org`; OpenAPI 0.3.2. Custom GPT Actions deprecated (see [runbook-mcp.md](runbook-mcp.md)).  
 **Current production (static):** GitHub Pages (`www.sheffer.org/tripmap/`).  
 **In-season compute:** ECS Express Mode behind CloudFront (`tripmap-edge` → `tripmap-compute`).
 
@@ -22,8 +22,8 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Comments | Shared read/write for anyone with the URL; offline = read cache only |
 | Custom tripmap MCP | **No** |
 | Cursor | Repo + git; optional AWS MCP; optional same OpenAPI |
-| ChatGPT | **Custom GPT + Actions (OpenAPI)**; Bearer encrypted in GPT editor |
-| Agent API | OpenAPI on the container (`/openapi.yaml` + `/api/agent/*`) |
+| Agent (LLM) | **Codex MCP** Streamable HTTP + Bearer (`/mcp`); see [runbook-mcp.md](runbook-mcp.md). ChatGPT chat may not see local MCP; Custom GPT Actions deprecated |
+| Agent API | OpenAPI on the container (`/openapi.yaml` + `/api/agent/*` + `/mcp`) |
 | Patch retries | **`Idempotency-Key` required** on mutating agent calls |
 | Delete trip | **Omit** initially |
 | Source of truth (live) | **S3** (persists across undeploys) |
@@ -278,32 +278,19 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 - [x] Save capability URLs (host + token) — password manager / private note  
   Prefer `https://tripmap.sheffer.org/t/{id}/{token}/` (rewrite old `*.on.aws` hosts).
 
-### M6 — Custom GPT
+### M6 — Codex MCP (Actions deprecated)
 
-- [x] Actions → Import from URL (`https://tripmap.sheffer.org/openapi.yaml`) + Bearer
-- [x] Durable host — no GPT server URL change on compute recreate (only CloudFront origin; see [runbook-deploy-compute.md](runbook-deploy-compute.md))
-- [x] Agent: GPT instruction blurb + test prompts
+- [x] Streamable HTTP MCP at `https://tripmap.sheffer.org/mcp` + Bearer (same agent token)
+- [x] Verified with **Codex**; ChatGPT chat may not list local MCP servers
+- [x] Runbook: [runbook-mcp.md](runbook-mcp.md)
+- [x] Durable host — no MCP URL change on compute recreate (only CloudFront origin)
+- ~~Custom GPT Actions~~ — deprecated; keep OpenAPI public for scripts / legacy only
 
-#### Setup (ChatGPT → Create a GPT)
+#### Setup (Codex)
 
 1. Confirm edge is up: `curl -fsS https://tripmap.sheffer.org/health`
-2. **Actions** → **Import from URL**: `https://tripmap.sheffer.org/openapi.yaml`  
-   (OpenAPI **3.1.0**, inline parameters, `servers[0].url` = durable host. Fallback: paste via `python3 scripts/export_openapi.py tripmap.sheffer.org`.)
-3. **Authentication**: API Key → Auth Type **Bearer** → paste agent Bearer from password manager / `.env` (`AGENT_BEARER_TOKEN`). Never put this in the GPT instructions text. Recover from `.env` or Secrets Manager as `yaron-admin` if the GPT editor clears it.
-4. **Instructions** (optional short glue — durable agent rules live in the imported OpenAPI `info.description` and operation docs; this GPT does not read the git repo):
-
-```text
-You edit tripmap road-trip itineraries via the tripmap agent API Actions.
-Follow the OpenAPI description (schema_version 2 places catalog, notes policy, Idempotency-Key, prefer PATCH).
-Always list or GET before changing a trip. Prefer GET yaml before PUT/PATCH.
-Enrich places via PATCH places.<id>.info — do not put links/stats into notes.
-After create/rotate-token, tell the user the viewer_url. Do not invent tokens.
-Trips holland and nz-4weeks are the main itineraries. No trip delete API.
-Keep answers short; report API errors briefly.
-```
-
-5. **Test prompts**: “List trips.” → “What’s on day 4 of holland?” → “Rename day 4 title to … (PATCH).”
-6. Save the GPT. After compute recreate, re-point CloudFront origin (runbook); GPT Actions URL stays `https://tripmap.sheffer.org`.
+2. Configure Codex MCP: URL `https://tripmap.sheffer.org/mcp`, Bearer env `tripmap_mcp_bearer_token` (= `AGENT_BEARER_TOKEN`) — see [runbook-mcp.md](runbook-mcp.md).
+3. Test: “List trips.” → `listTrips`; then a small `patchTrip` / `update_day` if desired.
 
 ### M7 — Cursor
 

@@ -14,7 +14,7 @@ func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 			if r.TLS != nil {
 				proto = "https"
 			} else {
-				// Express Mode / ALB terminate TLS; Actions need a public https base.
+				// Express Mode / ALB terminate TLS; public https base for clients.
 				proto = "https"
 			}
 		}
@@ -25,8 +25,17 @@ func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		base = proto + "://" + host
 	}
-	doc := strings.ReplaceAll(openAPIDoc, "{{BASE_URL}}", base)
-	_, _ = w.Write([]byte(doc))
+	_, _ = w.Write([]byte(OpenAPIDocument(base)))
+}
+
+// OpenAPIDocument returns the OpenAPI YAML with {{BASE_URL}} replaced.
+func OpenAPIDocument(baseURL string) string {
+	return strings.ReplaceAll(openAPIDoc, "{{BASE_URL}}", baseURL)
+}
+
+// OpenAPIDocumentTemplate returns the OpenAPI YAML with the {{BASE_URL}} placeholder.
+func OpenAPIDocumentTemplate() string {
+	return openAPIDoc
 }
 
 // ChatGPT Actions wants OpenAPI 3.1.x, no parameter $refs, schemas must be an
@@ -36,7 +45,7 @@ info:
   title: tripmap agent API
   version: 0.3.2
   description: |
-    Authenticated itinerary API for Custom GPT Actions. Schema v2: places
+    Authenticated itinerary API (MCP tools + optional REST). Schema v2: places
     catalog plus day route/stops as place refs. Notes are human-authored —
     put enrichment in places.id.info, not notes (usage rule, not enforced).
     Use update_day to change a day's title/notes/hike/ferry when the user asks.

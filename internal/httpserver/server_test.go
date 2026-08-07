@@ -67,6 +67,63 @@ func TestOpenAPIPublic(t *testing.T) {
 	}
 }
 
+func TestMCPRequiresBearer(t *testing.T) {
+	srv, _ := testServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestMCPListTripsTool(t *testing.T) {
+	srv, mem := testServer(t)
+	if _, err := mem.PutYAML(t.Context(), "holland", []byte(sampleYAML)); err != nil {
+		t.Fatal(err)
+	}
+	h := srv.Handler()
+
+	mcpCall := func(body string) string {
+		t.Helper()
+		req := authReq(http.MethodPost, "/mcp", "secret", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		raw := rec.Body.String()
+		if strings.Contains(raw, "data:") {
+			var parts []string
+			for _, line := range strings.Split(raw, "\n") {
+				if strings.HasPrefix(line, "data:") {
+					parts = append(parts, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+				}
+			}
+			return strings.Join(parts, "\n")
+		}
+		return raw
+	}
+
+	init := mcpCall(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}`)
+	if !strings.Contains(init, `"name":"tripmap"`) {
+		t.Fatalf("initialize: %s", init)
+	}
+	list := mcpCall(`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`)
+	if !strings.Contains(list, `"name":"listTrips"`) {
+		t.Fatalf("tools/list: %s", list)
+	}
+	call := mcpCall(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"listTrips","arguments":{}}}`)
+	if !strings.Contains(call, "holland") {
+		t.Fatalf("listTrips: %s", call)
+	}
+}
+
 func TestOpenAPIUsesRequestHost(t *testing.T) {
 	mem := store.NewMem()
 	srv := New(Config{AgentBearerToken: "secret", MaxYAMLBytes: 512 * 1024, RouteMode: "straight"}, mem)

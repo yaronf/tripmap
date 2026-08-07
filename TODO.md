@@ -1,5 +1,10 @@
 # Roadmap
 
+## Bugs
+
+- [ ] Cannot see notes
+- [ ] Displaying comments still broken
+
 ## Planned
 
 ### Viewer
@@ -11,8 +16,8 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [x] Phase 3: Photo field in YAML + bundle + lightbox
 - [x] Phase 4: PWA service worker (offline data + images)
 - [x] Phase 5: GitHub Actions → GitHub Pages
-- [ ] Phase 6: REST API (`cmd/tripmapd/`) + OpenAPI + PATCH → git
-- [ ] Phase 7: Custom GPT Action
+- [x] Phase 6: REST API (`cmd/tripmapd/`) + OpenAPI + PATCH (S3 versions)
+- [x] Phase 7: Agent MCP (`/mcp` Streamable HTTP + Bearer) via **Codex** — see [docs/runbook-mcp.md](docs/runbook-mcp.md). Custom GPT Actions deprecated; ChatGPT chat may not see local MCP.
 - [ ] Phase 8: Cursor skill (optional local alternative)
 - [x] Phase 9: Ephemeral PWA comments (`localStorage`)
 - [x] Comments should display even when not in edit mode

@@ -13,7 +13,7 @@ After a full compute **delete**, recreate needs `ecs:CreateCluster` on the deplo
 - [ ] `tripmap-edge` (CloudFront) exists — durable URL `https://tripmap.sheffer.org`
 - [ ] Image exists in ECR `tripmapd` (build/push if you changed code)
 - [ ] Local `.env` has `AGENT_BEARER_TOKEN` (never commit; not readable by `tripmap-deploy`)
-- [ ] Custom GPT Bearer already configured (unchanged across seasons)
+- [ ] Agent Bearer already configured for MCP / scripts (unchanged across seasons)
 
 ## 1. Build and push (if needed)
 
@@ -101,11 +101,12 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 - [ ] Confirm shared notes still load
 - [ ] If `HelloClientID` set: open `https://tripmap.sheffer.org/` → Continue with Hellō → land signed in; `GET /auth/me` returns `authenticated: true`
 
-## 5. Custom GPT Actions
+## 5. Codex MCP
 
-- [ ] Server / Import from URL: `https://tripmap.sheffer.org` (and `/openapi.yaml`)
-- [ ] Quick test: “List trips.”
+- [ ] Connector: Streamable HTTP `https://tripmap.sheffer.org/mcp` + Bearer env (`tripmap_mcp_bearer_token`) — see [runbook-mcp.md](runbook-mcp.md)
+- [ ] Quick test in Codex: “List trips.”
+- [ ] (Deprecated) Custom GPT Actions; ChatGPT chat may not see local MCP servers
 
 ## 6. Done when
 
-- `https://tripmap.sheffer.org/health` OK, OpenAPI importable, GPT list-trips works, one capability URL + notes OK.
+- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, Codex list-trips works, one capability URL + notes OK.

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yaronf/mcpopenapi"
 	"github.com/yaronf/tripmap/internal/bundle"
 	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/routebuild"
@@ -64,7 +65,27 @@ func (s *Server) routes() {
 	agent.HandleFunc("GET /trips/{id}/versions", s.handleListVersions)
 	agent.HandleFunc("POST /trips/{id}/restore", s.handleRestore)
 
-	s.mux.Handle("/api/agent/", http.StripPrefix("/api/agent", bearerAuth(s.cfg.AgentBearerToken, agent)))
+	// Internal agent surface (no Bearer): used by /api/agent/* after auth and by /mcp tools/call.
+	internalAgent := http.StripPrefix("/api/agent", agent)
+	s.mux.Handle("/api/agent/", bearerAuth(s.cfg.AgentBearerToken, internalAgent))
+
+	mcpHandler, err := mcpopenapi.NewHandler(mcpopenapi.Config{
+		Name:    "tripmap",
+		Version: "0.3.2",
+		Instructions: "tripmap agent API as MCP tools. Prefer patchTrip with update_day or places.<id>.info; " +
+			"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits.",
+		// Concrete servers URL (placeholder {{BASE_URL}} is not valid YAML for the parser).
+		OpenAPIYAML: []byte(OpenAPIDocument("https://tripmap.local")),
+		Upstream:    internalAgent,
+		PathPrefix:  "/api/agent",
+	})
+	if err != nil {
+		// Fail closed at startup — misconfigured OpenAPI must not ship a half-broken daemon.
+		panic("mcp: " + err.Error())
+	}
+	s.mux.Handle("/mcp", bearerAuth(s.cfg.AgentBearerToken, mcpHandler))
+	s.mux.Handle("/mcp/", bearerAuth(s.cfg.AgentBearerToken, mcpHandler))
+
 	s.mux.Handle("/t/", http.HandlerFunc(s.handleCapability))
 }
 
