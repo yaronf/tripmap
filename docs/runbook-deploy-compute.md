@@ -97,9 +97,8 @@ curl -fsS "https://tripmap.sheffer.org/openapi.yaml" | head
 BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
 ```
 
-- [ ] Open a capability URL: `https://tripmap.sheffer.org/t/{id}/{token}/`
-- [ ] Confirm shared notes still load
-- [ ] If `HelloClientID` set: open `https://tripmap.sheffer.org/` → Continue with Hellō → land signed in; `GET /auth/me` returns `authenticated: true`
+- [ ] If `HelloClientID` set: open `https://tripmap.sheffer.org/` → Continue with Hellō → open `/me/trips/{id}/`; confirm notes + comments
+- [ ] `GET /auth/me` returns `authenticated: true`
 
 ## 5. Codex MCP
 
@@ -109,4 +108,4 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 
 ## 6. Done when
 
-- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, Codex list-trips works, one capability URL + notes OK.
+- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, Codex list-trips works, Hellō viewer + comments OK.

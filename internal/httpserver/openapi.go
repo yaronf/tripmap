@@ -43,12 +43,13 @@ func OpenAPIDocumentTemplate() string {
 const openAPIDoc = `openapi: 3.1.0
 info:
   title: tripmap agent API
-  version: 0.3.2
+  version: 0.4.0
   description: |
     Authenticated itinerary API (MCP tools + optional REST). Schema v2: places
     catalog plus day route/stops as place refs. Notes are human-authored —
     put enrichment in places.id.info, not notes (usage rule, not enforced).
     Use update_day to change a day's title/notes/hike/ferry when the user asks.
+    Human viewers use Hellō at /me/trips/{id}/ (no capability tokens).
 servers:
   - url: {{BASE_URL}}
 paths:
@@ -216,54 +217,6 @@ paths:
       responses:
         "200":
           description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MutateResult"
-  /api/agent/trips/{id}/viewer-url:
-    get:
-      operationId: getViewerURL
-      summary: Viewer URL template
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: token
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Template
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ViewerURL"
-  /api/agent/trips/{id}/rotate-token:
-    post:
-      operationId: rotateToken
-      summary: Rotate capability token
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: New token
           content:
             application/json:
               schema:
@@ -575,24 +528,10 @@ components:
           type: integer
         viewer_url:
           type: string
-        token:
-          type: string
+          description: Hellō viewer path /me/trips/{id}/ (sign-in required)
         bundle_ok:
           type: boolean
         bundle_error:
-          type: string
-    ViewerURL:
-      type: object
-      properties:
-        id:
-          type: string
-        base_url:
-          type: string
-        path_template:
-          type: string
-        note:
-          type: string
-        viewer_url:
           type: string
     VersionList:
       type: object

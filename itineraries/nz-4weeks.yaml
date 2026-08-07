@@ -183,6 +183,8 @@ days:
       title: Arrive Auckland
       stops:
         - place: auckland
+          type: flight
+          notes: UA917 from San Francisco (SFO) arrives Tue Nov 24 at 09:10 NZDT after crossing the International Date Line.
       notes: Recover from flight.
       photo: https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Auckland_skyline_from_harbour.png/1280px-Auckland_skyline_from_harbour.png
       photo_caption: Auckland skyline from the harbour
@@ -373,6 +375,8 @@ days:
       title: Depart Christchurch
       stops:
         - place: christchurch
+          type: flight
+          notes: Depart Christchurch (CHC) at 16:35 local.
       photo: https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Christchurch_Cathedral_Square.jpg/1280px-Christchurch_Cathedral_Square.jpg
       photo_caption: Christchurch Cathedral Square
 

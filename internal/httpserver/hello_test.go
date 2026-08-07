@@ -45,7 +45,7 @@ func TestSignedSessionCookieRoundTrip(t *testing.T) {
 func TestSanitizeReturnTo(t *testing.T) {
 	cases := map[string]string{
 		"":                 "/",
-		"/t/holland/x/":    "/t/holland/x/",
+		"/me/trips/holland/": "/me/trips/holland/",
 		"//evil.com":       "/",
 		"https://evil.com": "/",
 		"/auth/me":         "/auth/me",

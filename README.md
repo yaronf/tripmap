@@ -76,7 +76,7 @@ This repo’s Pages deploy is a **stub** only (`pages-stub/`), at
 `https://www.sheffer.org/tripmap/` (also `https://yaronf.github.io/tripmap/`).
 It does **not** publish itinerary bundles.
 
-Live viewers / API: **`https://tripmap.sheffer.org`** (capability URLs are private).
+Live viewers / API: **`https://tripmap.sheffer.org`** (Hellō sign-in for `/me/trips/{id}/`).
 
 **One-time repo setup:** Settings → Pages → **Source: GitHub Actions**. Do **not**
 set this project’s custom domain to `www.sheffer.org` — that host belongs to the
@@ -188,7 +188,7 @@ with a mock server, and tests for typed-stop and route behavior.
 
 In season, `tripmapd` runs on ECS Express Mode behind CloudFront:
 
-- **Live API / capability viewers:** `https://tripmap.sheffer.org`
+- **Live API / Hellō viewers:** `https://tripmap.sheffer.org`
 - **Static Pages PWA:** `https://www.sheffer.org/tripmap/` (unchanged)
 
 Off season, delete the compute stack to stop ALB/Fargate charges; itineraries and

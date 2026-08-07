@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Post-deploy smoke for tripmapd agent API + capability viewer.
+# Post-deploy smoke for tripmapd agent API.
 # Usage:
-#   BASE_URL=https://….ecs.eu-central-1.on.aws TOKEN=… ./scripts/smoke-agent.sh
+#   BASE_URL=https://tripmap.sheffer.org TOKEN=… ./scripts/smoke-agent.sh
 #
-# Put the agent Bearer in a gitignored .env (not via tripmap-deploy IAM):
-#   AGENT_BEARER_TOKEN=…   # from password manager / Custom GPT secret store
+# Put the agent Bearer in a gitignored .env:
+#   AGENT_BEARER_TOKEN=…
 #   set -a && source .env && set +a
-#   BASE_URL=https://$ENDPOINT TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
+#   BASE_URL=https://tripmap.sheffer.org TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
 set -euo pipefail
 
 BASE_URL="${BASE_URL:?set BASE_URL (https://… no trailing slash)}"
@@ -18,11 +18,17 @@ KEY="smoke-$(date +%s)-$$"
 yaml=$(cat <<'YAML'
 trip: Smoke Trip
 description: agent API smoke
+places:
+  alpha:
+    title: Alpha
+    lat: 52.37
+    lon: 4.90
+    type: overnight
 days:
   - day: 1
     title: Start
     stops:
-      - { name: Alpha, type: overnight, lat: 52.37, lon: 4.90 }
+      - { place: alpha }
 YAML
 )
 
@@ -32,7 +38,7 @@ echo ok
 
 echo "== schema =="
 curl -fsS -m 20 -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/agent/schema" \
-  | jq -e '.schema_version == 1' >/dev/null
+  | jq -e '.schema_version == 2' >/dev/null
 echo ok
 
 echo "== list trips =="
@@ -48,18 +54,9 @@ create_json=$(curl -fsS -m 120 -X POST \
   -H "Content-Type: application/json" \
   -d "$body" \
   "$BASE_URL/api/agent/trips")
-echo "$create_json" | jq -e --arg id "$ID" '.id == $id' >/dev/null
-CAP_TOKEN=$(echo "$create_json" | jq -r .token)
+echo "$create_json" | jq -e --arg id "$ID" '.id == $id and .bundle_ok == true' >/dev/null
 VIEWER_URL=$(echo "$create_json" | jq -r .viewer_url)
-if [[ -z "$CAP_TOKEN" || "$CAP_TOKEN" == null ]]; then
-  echo "create response missing token" >&2
-  exit 1
-fi
-# Normalize relative viewer_url
-if [[ "$VIEWER_URL" == /* ]]; then
-  VIEWER_URL="${BASE_URL}${VIEWER_URL}"
-fi
-VIEWER_URL="${VIEWER_URL%/}/"
+echo "$VIEWER_URL" | grep -q "/me/trips/${ID}/"
 echo ok
 
 echo "== get yaml =="
@@ -76,22 +73,14 @@ curl -fsS -m 120 -X PUT \
   "$BASE_URL/api/agent/trips/$ID/yaml" | jq -e 'has("bundle_ok")' >/dev/null
 echo ok
 
-echo "== capability index =="
-curl -fsS -m 30 "${VIEWER_URL}index.html" | grep -q "<title>"
-echo ok
-
-echo "== capability notes =="
-curl -fsS -m 20 "${VIEWER_URL}api/notes" | jq -e 'has("days")' >/dev/null
-curl -fsS -m 20 -X PUT \
+echo "== mcp initialize =="
+curl -fsS -m 30 -X POST "$BASE_URL/mcp" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"days":{"1":"smoke note"}}' \
-  "${VIEWER_URL}api/notes" | jq -e '.days["1"] == "smoke note"' >/dev/null
-echo ok
-
-echo "== capability bad token =="
-code=$(curl -sS -o /dev/null -w "%{http_code}" -m 20 "${BASE_URL}/t/${ID}/not-a-real-token/index.html" || true)
-[[ "$code" == "404" ]] || { echo "want 404 got $code" >&2; exit 1; }
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' \
+  | grep -q '"name":"tripmap"'
 echo ok
 
 echo "SMOKE PASS id=$ID"
-echo "Open viewer (keep private): ${VIEWER_URL}"
+echo "Viewer (Hellō sign-in): ${VIEWER_URL}"

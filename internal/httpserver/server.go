@@ -2,10 +2,6 @@ package httpserver
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -60,8 +56,6 @@ func (s *Server) routes() {
 	agent.HandleFunc("GET /trips/{id}/yaml", s.handleGetYAML)
 	agent.HandleFunc("PUT /trips/{id}/yaml", s.handlePutYAML)
 	agent.HandleFunc("PATCH /trips/{id}", s.handlePatchTrip)
-	agent.HandleFunc("GET /trips/{id}/viewer-url", s.handleViewerURL)
-	agent.HandleFunc("POST /trips/{id}/rotate-token", s.handleRotateToken)
 	agent.HandleFunc("GET /trips/{id}/versions", s.handleListVersions)
 	agent.HandleFunc("POST /trips/{id}/restore", s.handleRestore)
 
@@ -71,9 +65,10 @@ func (s *Server) routes() {
 
 	mcpHandler, err := mcpopenapi.NewHandler(mcpopenapi.Config{
 		Name:    "tripmap",
-		Version: "0.3.2",
+		Version: "0.4.0",
 		Instructions: "tripmap agent API as MCP tools. Prefer patchTrip with update_day or places.<id>.info; " +
-			"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits.",
+			"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
+			"Human viewers use Hellō at /me/trips/{id}/.",
 		// Concrete servers URL (placeholder {{BASE_URL}} is not valid YAML for the parser).
 		OpenAPIYAML: []byte(OpenAPIDocument("https://tripmap.local")),
 		Upstream:    internalAgent,
@@ -85,8 +80,6 @@ func (s *Server) routes() {
 	}
 	s.mux.Handle("/mcp", bearerAuth(s.cfg.AgentBearerToken, mcpHandler))
 	s.mux.Handle("/mcp/", bearerAuth(s.cfg.AgentBearerToken, mcpHandler))
-
-	s.mux.Handle("/t/", http.HandlerFunc(s.handleCapability))
 }
 
 type mutateResult struct {
@@ -94,7 +87,6 @@ type mutateResult struct {
 	VersionID     string `json:"version_id,omitempty"`
 	SchemaVersion int    `json:"schema_version"`
 	ViewerURL     string `json:"viewer_url,omitempty"`
-	Token         string `json:"token,omitempty"`
 	BundleOK      bool   `json:"bundle_ok"`
 	BundleError   string `json:"bundle_error,omitempty"`
 }
@@ -115,7 +107,7 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 <p>Signed in as <strong>%s</strong> (%s)</p>
 <p><a href="/auth/logout">Sign out</a></p>
 %s
-<p class="muted">Shared links still use capability URLs <code>/t/{id}/{token}/</code>.</p>`,
+<p class="muted">Open an itinerary above to view the map and leave comments.</p>`,
 			htmlEscape(sess.Name), htmlEscape(sess.Email), s.tripListHTML(r))
 	} else {
 		body = `
@@ -131,7 +123,7 @@ function login(event){
   window.location.href = '/auth/hello/login';
 }
 </script>
-<p>Trip viewers still use private capability URLs.</p>`
+<p class="muted">Sign in to browse itineraries.</p>`
 	}
 	_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -303,15 +295,10 @@ func (s *Server) handleCreateTrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, hash, err := mintToken()
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
 	now := time.Now().UTC()
-	meta := store.Meta{SchemaVersion: trip.SchemaVersion, TokenHash: hash, CreatedAt: now, UpdatedAt: now}
+	meta := store.Meta{SchemaVersion: trip.SchemaVersion, CreatedAt: now, UpdatedAt: now}
 
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta, token, true)
+	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
 	if err != nil {
 		writeErr(w, status, err)
 		return
@@ -359,7 +346,7 @@ func (s *Server) handlePutYAML(w http.ResponseWriter, r *http.Request) {
 	}
 	meta.SchemaVersion = trip.SchemaVersion
 	meta.UpdatedAt = time.Now().UTC()
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta, "", false)
+	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
 	if err != nil {
 		writeErr(w, status, err)
 		return
@@ -416,66 +403,10 @@ func (s *Server) handlePatchTrip(w http.ResponseWriter, r *http.Request) {
 	}
 	meta.SchemaVersion = trip.SchemaVersion
 	meta.UpdatedAt = time.Now().UTC()
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta, "", false)
+	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
 	if err != nil {
 		writeErr(w, status, err)
 		return
-	}
-	s.finishIdempotent(w, r, http.StatusOK, res)
-}
-
-func (s *Server) handleViewerURL(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	exists, err := s.store.Exists(r.Context(), id)
-	if err != nil || !exists {
-		writeErr(w, http.StatusNotFound, fmt.Errorf("trip %q not found", id))
-		return
-	}
-	base := s.cfg.PublicBaseURL
-	if base == "" {
-		base = "https://" + r.Host
-	}
-	token := r.URL.Query().Get("token")
-	out := map[string]any{
-		"id":            id,
-		"base_url":      base,
-		"path_template": fmt.Sprintf("/t/%s/{token}/", id),
-		"note":          "plaintext token is only returned on create and rotate-token",
-	}
-	if token != "" {
-		out["viewer_url"] = fmt.Sprintf("%s/t/%s/%s/", base, id, token)
-	}
-	writeJSON(w, http.StatusOK, out)
-}
-
-func (s *Server) handleRotateToken(w http.ResponseWriter, r *http.Request) {
-	if err := s.requireIdempotency(w, r); err != nil {
-		return
-	}
-	id := r.PathValue("id")
-	meta, err := s.store.GetMeta(r.Context(), id)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
-		return
-	}
-	token, hash, err := mintToken()
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	meta.TokenHash = hash
-	meta.UpdatedAt = time.Now().UTC()
-	if err := s.store.PutMeta(r.Context(), id, meta); err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	base := s.baseURL(r)
-	res := mutateResult{
-		ID:            id,
-		SchemaVersion: meta.SchemaVersion,
-		Token:         token,
-		ViewerURL:     fmt.Sprintf("%s/t/%s/%s/", base, id, token),
-		BundleOK:      true,
 	}
 	s.finishIdempotent(w, r, http.StatusOK, res)
 }
@@ -529,7 +460,7 @@ func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	meta.SchemaVersion = trip.SchemaVersion
 	meta.UpdatedAt = time.Now().UTC()
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta, "", false)
+	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
 	if err != nil {
 		writeErr(w, status, err)
 		return
@@ -537,7 +468,7 @@ func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
 	s.finishIdempotent(w, r, http.StatusOK, res)
 }
 
-func (s *Server) commitMutate(ctx context.Context, id string, yamlBytes []byte, meta *store.Meta, plaintextToken string, isCreate bool) (mutateResult, int, error) {
+func (s *Server) commitMutate(ctx context.Context, id string, yamlBytes []byte, meta *store.Meta) (mutateResult, int, error) {
 	vid, err := s.store.PutYAML(ctx, id, yamlBytes)
 	if err != nil {
 		return mutateResult{}, http.StatusInternalServerError, err
@@ -558,17 +489,11 @@ func (s *Server) commitMutate(ctx context.Context, id string, yamlBytes []byte, 
 		VersionID:     vid,
 		SchemaVersion: trip.SchemaVersion,
 	}
-	if plaintextToken != "" {
-		res.Token = plaintextToken
-		base := s.cfg.PublicBaseURL
-		if base == "" {
-			base = ""
-		}
-		if base != "" {
-			res.ViewerURL = fmt.Sprintf("%s/t/%s/%s/", base, id, plaintextToken)
-		} else {
-			res.ViewerURL = fmt.Sprintf("/t/%s/%s/", id, plaintextToken)
-		}
+	base := s.cfg.PublicBaseURL
+	if base != "" {
+		res.ViewerURL = fmt.Sprintf("%s/me/trips/%s/", base, id)
+	} else {
+		res.ViewerURL = fmt.Sprintf("/me/trips/%s/", id)
 	}
 
 	if err := s.regenBundle(ctx, id, trip); err != nil {
@@ -577,7 +502,6 @@ func (s *Server) commitMutate(ctx context.Context, id string, yamlBytes []byte, 
 	} else {
 		res.BundleOK = true
 	}
-	_ = isCreate
 	return res, http.StatusOK, nil
 }
 
@@ -652,17 +576,6 @@ func parseCreateBody(body []byte) (id string, yamlBytes []byte, err error) {
 	}
 	// YAML body with optional X-Trip-Id handled by caller — require JSON for create
 	return "", nil, fmt.Errorf("POST /trips expects JSON {\"id\",\"yaml\"}")
-}
-
-func mintToken() (plaintext, hash string, err error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", "", err
-	}
-	plaintext = base64.RawURLEncoding.EncodeToString(b)
-	sum := sha256.Sum256([]byte(plaintext))
-	hash = hex.EncodeToString(sum[:])
-	return plaintext, hash, nil
 }
 
 func (s *Server) baseURL(r *http.Request) string {

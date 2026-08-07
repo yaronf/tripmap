@@ -8,6 +8,7 @@
     marker: "#1c1917",
     overnight: "#c62828",
     airport: "#4338ca",
+    flight: "#4338ca",
   };
 
   const state = {
@@ -111,9 +112,34 @@
       hut: "Hut",
       ferry_terminal: "Ferry",
       airport: "Airport",
+      flight: "Flight",
       via: "Via",
     };
     return labels[type] || type || "Stop";
+  }
+
+  function mapsSearchURL(lat, lon) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return "";
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+  }
+
+  function mapsDirectionsURL(points) {
+    const pts = (points || []).filter(
+      (p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)
+    );
+    if (pts.length < 2) return "";
+    const origin = `${pts[0].lat},${pts[0].lon}`;
+    const destination = `${pts[pts.length - 1].lat},${pts[pts.length - 1].lon}`;
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+    if (pts.length > 2) {
+      const waypoints = pts
+        .slice(1, -1)
+        .slice(0, 8) // Maps URL practical limit
+        .map((p) => `${p.lat},${p.lon}`)
+        .join("|");
+      if (waypoints) url += `&waypoints=${encodeURIComponent(waypoints)}`;
+    }
+    return url;
   }
 
   function formatStopInfo(info) {
@@ -258,11 +284,22 @@
       .map((s) => {
         const stopCap = s.photo_caption || s.name;
         const infoHtml = formatStopInfo(s.info);
+        const stopNotes = s.notes
+          ? `<p class="stop-notes">${escapeHtml(s.notes)}</p>`
+          : "";
+        const mapsHref = mapsSearchURL(Number(s.lat), Number(s.lon));
+        const mapsLink = mapsHref
+          ? `<a class="maps-link" href="${escapeAttr(mapsHref)}" target="_blank" rel="noopener noreferrer">Google Maps</a>`
+          : "";
         return `<li class="stop">
-        <button type="button" data-lat="${s.lat}" data-lon="${s.lon}">
-          <span class="stop-name">${escapeHtml(s.name)}</span>
-          <span class="stop-type">${escapeHtml(stopTypeLabel(s.type))}</span>
-        </button>
+        <div class="stop-row">
+          <button type="button" data-lat="${s.lat}" data-lon="${s.lon}">
+            <span class="stop-name">${escapeHtml(s.name)}</span>
+            <span class="stop-type">${escapeHtml(stopTypeLabel(s.type))}</span>
+          </button>
+          ${mapsLink}
+        </div>
+        ${stopNotes}
         ${
           s.photo
             ? `<img class="stop-thumb" src="${escapeAttr(s.photo)}" alt="${escapeAttr(stopCap)}" title="${escapeAttr(stopCap)}" loading="lazy" data-photo="${escapeAttr(s.photo)}" data-caption="${escapeAttr(stopCap)}" />`
@@ -274,6 +311,10 @@
       .join("");
 
     const saved = dayNote(d.day);
+    const dayMapsHref = mapsDirectionsURL(d.stops || []);
+    const dayMaps = dayMapsHref
+      ? `<p class="day-maps"><a class="maps-link" href="${escapeAttr(dayMapsHref)}" target="_blank" rel="noopener noreferrer">Directions in Google Maps</a></p>`
+      : "";
 
     const driveStats = formatDriveStats(d);
     const i = state.dayIndex;
@@ -290,19 +331,36 @@
       <h2>${escapeHtml(d.title)}</h2>
       <div>${flags.join("")}</div>
       ${driveStats ? `<p class="detail-stats">${escapeHtml(driveStats)}</p>` : ""}
-      ${d.notes ? `<p class="detail-notes">${escapeHtml(d.notes)}</p>` : ""}
+      ${dayMaps}
+      ${
+        d.notes
+          ? `<section class="day-notes" aria-label="Day notes">
+        <h3 class="day-notes-heading">Notes</h3>
+        <p class="detail-notes">${escapeHtml(d.notes)}</p>
+      </section>`
+          : ""
+      }
       ${photo}
       <ul class="stops">${stops || "<li class=\"stop\"><span class=\"stop-type\">No stops</span></li>"}</ul>
-      <section class="shared-notes" aria-label="Shared notes">
-        <h3 class="shared-notes-heading">Shared notes</h3>
+      <section class="shared-notes" aria-label="Comments">
+        <div class="shared-notes-header">
+          <h3 class="shared-notes-heading">Comments</h3>
+          <button type="button" id="shared-notes-edit" class="icon-btn" aria-label="${
+            saved ? "Edit comments" : "Add comments"
+          }" title="${saved ? "Edit" : "Add"}">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+          </button>
+        </div>
         <p id="shared-notes-display" class="shared-notes-body${saved ? "" : " is-empty"}">${
-          saved ? escapeHtml(saved) : "No shared notes yet."
+          saved ? escapeHtml(saved) : "No comments yet."
         }</p>
-        <details class="notes-disclosure">
-          <summary>${saved ? "Edit notes" : "Add notes"}</summary>
-          <textarea id="shared-notes" aria-label="Edit shared notes for this day">${escapeHtml(saved)}</textarea>
+        <div id="shared-notes-editor" class="shared-notes-editor" hidden>
+          <textarea id="shared-notes" aria-label="Edit comments for this day">${escapeHtml(saved)}</textarea>
           ${!navigator.onLine ? `<p class="notes-offline-hint">Offline — edits won’t sync until you’re online.</p>` : ""}
-        </details>
+          <button type="button" id="shared-notes-done" class="btn shared-notes-done">Done</button>
+        </div>
       </section>
       <nav class="day-nav" aria-label="Adjacent days">
         <button type="button" class="day-nav-btn" data-dir="-1" ${prevDisabled} title="${prevTitle}">
@@ -344,24 +402,48 @@
 
     const ta = el.detail.querySelector("#shared-notes");
     const display = el.detail.querySelector("#shared-notes-display");
+    const editor = el.detail.querySelector("#shared-notes-editor");
+    const editBtn = el.detail.querySelector("#shared-notes-edit");
+    const doneBtn = el.detail.querySelector("#shared-notes-done");
     const syncDisplay = (value) => {
       if (!display) return;
       const text = (value || "").trim();
-      display.textContent = text || "No shared notes yet.";
+      display.textContent = text || "No comments yet.";
       display.classList.toggle("is-empty", !text);
+      if (editBtn) {
+        const label = text ? "Edit comments" : "Add comments";
+        editBtn.setAttribute("aria-label", label);
+        editBtn.title = text ? "Edit" : "Add";
+      }
     };
-    if (ta) {
-      ta.addEventListener("input", () => {
-        setDayNote(d.day, ta.value);
-        syncDisplay(ta.value);
-        scheduleSaveNotes(d.day);
-      });
-      ta.addEventListener("blur", () => {
+    const setEditing = (on) => {
+      if (display) display.hidden = on;
+      if (editor) editor.hidden = !on;
+      if (editBtn) editBtn.hidden = on;
+      if (on && ta) {
+        ta.focus();
+        const len = ta.value.length;
+        ta.setSelectionRange(len, len);
+      }
+    };
+    if (editBtn) {
+      editBtn.addEventListener("click", () => setEditing(true));
+    }
+    if (doneBtn) {
+      doneBtn.addEventListener("click", () => {
         if (state.notesSaveTimer) {
           clearTimeout(state.notesSaveTimer);
           state.notesSaveTimer = null;
         }
         saveSharedNotes();
+        setEditing(false);
+      });
+    }
+    if (ta) {
+      ta.addEventListener("input", () => {
+        setDayNote(d.day, ta.value);
+        syncDisplay(ta.value);
+        scheduleSaveNotes(d.day);
       });
     }
   }
@@ -399,8 +481,8 @@
       stroke = COLORS.hikeLine;
     } else if (t === "ferry_terminal") {
       stroke = COLORS.ferryLine;
-    } else if (t === "airport") {
-      fill = COLORS.airport;
+    } else if (t === "airport" || t === "flight") {
+      fill = COLORS.flight || COLORS.airport;
     }
     return L.circleMarker(latlng, {
       radius: 7,

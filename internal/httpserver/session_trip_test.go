@@ -99,4 +99,22 @@ func TestSessionTripServesBundle(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<title>") {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String()[:min(200, rec.Body.Len())])
 	}
+
+	base := "/me/trips/sess-trip/"
+	req = httptest.NewRequest(http.MethodGet, base+"api/notes", nil)
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"days"`) {
+		t.Fatalf("notes get: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPut, base+"api/notes", strings.NewReader(`{"days":{"1":"hi"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "hi") {
+		t.Fatalf("notes put: %s", rec.Body.String())
+	}
 }

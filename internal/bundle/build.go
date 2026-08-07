@@ -414,6 +414,25 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
+  // Live trip data + comments: network-first so edits aren't stuck behind SW cache.
+  const live =
+    url.pathname.endsWith("/trip.json") ||
+    url.pathname.endsWith("/api/notes") ||
+    url.pathname.includes("/api/notes/");
+  if (live) {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          if (res && res.ok && e.request.method === "GET") {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request).then((res) => {
       const copy = res.clone();
@@ -422,7 +441,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v23", string(list))
+`, "tripmap-"+tj.ID+"-v25", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 

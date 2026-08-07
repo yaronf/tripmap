@@ -45,7 +45,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Comments | Unversioned S3 |
 | ChatGPT | Actions → OpenAPI Bearer |
 | Cursor / GH | Local YAML + git; publish/pull via OpenAPI |
-| Viewer + comments | `/t/{id}/{token}/` on `https://tripmap.sheffer.org` |
+| Viewer + comments | Hellō `/me/trips/{id}/` on `https://tripmap.sheffer.org` |
 | Offline comments | Cached read-only |
 
 ### Non-goals (this plan)

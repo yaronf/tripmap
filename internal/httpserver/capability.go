@@ -1,9 +1,6 @@
 package httpserver
 
 import (
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,35 +14,7 @@ import (
 
 const maxNotesBytes = 64 * 1024
 
-func (s *Server) handleCapability(w http.ResponseWriter, r *http.Request) {
-	// /t/{id}/{token} or /t/{id}/{token}/…
-	rest := strings.TrimPrefix(r.URL.Path, "/t/")
-	parts := strings.SplitN(rest, "/", 3)
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		http.NotFound(w, r)
-		return
-	}
-	id, token := parts[0], parts[1]
-	rel := ""
-	if len(parts) == 3 {
-		rel = parts[2]
-	}
-
-	// Redirect /t/{id}/{token} → /t/{id}/{token}/
-	if rel == "" && !strings.HasSuffix(r.URL.Path, "/") {
-		http.Redirect(w, r, r.URL.Path+"/", http.StatusFound)
-		return
-	}
-
-	if err := s.verifyCapability(r, id, token); err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	s.serveTripBundle(w, r, id, rel)
-}
-
-// handleSessionTrip serves /me/trips/{id}/… to signed-in Hellō users (no capability token).
+// handleSessionTrip serves /me/trips/{id}/… to signed-in Hellō users.
 func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.sessionFromRequest(r); !ok {
 		http.Redirect(w, r, "/auth/hello/login?return_to="+url.QueryEscape(r.URL.Path), http.StatusFound)
@@ -102,19 +71,6 @@ func (s *Server) serveTripBundle(w http.ResponseWriter, r *http.Request, id, rel
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(body)
 	}
-}
-
-func (s *Server) verifyCapability(r *http.Request, id, token string) error {
-	meta, err := s.store.GetMeta(r.Context(), id)
-	if err != nil {
-		return err
-	}
-	sum := sha256.Sum256([]byte(token))
-	got := hex.EncodeToString(sum[:])
-	if subtle.ConstantTimeCompare([]byte(got), []byte(meta.TokenHash)) != 1 {
-		return fmt.Errorf("bad token")
-	}
-	return nil
 }
 
 func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request, id string) {

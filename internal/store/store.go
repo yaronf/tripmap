@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-// Meta is trips/{id}/meta.json (never stores plaintext capability tokens).
+// Meta is trips/{id}/meta.json.
 type Meta struct {
 	SchemaVersion int       `json:"schema_version"`
-	TokenHash     string    `json:"token_hash"`
+	TokenHash     string    `json:"token_hash,omitempty"` // legacy; unused (Hellō viewers)
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
