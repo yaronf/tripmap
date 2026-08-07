@@ -361,6 +361,7 @@ func writeServiceWorker(outDir string, tj TripJSON) error {
 		"./style.css",
 		"./manifest.webmanifest",
 		"./icon.svg",
+		"./maps-pin.png",
 		"./trip.json",
 	}
 	for _, d := range tj.Days {
@@ -441,7 +442,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v25", string(list))
+`, "tripmap-"+tj.ID+"-v26", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 

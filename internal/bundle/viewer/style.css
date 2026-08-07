@@ -294,21 +294,43 @@ body {
 
 .maps-link {
   flex-shrink: 0;
-  align-self: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--accent, #0f5c5c);
+  align-self: flex-start;
+  color: inherit;
   text-decoration: none;
-  white-space: nowrap;
+  min-width: 44px;
   min-height: 44px;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 0.1rem;
+  border-radius: 8px;
+}
+
+.maps-link .maps-pin {
+  /* Teardrop pin reads low; nudge so the head lines up with the stop title. */
+  transform: translateY(-2px);
 }
 
 .maps-link:hover,
 .maps-link:focus-visible {
-  text-decoration: underline;
+  background: rgba(15, 92, 92, 0.08);
   outline: none;
+}
+
+.maps-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.maps-link-day {
+  gap: 0.4rem;
+  justify-content: flex-start;
+  padding: 0 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent, #0f5c5c);
 }
 
 .day-maps {

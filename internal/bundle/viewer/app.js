@@ -289,7 +289,7 @@
           : "";
         const mapsHref = mapsSearchURL(Number(s.lat), Number(s.lon));
         const mapsLink = mapsHref
-          ? `<a class="maps-link" href="${escapeAttr(mapsHref)}" target="_blank" rel="noopener noreferrer">Google Maps</a>`
+          ? `<a class="maps-link" href="${escapeAttr(mapsHref)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeAttr(s.name || "stop")} in Google Maps" title="Google Maps"><img class="maps-pin" src="maps-pin.png" alt="" width="22" height="22" /></a>`
           : "";
         return `<li class="stop">
         <div class="stop-row">
@@ -313,7 +313,7 @@
     const saved = dayNote(d.day);
     const dayMapsHref = mapsDirectionsURL(d.stops || []);
     const dayMaps = dayMapsHref
-      ? `<p class="day-maps"><a class="maps-link" href="${escapeAttr(dayMapsHref)}" target="_blank" rel="noopener noreferrer">Directions in Google Maps</a></p>`
+      ? `<p class="day-maps"><a class="maps-link maps-link-day" href="${escapeAttr(dayMapsHref)}" target="_blank" rel="noopener noreferrer" aria-label="Directions in Google Maps" title="Directions in Google Maps"><img class="maps-pin" src="maps-pin.png" alt="" width="22" height="22" /><span>Directions</span></a></p>`
       : "";
 
     const driveStats = formatDriveStats(d);
