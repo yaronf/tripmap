@@ -9,7 +9,10 @@ type Place struct {
 	Notes        string     `yaml:"notes,omitempty" json:"notes,omitempty"`
 	Photo        string     `yaml:"photo,omitempty" json:"photo,omitempty"`
 	PhotoCaption string     `yaml:"photo_caption,omitempty" json:"photo_caption,omitempty"`
-	Info         *PlaceInfo `yaml:"info,omitempty" json:"info,omitempty"`
+	// MapsURL overrides the viewer pin destination (Google Maps place URL).
+	// When empty, the pin opens a lat/lon search.
+	MapsURL string     `yaml:"maps_url,omitempty" json:"maps_url,omitempty"`
+	Info    *PlaceInfo `yaml:"info,omitempty" json:"info,omitempty"`
 }
 
 // PlaceInfo is structured enrichment (typically AI-generated). Optional throughout.
@@ -56,7 +59,7 @@ type PlaceFacilities struct {
 	DrinkingWater  *bool `yaml:"drinking_water,omitempty" json:"drinking_water,omitempty"`
 }
 
-// Stop is a day-local reference to a place. Type/Notes/Photo override the catalog.
+// Stop is a day-local reference to a place. Type/Notes/Photo/MapsURL override the catalog.
 // Name/Lat/Lon/Info are hydrated by ResolvePlaces and are not written to YAML.
 type Stop struct {
 	Place        string `yaml:"place" json:"place"`
@@ -64,6 +67,7 @@ type Stop struct {
 	Notes        string `yaml:"notes,omitempty" json:"notes,omitempty"`
 	Photo        string `yaml:"photo,omitempty" json:"photo,omitempty"`
 	PhotoCaption string `yaml:"photo_caption,omitempty" json:"photo_caption,omitempty"`
+	MapsURL      string `yaml:"maps_url,omitempty" json:"maps_url,omitempty"`
 
 	Name string     `yaml:"-" json:"-"`
 	Lat  float64    `yaml:"-" json:"-"`

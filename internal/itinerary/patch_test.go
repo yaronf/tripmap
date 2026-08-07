@@ -89,6 +89,29 @@ func TestApplyPatchUpdateDay(t *testing.T) {
 	}
 }
 
+func TestApplyPatchPlacesMapsURL(t *testing.T) {
+	trip := Trip{
+		Trip: "T",
+		Places: map[string]Place{
+			"trail": {Title: "Trail", Lat: 1, Lon: 2, Type: "trailhead"},
+		},
+		Days: []Day{{Day: 1, Title: "Hike", Stops: []Stop{{Place: "trail"}}}},
+	}
+	err := ApplyPatch(&trip, Patch{
+		Places: map[string]any{
+			"trail": map[string]any{
+				"maps_url": "https://maps.app.goo.gl/example",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trip.Places["trail"].MapsURL != "https://maps.app.goo.gl/example" {
+		t.Fatalf("maps_url = %q", trip.Places["trail"].MapsURL)
+	}
+}
+
 func TestApplyPatchUpsertRemoveStop(t *testing.T) {
 	trip := Trip{
 		Trip: "T",

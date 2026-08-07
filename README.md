@@ -67,6 +67,18 @@ photo_caption: Amsterdam canals at blue hour   # hover + lightbox text
 
 Local files are copied into the bundle; URLs are kept as-is (network required on first view; images cache after load).
 
+Optional `maps_url` on a place (or a day stop/route ref) overrides the viewer pin destination with a Google Maps place URL. Without it, the pin opens a lat/lon search.
+
+```yaml
+places:
+  pancake-rocks:
+    title: Pancake Rocks
+    lat: -42.1148
+    lon: 171.3260
+    type: attraction
+    maps_url: https://maps.app.goo.gl/…
+```
+
 See [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) for UI design and
 [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) for the longer roadmap.
 

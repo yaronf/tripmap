@@ -31,11 +31,12 @@ type UpdateDay struct {
 
 // UpsertStop adds or replaces a route/stop ref on a day by place id.
 type UpsertStop struct {
-	Day   int    `json:"day"`
-	List  string `json:"list"` // "route" or "stops"
-	Place string `json:"place"`
-	Type  string `json:"type,omitempty"`
-	Notes string `json:"notes,omitempty"`
+	Day     int    `json:"day"`
+	List    string `json:"list"` // "route" or "stops"
+	Place   string `json:"place"`
+	Type    string `json:"type,omitempty"`
+	Notes   string `json:"notes,omitempty"`
+	MapsURL string `json:"maps_url,omitempty"`
 }
 
 // RemoveStop removes a route/stop ref matching place id from a day.
@@ -166,6 +167,7 @@ func mergePlace(cur Place, raw any) (Place, error) {
 		Notes        *string          `json:"notes"`
 		Photo        *string          `json:"photo"`
 		PhotoCaption *string          `json:"photo_caption"`
+		MapsURL      *string          `json:"maps_url"`
 		Info         *json.RawMessage `json:"info"`
 	}
 	if err := json.Unmarshal(b, &patch); err != nil {
@@ -191,6 +193,9 @@ func mergePlace(cur Place, raw any) (Place, error) {
 	}
 	if patch.PhotoCaption != nil {
 		cur.PhotoCaption = *patch.PhotoCaption
+	}
+	if patch.MapsURL != nil {
+		cur.MapsURL = *patch.MapsURL
 	}
 	if patch.Info != nil {
 		merged, err := mergePlaceInfo(cur.Info, *patch.Info)
@@ -332,7 +337,7 @@ func applyUpsertStop(t *Trip, u UpsertStop) error {
 	if _, ok := t.Places[u.Place]; !ok {
 		return fmt.Errorf("upsert_stop: unknown place %q", u.Place)
 	}
-	ref := Stop{Place: u.Place, Type: u.Type, Notes: u.Notes}
+	ref := Stop{Place: u.Place, Type: u.Type, Notes: u.Notes, MapsURL: u.MapsURL}
 	switch u.List {
 	case "route":
 		t.Days[i].Route = upsertInList(t.Days[i].Route, ref)

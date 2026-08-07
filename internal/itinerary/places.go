@@ -2,9 +2,9 @@ package itinerary
 
 import "fmt"
 
-// ResolvePlaces hydrates Name/Lat/Lon/Type/Notes/Photo/Info on every route/stop
-// ref from Trip.Places. Day-local Type/Notes/Photo/PhotoCaption override catalog.
-// Mutates t in place. Safe to call repeatedly.
+// ResolvePlaces hydrates Name/Lat/Lon/Type/Notes/Photo/MapsURL/Info on every
+// route/stop ref from Trip.Places. Day-local Type/Notes/Photo/PhotoCaption/MapsURL
+// override the catalog. Mutates t in place. Safe to call repeatedly.
 func ResolvePlaces(t *Trip) error {
 	if t == nil {
 		return fmt.Errorf("nil trip")
@@ -48,6 +48,9 @@ func resolveStop(places map[string]Place, s *Stop) error {
 	}
 	if s.PhotoCaption == "" {
 		s.PhotoCaption = p.PhotoCaption
+	}
+	if s.MapsURL == "" {
+		s.MapsURL = p.MapsURL
 	}
 	return nil
 }

@@ -43,7 +43,7 @@ func OpenAPIDocumentTemplate() string {
 const openAPIDoc = `openapi: 3.1.0
 info:
   title: tripmap agent API
-  version: 0.4.0
+  version: 0.4.1
   description: |
     Authenticated itinerary API (MCP tools + optional REST). Schema v2: places
     catalog plus day route/stops as place refs. Notes are human-authored —
@@ -380,6 +380,15 @@ components:
                 type: number
               type:
                 type: string
+              notes:
+                type: string
+              photo:
+                type: string
+              photo_caption:
+                type: string
+              maps_url:
+                type: string
+                description: Google Maps place URL for the viewer pin; when set, overrides lat/lon search
               info:
                 $ref: "#/components/schemas/PlaceInfo"
         days:
@@ -411,6 +420,9 @@ components:
               type: string
             notes:
               type: string
+            maps_url:
+              type: string
+              description: Optional Google Maps URL override on this stop ref
         remove_stop:
           type: object
           properties:
@@ -515,6 +527,9 @@ components:
           type: string
         notes:
           type: string
+        maps_url:
+          type: string
+          description: Optional per-stop Google Maps URL override for the viewer pin
       required:
         - place
     MutateResult:

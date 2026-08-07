@@ -118,6 +118,12 @@
     return labels[type] || type || "Stop";
   }
 
+  function mapsPinURL(stop) {
+    const override = typeof stop?.maps_url === "string" ? stop.maps_url.trim() : "";
+    if (override && /^https?:\/\//i.test(override)) return override;
+    return mapsSearchURL(Number(stop?.lat), Number(stop?.lon));
+  }
+
   function mapsSearchURL(lat, lon) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return "";
     return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
@@ -287,7 +293,7 @@
         const stopNotes = s.notes
           ? `<p class="stop-notes">${escapeHtml(s.notes)}</p>`
           : "";
-        const mapsHref = mapsSearchURL(Number(s.lat), Number(s.lon));
+        const mapsHref = mapsPinURL(s);
         const mapsLink = mapsHref
           ? `<a class="maps-link" href="${escapeAttr(mapsHref)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeAttr(s.name || "stop")} in Google Maps" title="Google Maps"><img class="maps-pin" src="maps-pin.png" alt="" width="22" height="22" /></a>`
           : "";

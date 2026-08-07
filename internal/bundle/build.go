@@ -44,14 +44,15 @@ type DayJSON struct {
 
 // StopJSON is a stop in trip.json.
 type StopJSON struct {
-	Place        string              `json:"place,omitempty"`
-	Name         string              `json:"name"`
-	Type         string              `json:"type,omitempty"`
-	Lat          float64             `json:"lat"`
-	Lon          float64             `json:"lon"`
-	Notes        string              `json:"notes,omitempty"`
-	Photo        string              `json:"photo,omitempty"`
-	PhotoCaption string              `json:"photo_caption,omitempty"`
+	Place        string               `json:"place,omitempty"`
+	Name         string               `json:"name"`
+	Type         string               `json:"type,omitempty"`
+	Lat          float64              `json:"lat"`
+	Lon          float64              `json:"lon"`
+	Notes        string               `json:"notes,omitempty"`
+	Photo        string               `json:"photo,omitempty"`
+	PhotoCaption string               `json:"photo_caption,omitempty"`
+	MapsURL      string               `json:"maps_url,omitempty"`
 	Info         *itinerary.PlaceInfo `json:"info,omitempty"`
 }
 
@@ -185,6 +186,7 @@ func buildDayBundle(ctx context.Context, d itinerary.Day, inputDir, outDir strin
 			Lon:          s.Lon,
 			Notes:        s.Notes,
 			PhotoCaption: s.PhotoCaption,
+			MapsURL:      s.MapsURL,
 			Info:         s.Info,
 		}
 		if s.Photo != "" {
@@ -442,7 +444,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v26", string(list))
+`, "tripmap-"+tj.ID+"-v27", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 
