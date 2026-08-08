@@ -81,11 +81,19 @@ func (op *operation) buildRequest(ctx context.Context, args map[string]any) (*ht
 
 	header := http.Header{}
 	for _, p := range op.HeaderParams {
+		if !allowedUpstreamHeader(p.Name) {
+			// Do not forward arbitrary/unknown headers to Upstream (confused-deputy).
+			delete(args, p.Name)
+			if p.Required {
+				return nil, fmt.Errorf("unsupported header parameter %q", p.Name)
+			}
+			continue
+		}
 		if strings.EqualFold(p.Name, "Idempotency-Key") {
 			if raw, ok := args[p.Name]; ok && fmt.Sprint(raw) != "" {
-				header.Set(p.Name, fmt.Sprint(raw))
+				header.Set("Idempotency-Key", fmt.Sprint(raw))
 			} else {
-				header.Set(p.Name, newIdempotencyKey())
+				header.Set("Idempotency-Key", newIdempotencyKey())
 			}
 			delete(args, p.Name)
 			continue
@@ -179,4 +187,10 @@ func newIdempotencyKey() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])
 	return hex.EncodeToString(b[:])
+}
+
+// allowedUpstreamHeader is the allowlist of OpenAPI header params that may be
+// copied onto the in-process Upstream request.
+func allowedUpstreamHeader(name string) bool {
+	return strings.EqualFold(name, "Idempotency-Key")
 }

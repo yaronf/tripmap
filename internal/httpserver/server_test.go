@@ -50,6 +50,31 @@ func TestAgentRequiresBearer(t *testing.T) {
 	}
 }
 
+func TestAgentRejectsUnsafeTripID(t *testing.T) {
+	srv, _ := testServer(t)
+	// Mux cleans ".." in the URL; still reject ids that fail ValidateID.
+	for _, id := range []string{"BadID", "has_underscore", "-leading"} {
+		req := authReq(http.MethodGet, "/api/agent/trips/"+id, "secret", nil)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("id %q: status = %d body=%s, want 400", id, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestAgentRejectsUnsafeIdempotencyKey(t *testing.T) {
+	srv, _ := testServer(t)
+	body := []byte(`{"id":"safe-trip","yaml":"schema_version: 2\ntrip: T\nplaces:\n  a:\n    title: A\n    lat: 1\n    lon: 2\ndays:\n  - day: 1\n    title: D\n    stops:\n      - {place: a}\n"}`)
+	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(body))
+	req.Header.Set("Idempotency-Key", "../../trips/holland/itinerary.yaml")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s, want 400", rec.Code, rec.Body.String())
+	}
+}
+
 func TestOpenAPIPublic(t *testing.T) {
 	srv, _ := testServer(t)
 	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)

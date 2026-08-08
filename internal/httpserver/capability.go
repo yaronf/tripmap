@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/store"
 )
 
@@ -28,7 +29,7 @@ func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
 	}
 	parts := strings.SplitN(rest, "/", 2)
 	id := parts[0]
-	if id == "" {
+	if id == "" || itinerary.ValidateID(id) != nil {
 		http.NotFound(w, r)
 		return
 	}

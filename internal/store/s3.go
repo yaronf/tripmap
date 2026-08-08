@@ -157,9 +157,13 @@ func (s *S3) ListVersions(ctx context.Context, id string) ([]VersionInfo, error)
 }
 
 func (s *S3) GetIdempotency(ctx context.Context, key string) ([]byte, bool, error) {
+	sk, err := idemKey(key)
+	if err != nil {
+		return nil, false, err
+	}
 	out, err := s.Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.Bucket),
-		Key:    aws.String(idemKey(key)),
+		Key:    aws.String(sk),
 	})
 	if err != nil {
 		return nil, false, nil
@@ -173,9 +177,13 @@ func (s *S3) GetIdempotency(ctx context.Context, key string) ([]byte, bool, erro
 }
 
 func (s *S3) PutIdempotency(ctx context.Context, key string, body []byte) error {
-	_, err := s.Client.PutObject(ctx, &s3.PutObjectInput{
+	sk, err := idemKey(key)
+	if err != nil {
+		return err
+	}
+	_, err = s.Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.Bucket),
-		Key:         aws.String(idemKey(key)),
+		Key:         aws.String(sk),
 		Body:        bytes.NewReader(body),
 		ContentType: aws.String("application/json"),
 	})

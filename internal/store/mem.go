@@ -127,6 +127,9 @@ func (m *Mem) ListVersions(ctx context.Context, id string) ([]VersionInfo, error
 }
 
 func (m *Mem) GetIdempotency(ctx context.Context, key string) ([]byte, bool, error) {
+	if err := ValidateIdempotencyKey(key); err != nil {
+		return nil, false, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	b, ok := m.idem[key]
@@ -137,6 +140,9 @@ func (m *Mem) GetIdempotency(ctx context.Context, key string) ([]byte, bool, err
 }
 
 func (m *Mem) PutIdempotency(ctx context.Context, key string, body []byte) error {
+	if err := ValidateIdempotencyKey(key); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.idem[key] = append([]byte(nil), body...)
@@ -180,6 +186,9 @@ func (m *Mem) GetBundleObject(ctx context.Context, id, rel string) ([]byte, stri
 	if rel == "" || rel == "." {
 		rel = "index.html"
 	}
+	if strings.Contains(rel, "..") {
+		return nil, "", fmt.Errorf("invalid path")
+	}
 	b, ok := m.bund[id][rel]
 	if !ok {
 		return nil, "", fmt.Errorf("bundle object %s/%s not found", id, rel)
@@ -218,26 +227,6 @@ func EncodeJSON(v any) []byte {
 	enc := json.NewEncoder(&buf)
 	_ = enc.Encode(v)
 	return buf.Bytes()
-}
-
-func yamlKey(id string) string {
-	return path.Join("trips", id, "itinerary.yaml")
-}
-
-func metaKey(id string) string {
-	return path.Join("trips", id, "meta.json")
-}
-
-func bundlePrefix(id string) string {
-	return path.Join("trips", id, "bundle") + "/"
-}
-
-func idemKey(key string) string {
-	return path.Join("idempotency", key)
-}
-
-func notesKey(id string) string {
-	return path.Join("trips", id, "notes.json")
 }
 
 func contentTypeFor(rel string) string {

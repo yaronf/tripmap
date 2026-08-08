@@ -219,6 +219,9 @@ func (s *Server) handleSchema(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleGetTrip(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if !s.requireTripID(w, id) {
+		return
+	}
 	obj, err := s.store.GetYAML(r.Context(), id)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err)
@@ -244,6 +247,9 @@ func (s *Server) handleGetTrip(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetYAML(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if !s.requireTripID(w, id) {
+		return
+	}
 	obj, err := s.store.GetYAML(r.Context(), id)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err)
@@ -359,6 +365,9 @@ func (s *Server) handlePatchTrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	if !s.requireTripID(w, id) {
+		return
+	}
 	obj, err := s.store.GetYAML(r.Context(), id)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err)
@@ -413,6 +422,9 @@ func (s *Server) handlePatchTrip(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if !s.requireTripID(w, id) {
+		return
+	}
 	vers, err := s.store.ListVersions(r.Context(), id)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err)
@@ -426,6 +438,9 @@ func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	if !s.requireTripID(w, id) {
+		return
+	}
 	body, err := s.readBody(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
@@ -598,11 +613,23 @@ func (s *Server) readBody(r *http.Request) ([]byte, error) {
 	return b, nil
 }
 
+func (s *Server) requireTripID(w http.ResponseWriter, id string) bool {
+	if err := itinerary.ValidateID(id); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return false
+	}
+	return true
+}
+
 func (s *Server) requireIdempotency(w http.ResponseWriter, r *http.Request) error {
 	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if key == "" {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("Idempotency-Key header required"))
 		return fmt.Errorf("missing idempotency key")
+	}
+	if err := store.ValidateIdempotencyKey(key); err != nil {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("Idempotency-Key: %w", err))
+		return err
 	}
 	if prev, ok, err := s.store.GetIdempotency(r.Context(), key); err == nil && ok {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -619,7 +646,9 @@ func (s *Server) finishIdempotent(w http.ResponseWriter, r *http.Request, status
 	b = append(b, '\n')
 	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if key != "" {
-		_ = s.store.PutIdempotency(r.Context(), key, b)
+		if err := store.ValidateIdempotencyKey(key); err == nil {
+			_ = s.store.PutIdempotency(r.Context(), key, b)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)

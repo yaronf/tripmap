@@ -173,8 +173,23 @@ func oauthPendingKey(state string) string {
 	return "hello-oauth:" + state
 }
 
+func validOAuthState(state string) bool {
+	if state == "" || len(state) > 200 {
+		return false
+	}
+	for _, r := range state {
+		switch {
+		case r == '-' || r == '_':
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Server) loadOAuthPending(r *http.Request, state string) (oauthCookie, error) {
-	if state == "" {
+	if !validOAuthState(state) {
 		return oauthCookie{}, fmt.Errorf("missing state")
 	}
 	var oc oauthCookie
