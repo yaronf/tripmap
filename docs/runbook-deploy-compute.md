@@ -58,7 +58,35 @@ Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/ca
 
 `HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer. Signed-in ACL is `config/hello-allowlist.csv` (baked into the image).
 
-Express Mode updates often take several minutes.
+Day-to-day **image-only** updates (same stack, new `ImageTag`) typically finish in ~3 minutes after the Express bake tweak below. A full seasonal **create** still needs edge (step 3) and the bake step.
+
+## 2b. Express bake settings (required after create / recreate)
+
+Express Mode defaults to a slow canary (~3 min bake at 5% + ~3 min full bake ≈ 8–10 min per deploy). We shorten that with classic `update-service` (survives later CFN `ImageTag` updates; **resets on seasonal delete+create**).
+
+**Always run after a new `tripmap-compute` create** (and whenever deploys feel ~9 minutes again):
+
+```bash
+REGION=eu-central-1
+CLUSTER=default
+SERVICE=tripmap   # Express ServiceName = ProjectName
+
+# Confirm current settings
+aws ecs describe-services --region "$REGION" --cluster "$CLUSTER" --services "$SERVICE" \
+  --query 'services[0].deploymentConfiguration.{bake:bakeTimeInMinutes,canary:canaryConfiguration,strategy:strategy}' \
+  --output json
+
+# Fast path: 100% canary, zero bake (TripMap is low-risk / single-tenant)
+aws ecs update-service --region "$REGION" --cluster "$CLUSTER" --service "$SERVICE" \
+  --deployment-configuration \
+  '{"bakeTimeInMinutes":0,"canaryConfiguration":{"canaryPercent":100,"canaryBakeTimeInMinutes":0}}' \
+  --query 'service.deploymentConfiguration.{bake:bakeTimeInMinutes,canary:canaryConfiguration}' \
+  --output json
+```
+
+Expect after apply: `bakeTimeInMinutes: 0`, `canaryPercent: 100`, `canaryBakeTimeInMinutes: 0`.
+
+Background and measured timings: [`plan-fast-app-deploys.md`](plan-fast-app-deploys.md).
 
 ## 3. Point CloudFront at the new Express origin
 
@@ -109,3 +137,8 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 ## 6. Done when
 
 - `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, Codex list-trips works, Hellō viewer + comments OK.
+- After **create/recreate**: step **2b** bake settings applied (or verified already `0` / `100%`).
+
+## Day-to-day image roll (compute already up)
+
+Same as steps **1 → 2 → 4** (skip edge unless `Endpoint` changed). No need to re-run **2b** unless describe-services shows bake times back at `3` / canary `5`.

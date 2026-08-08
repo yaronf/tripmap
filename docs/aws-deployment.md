@@ -336,7 +336,7 @@ Capability URL format: `https://tripmap.sheffer.org/t/{id}/{token}/` (token plai
 - [x] Runbooks M9; optional `workflow_dispatch` deploy/destroy still open
 - [ ] Cursor skill
 - [x] Durable public URL: `tripmap.sheffer.org` + `infra/edge.yaml` (CloudFront)
-- [x] Faster deploys: Express API bypass tried/rejected — see [`plan-fast-app-deploys.md`](plan-fast-app-deploys.md) (bottleneck is Express canary, not CFN)
+- [x] Faster deploys: Express canary bake tweak (~3 min rolls); ops in [`runbook-deploy-compute.md`](runbook-deploy-compute.md) §2b; history in [`plan-fast-app-deploys.md`](plan-fast-app-deploys.md)
 
 ### Phase E — Hardening
 

@@ -70,4 +70,4 @@ aws s3 ls s3://tripmap-comments-077804408159-eu-central-1/ --recursive | head
 
 ## 5. Next season
 
-Follow [runbook-deploy-compute.md](runbook-deploy-compute.md). After recreate, update GPT Actions server URL if `Endpoint` changed, and share the new host + existing tokens.
+Follow [runbook-deploy-compute.md](runbook-deploy-compute.md) end-to-end, including **step 2b** (Express bake settings). Seasonal delete+create restores AWS canary defaults (~9 min deploys) until that step runs again. Update CloudFront origin if `Endpoint` changed; durable URL stays `https://tripmap.sheffer.org`.

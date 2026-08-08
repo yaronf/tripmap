@@ -1,7 +1,8 @@
 # Plan: shorter time-to-deploy
 
 **Goal:** wall-clock until the new image is serving traffic.  
-**Status:** Express API “fast path” **rejected** (2026-08-08) — not faster, adds ImageTag drift.
+**Ops (what to run day-to-day / after recreate):** [`runbook-deploy-compute.md`](runbook-deploy-compute.md) §2b.  
+**Status:** Express API “fast path” **rejected** (2026-08-08). Bake tweak **adopted** (2026-08-09).
 
 ## Rejected approach: bypass CloudFormation
 
@@ -36,6 +37,13 @@ aws ecs update-service --cluster default --service tripmap \
 
 Baseline CFN image roll was ~545s; Express canary alone was ~518s. After the tweak: **~3.2 min** end-to-end, and the new bake settings **survived** the CFN stack update (`bakeTimeInMinutes: 0`, `canaryPercent: 100`).
 
-Caveat: this uses classic `update-service` on an Express service (not officially documented on `update-express-gateway-service`). Re-apply after seasonal recreate if defaults return.
+### If things change
+
+| Situation | What to do |
+|-----------|------------|
+| Seasonal **delete + create** of `tripmap-compute` | Bake settings reset to AWS defaults. Re-run runbook **§2b** before relying on fast deploys. |
+| Next CFN `ImageTag` update feels ~9 minutes again | `describe-services` deploymentConfiguration; if bake is `3` / canary `5`, re-apply §2b. |
+| Stack update somehow resets bake (unexpected) | Same as above. Image-only updates in 2026-08-09 test **kept** the tweak. |
+| Want official Express API for bake | Track AWS; until then keep the `update-service` workaround in the runbook. |
 
 Do **not** reintroduce a parallel non-CFN image-update script.
