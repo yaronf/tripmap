@@ -17,7 +17,7 @@ Paths relative to your public base URL (`PUBLIC_BASE_URL`):
 | Home / Hellō login | `/` |
 | Trip viewer (signed in) | `/me/trips/{id}/` — notes + shared comments |
 | Agent MCP (Codex) | `POST /mcp` — same Bearer as the agent API |
-| OpenAPI | `GET /openapi.yaml` (public schema) |
+| OpenAPI | `GET /openapi.yaml` (from [`api/openapi.yaml`](api/openapi.yaml)) |
 | Agent REST | `/api/agent/*` (scripts / smoke; MCP wraps the same handlers) |
 
 - MCP setup: [docs/runbook-mcp.md](docs/runbook-mcp.md) (Codex; Custom GPT Actions deprecated)
