@@ -1,221 +1,155 @@
 # tripmap
 
-tripmap turns a YAML road-trip itinerary into a KML file for Google Earth / My
-Maps, or a static PWA for day-by-day viewing on phone and laptop. Each day has
-map markers and a route line — following real roads when OSRM routing is enabled.
+tripmap turns a YAML road-trip itinerary into:
 
-The project is aimed at multi-day driving trips where some days are on the road,
-some are hikes, and some involve ferries or side trips. The YAML schema separates
-**where you drive** (`route:`) from **what you visit** (`stops:`), so a town you
-pass through to shape the route does not have to clutter the map.
+- **KML** for Google Earth / My Maps
+- **A static PWA** for day-by-day viewing (local or hosted)
+- **A hosted service** (CloudFront + `tripmapd`) — Hellō sign-in for human viewers, Bearer-auth **MCP** (and REST) for agents
 
-## Quick start
+Each day has map markers and a route line (real roads when OSRM is enabled). The schema separates **where you drive** (`route:`) from **side visits** (`stops:`), with a shared `places:` catalog (schema v2).
+
+## Hosted surfaces
+
+Paths relative to your public base URL (`PUBLIC_BASE_URL`):
+
+| Surface | Path / notes |
+|---------|----------------|
+| Home / Hellō login | `/` |
+| Trip viewer (signed in) | `/me/trips/{id}/` — notes + shared comments |
+| Agent MCP (Codex) | `POST /mcp` — same Bearer as the agent API |
+| OpenAPI | `GET /openapi.yaml` (public schema) |
+| Agent REST | `/api/agent/*` (scripts / smoke; MCP wraps the same handlers) |
+
+- MCP setup: [docs/runbook-mcp.md](docs/runbook-mcp.md) (Codex; Custom GPT Actions deprecated)
+- Seasonal AWS deploy / undeploy: [docs/runbook-deploy-compute.md](docs/runbook-deploy-compute.md), [docs/runbook-undeploy-compute.md](docs/runbook-undeploy-compute.md)
+- Architecture: [docs/aws-deployment.md](docs/aws-deployment.md)
+
+
+
+## CLI quick start
 
 ```bash
 # KML for Google Earth
 go run . --input itineraries/holland.yaml --output maps/holland.kml --route osrm
 
-# PWA bundle (serve over HTTP — do not open file://)
-go run . --input itineraries/holland.yaml --bundle maps/holland-bundle/ --route osrm --mymaps
-cd maps/holland-bundle && python3 -m http.server 8080
-# visit http://localhost:8080/
-
-go run . --input itineraries/nz-4weeks.yaml --output maps/nz-4weeks.kml --route osrm --mymaps
-go run .
-```
-
-- `--route straight` (default): straight lines between route points.
-- `--route osrm`: road routing via the public [OSRM](https://project-osrm.org/)
-  demo server. Hike and ferry days stay straight regardless of this flag.
-- `--bundle DIR`: write a static PWA (`trip.json`, `geo/`, embedded viewer).
-  With `--route osrm`, simplification defaults to 100 m unless overridden.
-- `--mymaps`: optimize for [Google My Maps](https://support.google.com/mymaps/answer/3024836)
-  import — 100 m Douglas-Peucker simplification, 5-decimal coordinates, and a
-  flat placemark layout (My Maps ignores KML Folders). Equivalent to
-  `-simplify 100 -precision 5` plus flattening.
-- `--simplify METERS`: Douglas-Peucker simplify of full OSRM geometry (meters).
-  `0` keeps full detail (best for Google Earth).
-- `--precision N`: decimal places for coordinates in the KML (default 6).
-- `--units km|mi`: distance units in the PWA bundle (default `km`). No in-viewer toggle yet.
-
-Build a standalone binary with `go build -o tripmap .`.
-
-Itinerary YAML files live in `itineraries/`; generated KML and PWA bundles go in
-`maps/` (gitignored). Viewer source is in `internal/bundle/viewer/` (embedded into the CLI and tripmapd).
-Test fixtures remain in `testdata/`.
-
-## Viewing the output
-
-### PWA (day-by-day navigation)
-
-```bash
-go run . --input itineraries/holland.yaml --bundle maps/holland-bundle/ --route osrm --mymaps
+# Local PWA (serve over HTTP — not file://)
+go run . --input itineraries/holland.yaml --bundle maps/holland-bundle/ --route osrm
 cd maps/holland-bundle && python3 -m http.server 8080
 ```
 
-Desktop: day list | map | detail. Phone: List / Map toggle and a day picker.
-Optional local notes are stored in `localStorage` only. The service worker caches
-trip data and images after the first visit; basemap tiles still need the network.
 
-Optional photos on days or stops — local path (relative to the YAML) or HTTPS URL:
+| Flag                             | Purpose                                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------------------- |
+| `--route straight`               | Straight lines (default)                                                                     |
+| `--route osrm`                   | Road routing via public [OSRM](https://project-osrm.org/); hike/ferry segments stay straight |
+| `--bundle DIR`                   | Write PWA (`trip.json`, `geo/`, embedded viewer)                                             |
+| `--mymaps`                       | My Maps–friendly KML (simplify + flatten)                                                    |
+| `--simplify M` / `--precision N` | Geometry detail for KML                                                                      |
+| `--units km|mi`                  | Distance units in the PWA                                                                    |
+
+
+`go build -o tripmap .` for a standalone binary. YAML lives in `itineraries/`; outputs go under `maps/` (gitignored). Viewer source: `internal/bundle/viewer/` (embedded in the CLI and `tripmapd`).
+
+## Itinerary schema (v2)
+
+Places are defined once and referenced by id. Days use `place:` refs (optional day-local `type` / `notes` / `maps_url` overrides).
 
 ```yaml
-photo: https://upload.wikimedia.org/wikipedia/commons/thumb/…/1280px-….jpg
-photo_caption: Amsterdam canals at blue hour   # hover + lightbox text
-# or: photo: photos/harbour.jpg
-```
+schema_version: 2
+trip: Netherlands 2026
+description: Two-week road trip
+start: "2026-06-22"          # optional; day dates = start + (day − 1)
 
-Local files are copied into the bundle; URLs are kept as-is (network required on first view; images cache after load).
-
-Optional `maps_url` on a place (or a day stop/route ref) overrides the viewer pin destination with a Google Maps place URL. Without it, the pin opens a lat/lon search.
-
-```yaml
 places:
+  amsterdam:
+    title: Amsterdam
+    lat: 52.3676
+    lon: 4.9041
+    type: overnight
   pancake-rocks:
     title: Pancake Rocks
     lat: -42.1148
     lon: 171.3260
     type: attraction
-    maps_url: https://maps.app.goo.gl/…
-```
+    maps_url: https://maps.app.goo.gl/…   # optional; pin opens this URL
+    # info: { links, stats, warnings, … }  # optional enrichment
 
-See [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md) for UI design and
-[docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) for the longer roadmap.
-
-### Public site (GitHub Pages)
-
-This repo’s Pages deploy is a **stub** only (`pages-stub/`), at
-`https://www.sheffer.org/tripmap/` (also `https://yaronf.github.io/tripmap/`).
-It does **not** publish itinerary bundles.
-
-Live viewers / API: **`https://tripmap.sheffer.org`** (Hellō sign-in for `/me/trips/{id}/`).
-
-**One-time repo setup:** Settings → Pages → **Source: GitHub Actions**. Do **not**
-set this project’s custom domain to `www.sheffer.org` — that host belongs to the
-user/org Pages site (other properties). This project is meant to stay under
-`/tripmap/`.
-
-Pushing changes under `pages-stub/` or the workflow file redeploys the stub;
-`itineraries/*.yaml` edits no longer trigger Pages.
-
-### Google Earth / My Maps
-
-**Google Earth Pro** (desktop) is the best KML viewer. On Windows with WSL, open the
-file from the Windows side:
-
-```
-\\wsl$\<distro>\home\<user>\<path-to-project>\maps\nz-4weeks.kml
-```
-
-In the Places sidebar, expand each day folder and make sure the **Route**
-placemark is checked. Route lines are color-coded:
-
-| Style | Color | Used for |
-|-------|-------|----------|
-| `driveLine` | blue | driving days (straight or OSRM) |
-| `hikeLine` | green | days with `hike: true` |
-| `ferryLine` | orange | days with `ferry: true` |
-
-Days with only a single overnight stop and no `route:` list show markers but no
-line — rest days, explore days, etc.
-
-Google My Maps and other lightweight KML viewers may not render route lines
-reliably; use Google Earth if routes are missing. For My Maps, generate with
-`--mymaps` — My Maps does not support KML Folders and splits long lines at
-500 points, so the output is flattened and simplified accordingly.
-
-## Itinerary schema
-
-```yaml
-trip: New Zealand 2026
-description: Four-week road trip starting 22 Nov 2026
-start: 2026-11-22   # optional; fills day dates as start + (day − 1)
 days:
   - day: 9
-    # date: 2026-11-30   # optional override (YYYY-MM-DD)
     title: Nelson → Punakaiki
-    notes: Murchison and Westport are drive-through towns.
-    route:            # ordered points that shape the day's line
-      - { name: Nelson,    type: overnight, lat: -41.2706, lon: 173.2840 }
-      - { name: Murchison, type: via,       lat: -41.8092, lon: 172.3330 }
-      - { name: Westport,  type: via,       lat: -41.7526, lon: 171.6034 }
-      - { name: Punakaiki, type: overnight, lat: -42.1117, lon: 171.3245 }
-    stops:            # map placemarks not on the driving line
-      - { name: Pancake Rocks, type: attraction, lat: -42.1148, lon: 171.3260 }
+    notes: Human day narrative (agents should not edit unless asked).
+    route:                               # shapes the driving/hike line
+      - { place: nelson, type: overnight }
+      - { place: murchison, type: via }
+      - { place: punakaiki, type: overnight }
+    stops:                               # markers only; do not suppress the route
+      - { place: pancake-rocks, type: attraction }
 ```
 
-`route:` and `stops:` are intentionally separate. A day without `route:` has
-placemarks only and no route line. Calendar dates are optional: omit `start`
-and `date` for day-number-only trips; when present, the PWA day index and
-detail view show them.
+- `route:` — polyline (needs ≥2 points). `via` shapes the line without a marker.
+- `stops:` — placemarks only; independent of whether a route is drawn.
+- **Photos** — `photo` / `photo_caption` on days or places (HTTPS URL or path relative to the YAML).
+- **Examples** — `itineraries/holland.yaml`, `itineraries/nz-4weeks.yaml`.
 
-See `itineraries/nz-4weeks.yaml` for a full 28-day example with driving days, hikes,
-a ferry crossing, and side-trip attractions.
+
 
 ### Stop types
 
-Placement determines behavior: entries in `route:` shape the line, while entries
-in `stops:` are placemarks. Route entries also receive placemarks unless their
-type is `via`.
 
-| Type             | Marker  | Typical use |
-|------------------|---------|-------------|
-| _(none)_         | default | generic point |
-| `overnight`      | lodging | route endpoint or lodging placemark |
-| `hut`            | hut     | backcountry hut on a multi-day hike |
-| `via`            | none    | hidden route-shaping waypoint |
-| `attraction`     | star    | attraction placemark |
-| `viewpoint`      | camera  | viewpoint placemark |
-| `trailhead`      | hiker   | hike endpoint |
-| `ferry_terminal` | ferry   | ferry endpoint |
-| `airport`        | airport | airport (arrival, departure, car pickup) |
+| Type                                     | Marker                | Typical use                     |
+| ---------------------------------------- | --------------------- | ------------------------------- |
+| *(none)*                                 | default               | generic point                   |
+| `overnight`                              | lodging               | lodging / day endpoint          |
+| `depart`                                 | (viewer)              | morning lodging on a travel day |
+| `hut`                                    | hut                   | backcountry hut                 |
+| `via`                                    | none                  | hidden route waypoint           |
+| `attraction` / `viewpoint` / `trailhead` | star / camera / hiker | side visits                     |
+| `ferry_terminal` / `airport` / `flight`  | ferry / airport       | terminals & flights             |
 
-Optional fields: `notes`, `photo` (day or stop) — `photo` may be an HTTPS URL
-or a path relative to the itinerary file (copied into PWA bundles).
+
+
 
 ### Day flags
 
-- `hike: true` — trail segments are straight lines; driving approaches from
-  towns to trailheads use OSRM when `--route osrm` is set.
-- `ferry: true` — ferry-terminal pairs are drawn straight (orange); other
-  segments on the day use OSRM when `--route osrm` is set.
+- `hike: true` — trail segments straight; approaches may use OSRM
+- `ferry: true` — ferry-terminal pairs straight (orange); other segments may use OSRM
 
-Each location appears once on the map even if it is visited on multiple days.
-On hike days, lodging listed under `stops:` is automatically prepended to the
-route when the trail does not already start there.
 
-Styles (`<Style>` icons and line colors) are only emitted for types and flags
-that actually appear in the itinerary.
+
+## Viewer
+
+Desktop: day list | map | detail. Phone: List / Map + day picker. Pins open Google Maps (`maps_url` or lat/lon). Shared comments (signed-in) live on the host; the service worker keeps `trip.json` and `geo/` network-first so itinerary edits show up without a stale map.
+
+UI notes: [docs/itinerary-display-ux.md](docs/itinerary-display-ux.md).
+
+## Google Earth / My Maps
+
+Google Earth Pro is the best KML viewer. Expand each day folder and enable the **Route** placemark if the line is missing.
+
+| Style | Color | Use |
+|-------|-------|-----|
+| `driveLine` | blue | driving |
+| `hikeLine` | green | `hike: true` |
+| `ferryLine` | orange | `ferry: true` |
+
+For My Maps, generate with `--mymaps` (flatten + simplify).
+
+## Hosted daemon (`tripmapd`)
+
+`cmd/tripmapd` serves viewers, agent API, MCP (`mcpopenapi/`), and bundle regeneration against S3. In season it runs on ECS Express Mode behind CloudFront; off season delete compute to stop ALB/Fargate charges (data stays in S3).
 
 ## Tests
 
 ```bash
 go test ./...
+cd mcpopenapi && go test ./...
 ```
 
-The test suite includes a golden-file check for KML output, OSRM client tests
-with a mock server, and tests for typed-stop and route behavior.
 
-## Seasonal AWS hosting
-
-In season, `tripmapd` runs on ECS Express Mode behind CloudFront:
-
-- **Live API / Hellō viewers:** `https://tripmap.sheffer.org`
-- **Static Pages PWA:** `https://www.sheffer.org/tripmap/` (unchanged)
-
-Off season, delete the compute stack to stop ALB/Fargate charges; itineraries and
-comments stay in S3. CloudFront remains; the durable hostname returns origin
-errors until the next deploy (see undeploy runbook).
-
-- Plan: [docs/aws-deployment.md](docs/aws-deployment.md)
-- Deploy: [docs/runbook-deploy-compute.md](docs/runbook-deploy-compute.md)
-- Undeploy: [docs/runbook-undeploy-compute.md](docs/runbook-undeploy-compute.md)
-- Edge: [infra/edge.yaml](infra/edge.yaml) (`tripmap-edge`)
 
 ## Roadmap
 
-See [TODO.md](TODO.md) for planned features (GraphHopper/Valhalla backends,
-driving distance/time in KML, GPX export, itinerary validation, etc.).
+See [TODO.md](TODO.md).
 
 ## License
 
