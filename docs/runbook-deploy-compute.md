@@ -132,7 +132,6 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 
 - [ ] Connector: Streamable HTTP `https://tripmap.sheffer.org/mcp` + Bearer env (`tripmap_mcp_bearer_token`) — see [runbook-mcp.md](runbook-mcp.md)
 - [ ] Quick test in Codex: “List trips.”
-- [ ] (Deprecated) Custom GPT Actions; ChatGPT chat may not see local MCP servers
 
 ## 6. Done when
 

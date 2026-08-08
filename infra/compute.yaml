@@ -109,5 +109,5 @@ Outputs:
     Description: HTTPS endpoint for the service (may change on redeploy)
     Value: !GetAtt ExpressService.Endpoint
   ServiceUrlHint:
-    Description: Use https:// + Endpoint as PUBLIC_BASE_URL / GPT Actions server
+    Description: Use https:// + Endpoint as PUBLIC_BASE_URL for the agent API / MCP
     Value: !Sub "https://${ExpressService.Endpoint}"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Patch is a structured itinerary mutation (Custom GPT Actions).
+// Patch is a structured itinerary mutation (agent API / MCP).
 type Patch struct {
 	SwapDays   []int          `json:"swap_days,omitempty"`
 	Days       map[string]any `json:"days,omitempty"` // day number string -> partial day

@@ -203,4 +203,4 @@ Outputs:
     Value: !Sub >
       Group ${DeployUserName} (CLI): attach policy ${ProjectName}-deploy and
       SignInLocalDevelopmentAccess; add user ${DeployUserName}. Enable MFA.
-      Agent Bearer is NOT in this policy — use .env / Custom GPT only.
+      Agent Bearer is NOT in this policy — use local .env / password manager only.

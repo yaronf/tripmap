@@ -2,7 +2,7 @@
 
 Primary agent surface is **Streamable HTTP MCP** at `https://tripmap.sheffer.org/mcp`, authenticated with the same **agent Bearer** as `/api/agent/*` (`AGENT_BEARER_TOKEN`). Hellō remains human-viewer only.
 
-**Verified client: Codex** (desktop / CLI / IDE). Ordinary ChatGPT chat may not list or use local MCP servers at all — treat Codex as the working path. Custom GPT **Actions** remain deprecated.
+**Verified client: Codex** (desktop / CLI / IDE). Ordinary ChatGPT chat may not list or use local MCP servers at all — treat Codex as the working path.
 
 Do **not** put the Bearer into a coding-agent workspace MCP config that shares this repo’s secrets casually; keep the token in your password manager / shell env.
 

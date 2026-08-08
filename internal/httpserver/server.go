@@ -11,11 +11,14 @@ import (
 	"time"
 
 	"github.com/yaronf/mcpopenapi"
+	"github.com/yaronf/tripmap/api"
 	"github.com/yaronf/tripmap/internal/bundle"
 	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/routebuild"
 	"github.com/yaronf/tripmap/internal/store"
 )
+
+var _ api.ServerInterface = (*Server)(nil)
 
 // Server is the tripmapd HTTP API.
 type Server struct {
@@ -37,7 +40,6 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /openapi.yaml", s.handleOpenAPI)
 	s.mux.HandleFunc("GET /favicon.svg", s.handleFavicon)
 	s.mux.HandleFunc("GET /favicon.ico", s.handleFavicon)
@@ -48,20 +50,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /auth/logout", s.handleAuthLogout)
 	s.mux.Handle("/me/trips/", http.HandlerFunc(s.handleSessionTrip))
 
-	agent := http.NewServeMux()
-	agent.HandleFunc("GET /trips", s.handleListTrips)
-	agent.HandleFunc("POST /trips", s.handleCreateTrip)
-	agent.HandleFunc("GET /schema", s.handleSchema)
-	agent.HandleFunc("GET /trips/{id}", s.handleGetTrip)
-	agent.HandleFunc("GET /trips/{id}/yaml", s.handleGetYAML)
-	agent.HandleFunc("PUT /trips/{id}/yaml", s.handlePutYAML)
-	agent.HandleFunc("PATCH /trips/{id}", s.handlePatchTrip)
-	agent.HandleFunc("GET /trips/{id}/versions", s.handleListVersions)
-	agent.HandleFunc("POST /trips/{id}/restore", s.handleRestore)
-
-	// Internal agent surface (no Bearer): used by /api/agent/* after auth and by /mcp tools/call.
-	internalAgent := http.StripPrefix("/api/agent", agent)
-	s.mux.Handle("/api/agent/", bearerAuth(s.cfg.AgentBearerToken, internalAgent))
+	// Spec-driven routes (same mux for REST under bearer and MCP upstream without bearer).
+	specMux := http.NewServeMux()
+	api.HandlerFromMux(s, specMux)
+	s.mux.Handle("GET /health", http.HandlerFunc(specMux.ServeHTTP))
+	s.mux.Handle("/api/agent/", bearerAuth(s.cfg.AgentBearerToken, http.HandlerFunc(specMux.ServeHTTP)))
 
 	mcpHandler, err := mcpopenapi.NewHandler(mcpopenapi.Config{
 		Name:    "tripmap",
@@ -71,7 +64,7 @@ func (s *Server) routes() {
 			"Human viewers use Hellō at /me/trips/{id}/.",
 		// Concrete servers URL (placeholder {{BASE_URL}} is not valid YAML for the parser).
 		OpenAPIYAML: []byte(OpenAPIDocument("https://tripmap.local")),
-		Upstream:    internalAgent,
+		Upstream:    specMux,
 		PathPrefix:  "/api/agent",
 	})
 	if err != nil {
@@ -91,7 +84,7 @@ type mutateResult struct {
 	BundleError   string `json:"bundle_error,omitempty"`
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) Health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -165,7 +158,7 @@ func htmlEscape(s string) string {
 	return repl.Replace(s)
 }
 
-func (s *Server) handleListTrips(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ListTrips(w http.ResponseWriter, r *http.Request) {
 	ids, err := s.store.ListTripIDs(r.Context())
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -177,7 +170,7 @@ func (s *Server) handleListTrips(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"trips": ids})
 }
 
-func (s *Server) handleSchema(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) GetSchema(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"schema_version": itinerary.CurrentSchemaVersion,
 		"description":    "tripmap itinerary YAML schema with places catalog",
@@ -217,8 +210,7 @@ func (s *Server) handleSchema(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (s *Server) handleGetTrip(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+func (s *Server) GetTrip(w http.ResponseWriter, r *http.Request, id string) {
 	if !s.requireTripID(w, id) {
 		return
 	}
@@ -245,8 +237,7 @@ func (s *Server) handleGetTrip(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleGetYAML(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+func (s *Server) GetTripYAML(w http.ResponseWriter, r *http.Request, id string) {
 	if !s.requireTripID(w, id) {
 		return
 	}
@@ -261,7 +252,7 @@ func (s *Server) handleGetYAML(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(obj.Body)
 }
 
-func (s *Server) handleCreateTrip(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.CreateTripParams) {
 	if err := s.requireIdempotency(w, r); err != nil {
 		return
 	}
@@ -312,11 +303,10 @@ func (s *Server) handleCreateTrip(w http.ResponseWriter, r *http.Request) {
 	s.finishIdempotent(w, r, http.StatusCreated, res)
 }
 
-func (s *Server) handlePutYAML(w http.ResponseWriter, r *http.Request) {
+func (s *Server) PutTripYAML(w http.ResponseWriter, r *http.Request, id string, _ api.PutTripYAMLParams) {
 	if err := s.requireIdempotency(w, r); err != nil {
 		return
 	}
-	id := r.PathValue("id")
 	if err := itinerary.ValidateID(id); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
@@ -360,11 +350,10 @@ func (s *Server) handlePutYAML(w http.ResponseWriter, r *http.Request) {
 	s.finishIdempotent(w, r, http.StatusOK, res)
 }
 
-func (s *Server) handlePatchTrip(w http.ResponseWriter, r *http.Request) {
+func (s *Server) PatchTrip(w http.ResponseWriter, r *http.Request, id string, _ api.PatchTripParams) {
 	if err := s.requireIdempotency(w, r); err != nil {
 		return
 	}
-	id := r.PathValue("id")
 	if !s.requireTripID(w, id) {
 		return
 	}
@@ -420,8 +409,7 @@ func (s *Server) handlePatchTrip(w http.ResponseWriter, r *http.Request) {
 	s.finishIdempotent(w, r, http.StatusOK, res)
 }
 
-func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+func (s *Server) ListVersions(w http.ResponseWriter, r *http.Request, id string) {
 	if !s.requireTripID(w, id) {
 		return
 	}
@@ -433,11 +421,10 @@ func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "versions": vers})
 }
 
-func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
+func (s *Server) RestoreVersion(w http.ResponseWriter, r *http.Request, id string, _ api.RestoreVersionParams) {
 	if err := s.requireIdempotency(w, r); err != nil {
 		return
 	}
-	id := r.PathValue("id")
 	if !s.requireTripID(w, id) {
 		return
 	}

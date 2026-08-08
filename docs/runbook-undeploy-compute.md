@@ -11,7 +11,7 @@ Tear down `tripmap-compute` to stop ALB/Fargate charges off-season. **Do not** d
 |------|-------------------------|
 | `tripmap-data` (YAML, comments, ECR, secret) | Express / ALB / Fargate |
 | `tripmap-edge` (CloudFront + ACM) | Working origin behind CF |
-| GoDaddy `tripmap` → CloudFront | Live API / viewer / GPT |
+| GoDaddy `tripmap` → CloudFront | Live API / viewer / MCP |
 | Capability token **hashes** | |
 
 `https://tripmap.sheffer.org` stays in DNS but returns origin errors (e.g. 502) until compute is back and CloudFront origin is updated (see deploy runbook). Tokens unchanged; paths `/t/{id}/{token}/` work again on the same durable host.
@@ -25,7 +25,7 @@ aws cloudformation describe-stacks \
   --output text
 ```
 
-Useful so you know which GPT server URL / shared links will break.
+Useful so you know which Express origin will change on the next deploy.
 
 ## 2. Delete compute stack
 
@@ -64,8 +64,7 @@ aws s3 ls s3://tripmap-comments-077804408159-eu-central-1/ --recursive | head
 
 ## 4. Communicate downtime
 
-- [ ] Expect Custom GPT Actions to fail (connection errors) until redeploy
-- [ ] Expect old capability links to fail until redeploy + (if host changed) URL rewrite
+- [ ] Expect agent API / MCP and Hellō viewer to fail (origin errors) until redeploy
 - [ ] Do **not** rotate tokens just because compute is down
 
 ## 5. Next season

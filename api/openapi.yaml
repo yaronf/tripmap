@@ -9,7 +9,7 @@ info:
     Use update_day to change a day's title/notes/hike/ferry when the user asks.
     Human viewers use Hellō at /me/trips/{id}/ (no capability tokens).
 servers:
-  - url: {{BASE_URL}}
+  - url: "{{BASE_URL}}"
 paths:
   /health:
     get:

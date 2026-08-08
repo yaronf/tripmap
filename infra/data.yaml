@@ -60,7 +60,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub "${ProjectName}/agent-bearer"
-      Description: Bearer token for tripmap OpenAPI / Custom GPT Actions
+      Description: Bearer token for tripmap agent API / MCP
       GenerateSecretString:
         SecretStringTemplate: "{}"
         GenerateStringKey: token
