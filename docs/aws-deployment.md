@@ -336,6 +336,7 @@ Capability URL format: `https://tripmap.sheffer.org/t/{id}/{token}/` (token plai
 - [x] Runbooks M9; optional `workflow_dispatch` deploy/destroy still open
 - [ ] Cursor skill
 - [x] Durable public URL: `tripmap.sheffer.org` + `infra/edge.yaml` (CloudFront)
+- [ ] Faster day-to-day image rolls without CFN — see [`plan-fast-app-deploys.md`](plan-fast-app-deploys.md)
 
 ### Phase E — Hardening
 

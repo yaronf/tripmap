@@ -417,9 +417,11 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  // Live trip data + comments: network-first so edits aren't stuck behind SW cache.
+  // Live trip data + day geo + comments: network-first so itinerary edits
+  // aren't stuck behind SW cache (trip.json and geo/day-NN.json must stay in sync).
   const live =
     url.pathname.endsWith("/trip.json") ||
+    url.pathname.includes("/geo/") ||
     url.pathname.endsWith("/api/notes") ||
     url.pathname.includes("/api/notes/");
   if (live) {
@@ -444,7 +446,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v27", string(list))
+`, "tripmap-"+tj.ID+"-v28", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 
