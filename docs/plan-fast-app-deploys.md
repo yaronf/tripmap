@@ -15,12 +15,27 @@ One-off note: after the rejected experiment, live image was `sw-geo-202608082226
 
 Confirmed: **`AWS::ECS::ExpressGatewayService` rollout / canary**, not docker build/push or S3/IAM.
 
-## Next ideas (only if we optimize time again)
+## Experiment — Express bake tweak (2026-08-09)
 
-Prefer changing *how Express rolls*, not adding a second deploy tool:
+Keep CFN for image rolls. Before deploying `sanitize-20260809010146`, set:
 
-1. **Express / ECS deployment settings** — shorter bake time, disable or tighten canary/alarm waits if the console/API exposes them for Express Gateway (measure before/after).
-2. **Skip canary for this service** if Express allows a simpler rolling replace — TripMap is a single low-risk app; an 8-minute safety canary may be overkill.
-3. **Keep CFN** as the only app deploy path; optional CI job that times `cloudformation deploy` + stack events so we know which resource ate the minutes after each change.
+```bash
+aws ecs update-service --cluster default --service tripmap \
+  --deployment-configuration \
+  '{"bakeTimeInMinutes":0,"canaryConfiguration":{"canaryPercent":100,"canaryBakeTimeInMinutes":0}}'
+```
 
-Do **not** reintroduce a parallel image-update script unless measurement shows CFN itself (not Express) owns a large share of the wait.
+| Step | Seconds |
+|------|--------:|
+| set bake/canary | 2 |
+| docker-build + push | 20 |
+| **cloudformation-deploy** | **158** |
+| wait deployment SUCCESSFUL | 1 (already done) |
+| smoke + regen | 9 |
+| **TOTAL** | **~192** |
+
+Baseline CFN image roll was ~545s; Express canary alone was ~518s. After the tweak: **~3.2 min** end-to-end, and the new bake settings **survived** the CFN stack update (`bakeTimeInMinutes: 0`, `canaryPercent: 100`).
+
+Caveat: this uses classic `update-service` on an Express service (not officially documented on `update-express-gateway-service`). Re-apply after seasonal recreate if defaults return.
+
+Do **not** reintroduce a parallel non-CFN image-update script.
