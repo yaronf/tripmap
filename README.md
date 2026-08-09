@@ -136,13 +136,12 @@ For My Maps, generate with `--mymaps` (flatten + simplify).
 
 ## Hosted daemon (`tripmapd`)
 
-`cmd/tripmapd` serves viewers, agent API, MCP (`mcpopenapi/`), and bundle regeneration against S3. In season it runs on ECS Express Mode behind CloudFront; off season delete compute to stop ALB/Fargate charges (data stays in S3).
+`cmd/tripmapd` serves viewers, agent API, MCP ([mcpopenapi](https://github.com/yaronf/mcpopenapi)), and bundle regeneration against S3. In season it runs on ECS Express Mode behind CloudFront; off season delete compute to stop ALB/Fargate charges (data stays in S3).
 
 ## Tests
 
 ```bash
 go test ./...
-cd mcpopenapi && go test ./...
 ```
 
 

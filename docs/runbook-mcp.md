@@ -98,6 +98,6 @@ From Codex after connect: “List trips” → `listTrips`; then a small `patchT
 
 ## Implementation notes
 
-- Module: [`mcpopenapi/`](../mcpopenapi/) — OpenAPI → tools; `tools/call` → in-process `ServeHTTP` on the agent mux (no second Bearer hop).
+- Module: [`github.com/yaronf/mcpopenapi`](https://github.com/yaronf/mcpopenapi) — OpenAPI → tools; `tools/call` → in-process `ServeHTTP` on the agent mux (no second Bearer hop).
 - Missing `Idempotency-Key` is generated server-side for mutating ops.
 - Classic ChatGPT OAuth/Mixed is out of scope for v1.

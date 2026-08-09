@@ -4,7 +4,6 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 WORKDIR /src
 COPY go.mod go.sum ./
-COPY mcpopenapi/go.mod mcpopenapi/go.sum ./mcpopenapi/
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
