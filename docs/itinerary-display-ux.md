@@ -90,7 +90,7 @@ Split canvas — **one composition**: map as the living plane, day list as navig
 | Map | remaining center | Fit bounds on day change; pinch/zoom; show whole-trip briefly on first load optional |
 | Detail | ~320–380px | Scroll independently; photo full-bleed within column |
 
-**Keyboard:** `j` / `k` next/prev day; `/` focus day search when present.
+**Keyboard:** `↓` / `↑` (or `j` / `k`) next/prev day; `/` focus day search when present.
 
 ### Phone / narrow (≤ 600px)
 

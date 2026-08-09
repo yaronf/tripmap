@@ -28,6 +28,7 @@
   const el = {
     title: document.getElementById("trip-title"),
     meta: document.getElementById("trip-meta"),
+    app: document.getElementById("app"),
     dayIndex: document.getElementById("day-index"),
     detail: document.getElementById("detail"),
     map: document.getElementById("map"),
@@ -240,6 +241,7 @@
   function renderDayIndex(container, filter = "") {
     const q = filter.trim().toLowerCase();
     container.innerHTML = "";
+    let activeBtn = null;
     state.trip.days.forEach((d, i) => {
       const dateLabel = formatDayDate(d.date);
       const hay = `${d.day} ${d.date || ""} ${dateLabel} ${d.title} ${(d.stops || [])
@@ -249,7 +251,10 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = `day-row kind-${d.kind || "drive"}`;
-      if (i === state.dayIndex) btn.classList.add("is-active");
+      if (i === state.dayIndex) {
+        btn.classList.add("is-active");
+        activeBtn = btn;
+      }
       const stats = formatDriveStats(d);
       const sub = stats ? `${kindLabel(d.kind)} · ${stats}` : kindLabel(d.kind);
       btn.innerHTML = `
@@ -259,6 +264,12 @@
       btn.addEventListener("click", () => selectDay(i, true));
       container.appendChild(btn);
     });
+    // Keep the active day visible in the scrollable day list / picker.
+    if (activeBtn) {
+      requestAnimationFrame(() => {
+        activeBtn.scrollIntoView({ block: "nearest", inline: "nearest" });
+      });
+    }
   }
 
   function escapeHtml(s) {
@@ -323,12 +334,7 @@
       : "";
 
     const driveStats = formatDriveStats(d);
-    const i = state.dayIndex;
     const n = state.trip.days.length;
-    const prevDisabled = i <= 0 ? "disabled" : "";
-    const nextDisabled = i >= n - 1 ? "disabled" : "";
-    const prevTitle = i > 0 ? escapeAttr(state.trip.days[i - 1].title) : "";
-    const nextTitle = i < n - 1 ? escapeAttr(state.trip.days[i + 1].title) : "";
     const dateLabel = formatDayDate(d.date);
     const micro = dateLabel ? `Day ${d.day} · ${dateLabel}` : `Day ${d.day}`;
 
@@ -367,25 +373,7 @@
           ${!navigator.onLine ? `<p class="notes-offline-hint">Offline — edits won’t sync until you’re online.</p>` : ""}
           <button type="button" id="shared-notes-done" class="btn shared-notes-done">Done</button>
         </div>
-      </section>
-      <nav class="day-nav" aria-label="Adjacent days">
-        <button type="button" class="day-nav-btn" data-dir="-1" ${prevDisabled} title="${prevTitle}">
-          <span class="day-nav-dir" aria-hidden="true">‹</span> Prev
-        </button>
-        <span class="day-nav-pos">Day ${d.day}/${n}</span>
-        <button type="button" class="day-nav-btn" data-dir="1" ${nextDisabled} title="${nextTitle}">
-          Next <span class="day-nav-dir" aria-hidden="true">›</span>
-        </button>
-      </nav>`;
-
-    el.detail.querySelectorAll(".day-nav-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const dir = Number(btn.dataset.dir);
-        const next = state.dayIndex + dir;
-        if (next < 0 || next >= state.trip.days.length) return;
-        selectDay(next, true);
-      });
-    });
+      </section>`;
 
     el.detail.querySelectorAll("[data-photo]").forEach((node) => {
       node.addEventListener("click", (e) => {
@@ -576,15 +564,213 @@
     const d = state.trip.days[index];
     document.title = `${d.title} · ${state.trip.title}`;
     const dateLabel = formatDayDate(d.date);
-    el.meta.textContent = dateLabel
-      ? `Day ${d.day} of ${state.trip.days.length} · ${dateLabel}`
-      : `Day ${d.day} of ${state.trip.days.length}`;
+    const pos = `Day ${d.day}/${state.trip.days.length}`;
+    // Mobile chrome is tight: Day N/M only. Desktop can include the date.
+    el.meta.textContent = !isMobile() && dateLabel ? `${pos} · ${dateLabel}` : pos;
     renderDayIndex(el.dayIndex);
     renderDayIndex(el.pickerList, el.daySearch.value);
     renderDetail(d);
     if (!state.showFullTrip) await renderMap();
     if (closePicker) el.picker.hidden = true;
     el.btnDays.textContent = "Days";
+  }
+
+  function stepDay(dir) {
+    if (!state.trip) return;
+    const next = state.dayIndex + dir;
+    if (next < 0 || next >= state.trip.days.length) return;
+    selectDay(next, true);
+  }
+
+  function wait(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  function reduceMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function isMobile() {
+    return window.matchMedia("(max-width: 899px)").matches;
+  }
+
+  /**
+   * Book swipe on mobile: full page in List mode; detail sheet only in Map
+   * mode (Leaflet keeps the map). Returns the element to translate, or null.
+   */
+  function swipeSurface(target) {
+    if (!isMobile() || !state.trip) return null;
+    if (!el.lightbox.hidden || !el.picker.hidden) return null;
+    if (target.closest("textarea, input, button, a, .shared-notes-editor, .chrome")) {
+      return null;
+    }
+    if (state.mode === "list") {
+      return el.app;
+    }
+    if (state.mode === "map") {
+      if (target.closest(".map-pane, #map, .map-toolbar")) return null;
+      if (target.closest("#detail")) return el.detail;
+    }
+    return null;
+  }
+
+  /** Book-style horizontal day turn (list: whole page; map: detail text). */
+  function bindDaySwipe() {
+    let surface = null;
+    let x0 = 0;
+    let y0 = 0;
+    let rawDx = 0;
+    let axis = null; // null | "h" | "v"
+    let tracking = false;
+    let turning = false;
+
+    function setOffset(node, x, withTransition) {
+      if (!node) return;
+      node.style.transition = withTransition ? "transform 0.22s ease-out" : "none";
+      node.style.transform = x ? `translate3d(${x}px,0,0)` : "";
+    }
+
+    function clearOffset(node) {
+      if (!node) return;
+      node.style.transition = "";
+      node.style.transform = "";
+    }
+
+    function dampen(raw) {
+      const atStart = state.dayIndex <= 0 && raw > 0;
+      const atEnd = state.dayIndex >= state.trip.days.length - 1 && raw < 0;
+      return atStart || atEnd ? raw * 0.28 : raw;
+    }
+
+    async function turnPage(dir, node) {
+      turning = true;
+      document.body.classList.remove("is-day-swiping");
+      if (reduceMotion()) {
+        setOffset(node, 0, false);
+        clearOffset(node);
+        await selectDay(state.dayIndex + dir, true);
+        turning = false;
+        surface = null;
+        return;
+      }
+      const w = window.innerWidth;
+      const outX = dir > 0 ? -w : w;
+      const inX = dir > 0 ? w : -w;
+      setOffset(node, outX, true);
+      await wait(200);
+      node.style.transition = "none";
+      node.style.transform = `translate3d(${inX}px,0,0)`;
+      await selectDay(state.dayIndex + dir, true);
+      // After selectDay, list mode still uses #app; map mode reuses #detail.
+      const slide = state.mode === "map" ? el.detail : el.app;
+      if (slide !== node) clearOffset(node);
+      void slide.offsetWidth;
+      setOffset(slide, 0, true);
+      await wait(220);
+      clearOffset(slide);
+      turning = false;
+      surface = null;
+    }
+
+    function endGesture(commitDir) {
+      tracking = false;
+      axis = null;
+      document.body.classList.remove("is-day-swiping");
+      const node = surface;
+      const next = state.dayIndex + commitDir;
+      if (
+        commitDir &&
+        state.trip &&
+        next >= 0 &&
+        next < state.trip.days.length
+      ) {
+        turnPage(commitDir, node);
+        return;
+      }
+      setOffset(node, 0, !reduceMotion());
+      if (!reduceMotion()) {
+        wait(220).then(() => {
+          clearOffset(node);
+          surface = null;
+        });
+      } else {
+        clearOffset(node);
+        surface = null;
+      }
+    }
+
+    // Capture on document so map-mode detail sheet receives gestures;
+    // list mode still uses #app as the sliding surface.
+    document.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches.length !== 1 || turning) return;
+        const node = swipeSurface(e.target);
+        if (!node) return;
+        tracking = true;
+        surface = node;
+        axis = null;
+        rawDx = 0;
+        x0 = e.touches[0].clientX;
+        y0 = e.touches[0].clientY;
+      },
+      { passive: true }
+    );
+
+    document.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!tracking || turning || !surface || e.touches.length !== 1) return;
+        const x = e.touches[0].clientX;
+        const y = e.touches[0].clientY;
+        const rawX = x - x0;
+        const rawY = y - y0;
+        if (!axis) {
+          if (Math.abs(rawX) < 10 && Math.abs(rawY) < 10) return;
+          axis = Math.abs(rawX) > Math.abs(rawY) * 1.15 ? "h" : "v";
+          if (axis === "v") {
+            tracking = false;
+            surface = null;
+            return;
+          }
+          document.body.classList.add("is-day-swiping");
+        }
+        if (axis !== "h") return;
+        e.preventDefault();
+        rawDx = rawX;
+        setOffset(surface, dampen(rawX), false);
+      },
+      { passive: false }
+    );
+
+    document.addEventListener(
+      "touchcancel",
+      () => {
+        if (!tracking) return;
+        endGesture(0);
+      },
+      { passive: true }
+    );
+
+    document.addEventListener(
+      "touchend",
+      () => {
+        if (!tracking || axis !== "h") {
+          tracking = false;
+          axis = null;
+          surface = null;
+          return;
+        }
+        const w = window.innerWidth;
+        const threshold = Math.min(88, w * 0.22);
+        // Swipe left → next; swipe right → previous.
+        let dir = 0;
+        if (rawDx <= -threshold) dir = 1;
+        else if (rawDx >= threshold) dir = -1;
+        endGesture(dir);
+      },
+      { passive: true }
+    );
   }
 
   function setMode(mode, opts = {}) {
@@ -733,9 +919,17 @@
     }
     if (!state.trip) return;
     if (e.target.matches("textarea, input")) return;
-    if (e.key === "j") selectDay(Math.min(state.dayIndex + 1, state.trip.days.length - 1), true);
-    if (e.key === "k") selectDay(Math.max(state.dayIndex - 1, 0), true);
+    if (e.key === "ArrowDown" || e.key === "j") {
+      e.preventDefault();
+      stepDay(1);
+    }
+    if (e.key === "ArrowUp" || e.key === "k") {
+      e.preventDefault();
+      stepDay(-1);
+    }
   });
+
+  bindDaySwipe();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});

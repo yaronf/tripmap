@@ -12,7 +12,6 @@
   --sans: "Source Sans 3", "Noto Sans", system-ui, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --day-nav-h: calc(3.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 *,
@@ -461,10 +460,6 @@ body {
   color: #7a6a55;
 }
 
-.day-nav {
-  display: none;
-}
-
 .btn {
   font: inherit;
   font-weight: 600;
@@ -630,7 +625,6 @@ body {
     display: inline-flex;
   }
 
-  #trip-meta,
   .detail-micro {
     display: none;
   }
@@ -641,7 +635,15 @@ body {
     padding: calc(0.45rem + var(--safe-top)) 0.75rem 0.45rem;
   }
 
-  .chrome-main,
+  .chrome-main {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-width: 0;
+    gap: 0.05rem;
+  }
+
   .chrome-actions {
     display: flex;
     align-items: center;
@@ -650,9 +652,20 @@ body {
 
   .trip-title {
     font-size: 1.125rem;
-    line-height: 1;
-    /* Source Serif sits low in the em box vs button label centers */
-    transform: translateY(-0.06em);
+    line-height: 1.1;
+  }
+
+  .trip-meta {
+    display: block;
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .btn,
@@ -684,22 +697,34 @@ body {
     display: none;
   }
 
-  body.mode-list .detail {
-    padding-bottom: calc(1rem + var(--day-nav-h));
+  body.mode-list .app,
+  body.mode-map .detail {
+    will-change: transform;
+    touch-action: pan-y;
+  }
+
+  body.is-day-swiping {
+    overflow: hidden;
+    user-select: none;
+  }
+
+  body.mode-list.is-day-swiping .app,
+  body.mode-map.is-day-swiping .detail {
+    touch-action: none;
   }
 
   body.mode-map .detail {
     position: absolute;
     left: 0;
     right: 0;
-    bottom: var(--day-nav-h);
+    bottom: 0;
     z-index: 800;
     max-height: 42%;
     border-left: 0;
     border-top: 1px solid var(--rule);
     border-radius: 12px 12px 0 0;
     box-shadow: 0 -8px 24px rgba(26, 31, 28, 0.08);
-    padding-bottom: 1rem;
+    padding-bottom: calc(1rem + var(--safe-bottom));
   }
 
   body.mode-map .app {
@@ -709,52 +734,6 @@ body {
   body.mode-map .map-pane {
     position: absolute;
     inset: 0;
-    bottom: var(--day-nav-h);
-  }
-
-  .day-nav {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 850;
-    margin: 0;
-    padding: 0.55rem 1rem calc(0.55rem + var(--safe-bottom));
-    border-top: 1px solid var(--rule);
-    background: rgba(243, 239, 230, 0.96);
-    box-shadow: 0 -6px 20px rgba(26, 31, 28, 0.06);
-  }
-
-  .day-nav-btn {
-    flex: 1;
-    font: inherit;
-    font-weight: 600;
-    min-height: 44px;
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.9);
-    color: var(--ink);
-    cursor: pointer;
-  }
-
-  .day-nav-btn:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-
-  .day-nav-pos {
-    flex: 0 0 auto;
-    font-size: 0.75rem;
-    color: var(--muted);
-    text-align: center;
-    min-width: 5.5rem;
-  }
-
-  .day-nav-dir {
-    font-size: 1.1em;
   }
 }
 

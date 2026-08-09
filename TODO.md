@@ -23,7 +23,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [x] Phase 9: Ephemeral PWA comments (`localStorage`)
 - [x] Comments should display even when not in edit mode
 - [x] Create a favicon
-- [ ] Mobile: replace prev/next day buttons with swipe left/right
+- [x] Mobile: replace prev/next day buttons with swipe left/right
 - [ ] Map popups: richer HTML (notes / place info), not just the name
 - [ ] Map markers: replace default points with small typed icons
 - [ ] Improve display of one-point maps (zoom/framing when a day has only a single marker) — viewer + PDF

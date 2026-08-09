@@ -417,13 +417,17 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  // Live trip data + day geo + comments: network-first so itinerary edits
-  // aren't stuck behind SW cache (trip.json and geo/day-NN.json must stay in sync).
+  // Network-first for trip data and viewer shell so deploys / itinerary
+  // edits aren't stuck behind an old SW cache after a normal refresh.
   const live =
     url.pathname.endsWith("/trip.json") ||
     url.pathname.includes("/geo/") ||
     url.pathname.endsWith("/api/notes") ||
-    url.pathname.includes("/api/notes/");
+    url.pathname.includes("/api/notes/") ||
+    url.pathname.endsWith("/app.js") ||
+    url.pathname.endsWith("/style.css") ||
+    url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/");
   if (live) {
     e.respondWith(
       fetch(e.request)
@@ -446,7 +450,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v28", string(list))
+`, "tripmap-"+tj.ID+"-v33", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 
