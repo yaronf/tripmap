@@ -4,6 +4,7 @@
 
 - [x] Cannot see stop notes (e.g. flight details on NZ arrive/depart days)
 - [x] Comments UI showed text twice while editing (pencil Edit / Done)
+- [ ] Offline: hide photo UI (and caption/alt) when an image fails to load — don’t show caption alone on mobile
 
 ## Planned
 
@@ -25,7 +26,9 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [ ] Mobile: replace prev/next day buttons with swipe left/right
 - [ ] Map popups: richer HTML (notes / place info), not just the name
 - [ ] Map markers: replace default points with small typed icons
+- [ ] Improve display of one-point maps (zoom/framing when a day has only a single marker) — viewer + PDF
 - [ ] Agent/MCP: read shared viewer comments (`api/notes`) so itinerary can be updated after the trip
+- [ ] In-viewer OpenAI chat (Persona) — see [docs/plan-viewer-openai-chat.md](docs/plan-viewer-openai-chat.md)
 
 ### Schema
 - [x] Places registry: define `places:` once, reference by ID in route/stops
