@@ -25,6 +25,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [ ] Mobile: replace prev/next day buttons with swipe left/right
 - [ ] Map popups: richer HTML (notes / place info), not just the name
 - [ ] Map markers: replace default points with small typed icons
+- [ ] Agent/MCP: read shared viewer comments (`api/notes`) so itinerary can be updated after the trip
 
 ### Schema
 - [x] Places registry: define `places:` once, reference by ID in route/stops
@@ -57,7 +58,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 ### Export
 - [ ] GPX
 - [ ] GeoJSON
-- [ ] PDF itinerary
+- [x] PDF archive of itinerary (CLI / Cursor, not served): day sheets + routed map figures for Google Docs etc. (not PWA-pixel-perfect)
 - [x] Google Maps links (per-stop search + day directions in viewer)
 
 ### CLI

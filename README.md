@@ -35,17 +35,26 @@ go run . --input trip.yaml --output maps/trip.kml --route osrm
 # Local PWA (serve over HTTP — not file://)
 go run . --input trip.yaml --bundle maps/trip-bundle/ --route osrm
 cd maps/trip-bundle && python3 -m http.server 8080
+
+# PDF archive (cover + overview map + per-day sheets; needs tile + OSRM network)
+go run . --trip nz-4weeks --route osrm --pdf maps/nz-4weeks.pdf
+# or from local files:
+go run . --input trip.yaml --notes notes.json --route osrm --pdf maps/trip.pdf
 ```
 
+Use exactly one of `--trip` or `--input`. With `--trip`, set `ITINERARIES_BUCKET`, optional `COMMENTS_BUCKET`, and AWS credentials / profile (same as `tripmapd`). Shared viewer comments are included when available; missing notes omit that section.
 
 | Flag                             | Purpose                                                                                      |
 | -------------------------------- | -------------------------------------------------------------------------------------------- |
 | `--route straight`               | Straight lines (default)                                                                     |
 | `--route osrm`                   | Road routing via public [OSRM](https://project-osrm.org/); hike/ferry segments stay straight |
 | `--bundle DIR`                   | Write PWA (`trip.json`, `geo/`, embedded viewer)                                             |
+| `--pdf PATH`                     | Write PDF archive (overview + day maps, notes, shared comments)                              |
+| `--trip ID`                      | Load YAML (+ comments) from S3 by trip id                                                    |
+| `--notes PATH`                   | Local shared-comments JSON (with `--input` + `--pdf`)                                        |
 | `--mymaps`                       | My Maps–friendly KML (simplify + flatten)                                                    |
 | `--simplify M` / `--precision N` | Geometry detail for KML                                                                      |
-| `--units km|mi`                  | Distance units in the PWA                                                                    |
+| `--units km|mi`                  | Distance units in the PWA / PDF                                                              |
 
 
 `go build -o tripmap .` for a standalone binary. Live itinerary YAML lives in S3 (edit via agent API / MCP); CLI outputs go under `maps/` (gitignored). Viewer source: `internal/bundle/viewer/` (embedded in the CLI and `tripmapd`).
