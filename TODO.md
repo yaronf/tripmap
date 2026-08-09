@@ -22,6 +22,9 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [x] Phase 9: Ephemeral PWA comments (`localStorage`)
 - [x] Comments should display even when not in edit mode
 - [x] Create a favicon
+- [ ] Mobile: replace prev/next day buttons with swipe left/right
+- [ ] Map popups: richer HTML (notes / place info), not just the name
+- [ ] Map markers: replace default points with small typed icons
 
 ### Schema
 - [x] Places registry: define `places:` once, reference by ID in route/stops
@@ -49,7 +52,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [x] Durable public URL: `https://tripmap.sheffer.org` (CloudFront `tripmap-edge` → Express). See [docs/aws-deployment.md](docs/aws-deployment.md).
 - [x] Hellō sign-in for human viewers (`/auth/hello/*`, Client ID on compute). Signed-in home lists itineraries at `/me/trips/{id}/`. Allowlist: `config/hello-allowlist.csv`.
 - [x] Remove capability-token sharing (`/t/{id}/{token}/`); Hellō `/me/trips/{id}/` is the viewer path.
-- [ ] Remove `itineraries/` from the git repo (live SoT is already S3). Privacy: public GitHub history exposes trip detail; keep editing via API/GPT or private pull. Plan purge/rewrite of git history if old commits must not retain YAML — S3 + Hellō-gated viewers remain the working copies.
+- [x] Remove `itineraries/` from the git repo (live SoT is S3; no history rewrite). Local copies stay gitignored under `itineraries/` if needed.
 
 ### Export
 - [ ] GPX

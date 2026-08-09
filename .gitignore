@@ -1,9 +1,8 @@
 /tripmap
 /maps/*
 !/maps/.gitkeep
-/itineraries/photos/*
-!/itineraries/photos/README.md
-!/itineraries/photos/CREDITS.md
+# Local YAML / photos only — live SoT is S3 (do not commit trip detail)
+/itineraries/
 .env
 .env.*
 !.env.example

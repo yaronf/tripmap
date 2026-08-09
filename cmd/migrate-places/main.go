@@ -1,7 +1,7 @@
 // Command migrate-places converts legacy inline-stop itinerary YAML to a
 // places catalog + place refs (schema_version 2).
 //
-//	go run ./cmd/migrate-places -in itineraries/holland.yaml -out itineraries/holland.yaml
+//	go run ./cmd/migrate-places -in trip.yaml -out trip.yaml
 package main
 
 import (

@@ -28,7 +28,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Delete trip | **Omit** initially |
 | Source of truth (live) | **S3** (persists across undeploys) |
 | Schema evolution | **`schema_version`** in YAML |
-| GitHub YAML | Cursor-maintained mirror under `itineraries/` |
+| Itinerary YAML | S3 (`tripmap-data`); not mirrored in git |
 | Region | **All tripmap resources in `eu-central-1` (Frankfurt)**. CLI default may stay `il-central-1`; always `--region eu-central-1` for tripmap |
 | Public hostname | **`https://tripmap.sheffer.org`** via CloudFront (`tripmap-edge`) → Express origin. Express `Endpoint` may change; update CloudFront origin only (runbook). Static Pages remains `www.sheffer.org/tripmap/`. |
 

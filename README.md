@@ -29,12 +29,12 @@ Paths relative to your public base URL (`PUBLIC_BASE_URL`):
 ## CLI quick start
 
 ```bash
-# KML for Google Earth
-go run . --input itineraries/holland.yaml --output maps/holland.kml --route osrm
+# KML for Google Earth (YAML is not in git — fetch via agent API or keep a local copy)
+go run . --input trip.yaml --output maps/trip.kml --route osrm
 
 # Local PWA (serve over HTTP — not file://)
-go run . --input itineraries/holland.yaml --bundle maps/holland-bundle/ --route osrm
-cd maps/holland-bundle && python3 -m http.server 8080
+go run . --input trip.yaml --bundle maps/trip-bundle/ --route osrm
+cd maps/trip-bundle && python3 -m http.server 8080
 ```
 
 
@@ -48,7 +48,7 @@ cd maps/holland-bundle && python3 -m http.server 8080
 | `--units km|mi`                  | Distance units in the PWA                                                                    |
 
 
-`go build -o tripmap .` for a standalone binary. YAML lives in `itineraries/`; outputs go under `maps/` (gitignored). Viewer source: `internal/bundle/viewer/` (embedded in the CLI and `tripmapd`).
+`go build -o tripmap .` for a standalone binary. Live itinerary YAML lives in S3 (edit via agent API / MCP); CLI outputs go under `maps/` (gitignored). Viewer source: `internal/bundle/viewer/` (embedded in the CLI and `tripmapd`).
 
 ## Itinerary schema (v2)
 
@@ -89,7 +89,6 @@ days:
 - `route:` — polyline (needs ≥2 points). `via` shapes the line without a marker.
 - `stops:` — placemarks only; independent of whether a route is drawn.
 - **Photos** — `photo` / `photo_caption` on days or places (HTTPS URL or path relative to the YAML).
-- **Examples** — `itineraries/holland.yaml`, `itineraries/nz-4weeks.yaml`.
 
 
 

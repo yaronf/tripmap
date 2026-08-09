@@ -22,8 +22,8 @@ func main() {
 
 func run(args []string) error {
 	fs := flag.NewFlagSet("tripmap", flag.ContinueOnError)
-	in := fs.String("input", "itineraries/holland.yaml", "input YAML itinerary")
-	out := fs.String("output", "maps/holland.kml", "output KML file")
+	in := fs.String("input", "trip.yaml", "input YAML itinerary")
+	out := fs.String("output", "maps/trip.kml", "output KML file")
 	bundleDir := fs.String("bundle", "", "write PWA bundle directory (trip.json, geo/, viewer)")
 	routeMode := fs.String("route", "straight", "route mode: straight or osrm")
 	simplify := fs.Float64("simplify", 0, "simplify OSRM route geometry (meters); 0 keeps full detail")
