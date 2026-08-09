@@ -1,6 +1,6 @@
 # Runbook: Codex MCP (tripmap)
 
-Primary agent surface is **Streamable HTTP MCP** at `https://tripmap.sheffer.org/mcp`, authenticated with the same **agent Bearer** as `/api/agent/*` (`AGENT_BEARER_TOKEN`). Hellō remains human-viewer only.
+Primary agent surface is **Streamable HTTP MCP** at `https://tripmap.sheffer.org/mcp`, authenticated with the same **agent Bearer** as `/api/agent/*` (`AGENT_BEARER_TOKEN`). Hellō login is for human viewers only (not agents).
 
 **Verified client: Codex** (desktop / CLI / IDE). Ordinary ChatGPT chat may not list or use local MCP servers at all — treat Codex as the working path.
 
@@ -13,7 +13,7 @@ Do **not** put the Bearer into a coding-agent workspace MCP config that shares t
 | `POST https://tripmap.sheffer.org/mcp` | Bearer (`Authorization: Bearer …`) |
 | `GET /openapi.yaml` | Public (schema only) |
 | `/api/agent/*` | Same Bearer (scripts / optional clients) |
-| Viewer `/me/trips/…` | Hellō session |
+| Viewer `/me/trips/…` | Viewer session (after Hellō login) |
 
 ## Codex setup
 

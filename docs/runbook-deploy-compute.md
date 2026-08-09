@@ -135,7 +135,7 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 
 ## 6. Done when
 
-- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, Codex list-trips works, Hellō viewer + comments OK.
+- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, Codex list-trips works, signed-in viewer + comments OK.
 - After **create/recreate**: step **2b** bake settings applied (or verified already `0` / `100%`).
 
 ## Day-to-day image roll (compute already up)

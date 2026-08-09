@@ -31,7 +31,7 @@ type MutateResult struct {
 	SchemaVersion *int    `json:"schema_version,omitempty"`
 	VersionId     *string `json:"version_id,omitempty"`
 
-	// ViewerUrl Hellō viewer path /me/trips/{id}/ (sign-in required)
+	// ViewerUrl Signed-in tripmap viewer path /me/trips/{id}/ (Hellō login required)
 	ViewerUrl *string `json:"viewer_url,omitempty"`
 }
 

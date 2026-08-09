@@ -64,7 +64,7 @@ aws s3 ls s3://tripmap-comments-077804408159-eu-central-1/ --recursive | head
 
 ## 4. Communicate downtime
 
-- [ ] Expect agent API / MCP and Hellō viewer to fail (origin errors) until redeploy
+- [ ] Expect agent API / MCP and the signed-in viewer to fail (origin errors) until redeploy
 - [ ] Do **not** rotate tokens just because compute is down
 
 ## 5. Next season

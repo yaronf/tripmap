@@ -7,7 +7,7 @@ info:
     catalog plus day route/stops as place refs. Notes are human-authored —
     put enrichment in places.id.info, not notes (usage rule, not enforced).
     Use update_day to change a day's title/notes/hike/ferry when the user asks.
-    Human viewers use Hellō at /me/trips/{id}/ (no capability tokens).
+    Human viewers sign in with Hellō, then use /me/trips/{id}/ (no capability tokens).
 servers:
   - url: "{{BASE_URL}}"
 paths:
@@ -501,7 +501,7 @@ components:
           type: integer
         viewer_url:
           type: string
-          description: Hellō viewer path /me/trips/{id}/ (sign-in required)
+          description: Signed-in tripmap viewer path /me/trips/{id}/ (Hellō login required)
         bundle_ok:
           type: boolean
         bundle_error:

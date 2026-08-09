@@ -61,7 +61,7 @@ func (s *Server) routes() {
 		Version: "0.4.0",
 		Instructions: "tripmap agent API as MCP tools. Prefer patchTrip with update_day or places.<id>.info; " +
 			"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
-			"Human viewers use Hellō at /me/trips/{id}/.",
+			"Human viewers sign in with Hellō, then use /me/trips/{id}/.",
 		// Concrete servers URL (placeholder {{BASE_URL}} is not valid YAML for the parser).
 		OpenAPIYAML: []byte(OpenAPIDocument("https://tripmap.local")),
 		Upstream:    specMux,

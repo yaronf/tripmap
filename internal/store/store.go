@@ -8,7 +8,7 @@ import (
 // Meta is trips/{id}/meta.json.
 type Meta struct {
 	SchemaVersion int       `json:"schema_version"`
-	TokenHash     string    `json:"token_hash,omitempty"` // legacy; unused (Hellō viewers)
+	TokenHash     string    `json:"token_hash,omitempty"` // legacy; unused (signed-in viewers)
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
