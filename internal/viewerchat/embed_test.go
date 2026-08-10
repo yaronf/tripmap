@@ -13,6 +13,9 @@ func TestEmbeddedPrompt(t *testing.T) {
 	if strings.Contains(p, "Trip context") {
 		t.Fatal("static prompt should not include dynamic trip context")
 	}
+	if !strings.Contains(p, "getVersion") {
+		t.Fatal("prompt should mention getVersion for history inspection")
+	}
 }
 
 func TestChatToolsFromOpenAPI(t *testing.T) {
@@ -28,17 +31,30 @@ func TestChatToolsFromOpenAPI(t *testing.T) {
 		if tool.OfFunction == nil {
 			t.Fatalf("expected function tool, got %#v", tool)
 		}
-		names[tool.OfFunction.Name] = true
+		name := tool.OfFunction.Name
+		names[name] = true
 		if tool.OfFunction.Parameters == nil {
-			t.Fatalf("%s missing parameters", tool.OfFunction.Name)
+			t.Fatalf("%s missing parameters", name)
+		}
+		props, _ := tool.OfFunction.Parameters["properties"].(map[string]any)
+		if _, ok := props["id"]; ok {
+			t.Fatalf("%s should not expose session path param id", name)
+		}
+		if _, ok := props["Idempotency-Key"]; ok {
+			t.Fatalf("%s should not expose Idempotency-Key", name)
 		}
 	}
 	for _, want := range []string{
-		"get_trip_summary", "get_schema", "get_trip_yaml",
-		"get_day", "set_day_photo", "patch_trip",
+		"getSchema", "getTrip", "getTripYAML", "setDayPhoto",
+		"listVersions", "getVersion", "restoreVersion", "patchTrip",
 	} {
 		if !names[want] {
 			t.Fatalf("missing tool %s in %#v", want, names)
+		}
+	}
+	for _, ban := range []string{"listTrips", "createTrip", "putTripYAML", "get_day", "get_trip_summary"} {
+		if names[ban] {
+			t.Fatalf("unexpected tool %s in chat audience", ban)
 		}
 	}
 }

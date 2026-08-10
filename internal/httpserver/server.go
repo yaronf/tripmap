@@ -69,14 +69,17 @@ func (s *Server) routes() {
 
 	mcpHandler, err := mcpopenapi.NewHandler(mcpopenapi.Config{
 		Name:    "tripmap",
-		Version: "0.4.0",
+		Version: "0.4.2",
 		Instructions: "tripmap agent API as MCP tools. Prefer patchTrip with update_day or places.<id>.info; " +
 			"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
+			"Use listVersions + getVersion to inspect history; restoreVersion only when the user asks to revert. " +
 			"Human viewers sign in with Hellō, then use /me/trips/{id}/.",
 		// Concrete servers URL (placeholder {{BASE_URL}} is not valid YAML for the parser).
-		OpenAPIYAML: []byte(OpenAPIDocument("https://tripmap.local")),
-		Upstream:    specMux,
-		PathPrefix:  "/api/agent",
+		OpenAPIYAML:        []byte(OpenAPIDocument("https://tripmap.local")),
+		Upstream:           specMux,
+		PathPrefix:         "/api/agent",
+		Audience:           "mcp",
+		IncludeUnannotated: mcpopenapi.Bool(true),
 	})
 	if err != nil {
 		// Fail closed at startup — misconfigured OpenAPI must not ship a half-broken daemon.
@@ -430,6 +433,26 @@ func (s *Server) ListVersions(w http.ResponseWriter, r *http.Request, id string)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "versions": vers})
+}
+
+func (s *Server) GetVersion(w http.ResponseWriter, r *http.Request, id, versionID string) {
+	if !s.requireTripID(w, id) {
+		return
+	}
+	versionID = strings.TrimSpace(versionID)
+	if versionID == "" {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("version_id required"))
+		return
+	}
+	obj, err := s.store.GetYAMLVersion(r.Context(), id, versionID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.Header().Set("X-Tripmap-Version-Id", obj.VersionID)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(obj.Body)
 }
 
 func (s *Server) RestoreVersion(w http.ResponseWriter, r *http.Request, id string, _ api.RestoreVersionParams) {

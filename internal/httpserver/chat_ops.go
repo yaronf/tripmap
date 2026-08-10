@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/yaronf/tripmap/internal/itinerary"
@@ -51,12 +52,41 @@ func (o chatTripOps) SchemaJSON(context.Context) (json.RawMessage, error) {
 				"title": "Arrive Auckland",
 			},
 		},
+		"add_venue_example": map[string]any{
+			"places": map[string]any{
+				"pacifica-kaimoana": map[string]any{
+					"title":    "Pacifica Kaimoana",
+					"lat":      -39.4902,
+					"lon":      176.9175,
+					"type":     "restaurant",
+					"maps_url": "https://www.google.com/maps/search/?api=1&query=Pacifica+Kaimoana+Napier",
+				},
+			},
+			"upsert_stop": map[string]any{
+				"day":   12,
+				"list":  "stops",
+				"place": "pacifica-kaimoana",
+				"notes": "Dinner",
+			},
+		},
 	}
 	return json.Marshal(payload)
 }
 
 func (o chatTripOps) GetYAML(ctx context.Context, tripID string) ([]byte, error) {
 	obj, err := o.s.store.GetYAML(ctx, tripID)
+	if err != nil {
+		return nil, err
+	}
+	return obj.Body, nil
+}
+
+func (o chatTripOps) GetYAMLVersion(ctx context.Context, tripID, versionID string) ([]byte, error) {
+	versionID = strings.TrimSpace(versionID)
+	if versionID == "" {
+		return nil, fmt.Errorf("version_id is required")
+	}
+	obj, err := o.s.store.GetYAMLVersion(ctx, tripID, versionID)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +121,64 @@ func (o chatTripOps) Patch(ctx context.Context, tripID string, patchJSON []byte)
 		return viewerchat.PatchResult{}, err
 	}
 	if err := itinerary.ResolveDayDates(&trip); err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	outYAML, err := itinerary.MarshalYAML(trip)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	meta, err := o.s.store.GetMeta(ctx, tripID)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	meta.SchemaVersion = trip.SchemaVersion
+	meta.UpdatedAt = time.Now().UTC()
+	res, _, err := o.s.commitMutate(ctx, tripID, outYAML, &meta)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	return viewerchat.PatchResult{
+		ID:        res.ID,
+		VersionID: res.VersionID,
+		BundleOK:  res.BundleOK,
+	}, nil
+}
+
+const maxChatVersions = 25
+
+func (o chatTripOps) ListVersions(ctx context.Context, tripID string) ([]viewerchat.VersionEntry, error) {
+	vers, err := o.s.store.ListVersions(ctx, tripID)
+	if err != nil {
+		return nil, err
+	}
+	if len(vers) > maxChatVersions {
+		vers = vers[:maxChatVersions]
+	}
+	out := make([]viewerchat.VersionEntry, 0, len(vers))
+	for _, v := range vers {
+		e := viewerchat.VersionEntry{
+			VersionID: v.VersionID,
+			IsLatest:  v.IsLatest,
+		}
+		if !v.LastModified.IsZero() {
+			e.LastModified = v.LastModified.UTC().Format(time.RFC3339)
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+func (o chatTripOps) RestoreVersion(ctx context.Context, tripID, versionID string) (viewerchat.PatchResult, error) {
+	versionID = strings.TrimSpace(versionID)
+	if versionID == "" {
+		return viewerchat.PatchResult{}, fmt.Errorf("version_id is required")
+	}
+	obj, err := o.s.store.GetYAMLVersion(ctx, tripID, versionID)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	trip, err := prepareTripYAML(obj.Body)
+	if err != nil {
 		return viewerchat.PatchResult{}, err
 	}
 	outYAML, err := itinerary.MarshalYAML(trip)

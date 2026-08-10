@@ -334,7 +334,7 @@ func resolvePhotoForTrip(ctx context.Context, photo, query string, exclude []str
 	}
 
 	if query == "" {
-		return "", "", fmt.Errorf("set_day_photo requires photo URL or query (Commons search)")
+		return "", "", fmt.Errorf("setDayPhoto requires photo URL or query (Commons search)")
 	}
 	imgs, err := searchCommonsImages(ctx, query, 20)
 	if err != nil {

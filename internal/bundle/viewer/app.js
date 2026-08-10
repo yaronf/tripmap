@@ -31,6 +31,8 @@
     app: document.getElementById("app"),
     dayIndex: document.getElementById("day-index"),
     detail: document.getElementById("detail"),
+    detailBody: document.getElementById("detail-body"),
+    detailChat: document.getElementById("detail-chat"),
     map: document.getElementById("map"),
     offline: document.getElementById("offline-dot"),
     tileBanner: document.getElementById("tile-banner"),
@@ -353,7 +355,8 @@
     const dateLabel = formatDayDate(d.date);
     const micro = dateLabel ? `Day ${d.day} · ${dateLabel}` : `Day ${d.day}`;
 
-    el.detail.innerHTML = `
+    const body = el.detailBody || el.detail;
+    body.innerHTML = `
       <p class="detail-micro">${escapeHtml(micro)}</p>
       <h2>${escapeHtml(d.title)}</h2>
       <div>${flags.join("")}</div>
@@ -390,14 +393,14 @@
         </div>
       </section>`;
 
-    el.detail.querySelectorAll("[data-photo]").forEach((node) => {
+    body.querySelectorAll("[data-photo]").forEach((node) => {
       node.addEventListener("click", (e) => {
         e.preventDefault();
         openLightbox(node.getAttribute("data-photo"), node.getAttribute("data-caption"));
       });
     });
 
-    el.detail.querySelectorAll(".stop button[data-lat]").forEach((btn) => {
+    body.querySelectorAll(".stop button[data-lat]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const lat = Number(btn.dataset.lat);
         const lon = Number(btn.dataset.lon);
@@ -409,11 +412,11 @@
       });
     });
 
-    const ta = el.detail.querySelector("#shared-notes");
-    const display = el.detail.querySelector("#shared-notes-display");
-    const editor = el.detail.querySelector("#shared-notes-editor");
-    const editBtn = el.detail.querySelector("#shared-notes-edit");
-    const doneBtn = el.detail.querySelector("#shared-notes-done");
+    const ta = body.querySelector("#shared-notes");
+    const display = body.querySelector("#shared-notes-display");
+    const editor = body.querySelector("#shared-notes-editor");
+    const editBtn = body.querySelector("#shared-notes-edit");
+    const doneBtn = body.querySelector("#shared-notes-done");
     const syncDisplay = (value) => {
       if (!display) return;
       const text = (value || "").trim();
@@ -617,6 +620,10 @@
     if (!isMobile() || !state.trip) return null;
     if (!el.lightbox.hidden || !el.picker.hidden) return null;
     if (target.closest("textarea, input, button, a, .shared-notes-editor, .chrome")) {
+      return null;
+    }
+    // Chat pane owns its gestures; don't start a day turn from Persona.
+    if (target.closest("#detail-chat, #persona-dock-host, [data-persona-host-layout]")) {
       return null;
     }
     if (state.mode === "list") {
@@ -950,16 +957,18 @@
   window.addEventListener("online", updateOnline);
   window.addEventListener("offline", updateOnline);
 
-  // Shadow DOM (Persona floating launcher) retargets e.target to the host;
-  // day-nav must ignore keys that originate inside the widget.
+  // Shadow DOM (Persona) retargets e.target to the host; day-nav must ignore
+  // keys that originate inside the widget.
   function eventFromEditable(e) {
     const path = typeof e.composedPath === "function" ? e.composedPath() : [];
     for (const node of path) {
       if (!node || node.nodeType !== 1) continue;
       if (
-        node.id === "persona-root" ||
+        node.id === "persona-dock-host" ||
+        node.id === "detail-chat" ||
         node.hasAttribute?.("data-persona-root") ||
-        node.hasAttribute?.("data-persona")
+        node.hasAttribute?.("data-persona") ||
+        node.hasAttribute?.("data-persona-host-layout")
       ) {
         return true;
       }
@@ -971,11 +980,17 @@
     }
     const t = e.target;
     if (t instanceof Element) {
-      if (t.closest("#persona-root, [data-persona-root], [data-persona]")) return true;
+      if (
+        t.closest(
+          "#detail-chat, #persona-dock-host, [data-persona-root], [data-persona], [data-persona-host-layout]"
+        )
+      ) {
+        return true;
+      }
       if (t.matches("textarea, input, select, [contenteditable=''], [contenteditable=true], [role=textbox]")) {
         return true;
       }
-      // Open Persona host (floating widget mounts a shadow root on a host element).
+      // Persona mounts a shadow root on its host element.
       if (t.shadowRoot) return true;
     }
     return false;

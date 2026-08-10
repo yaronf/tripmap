@@ -5,7 +5,7 @@
 #   ./scripts/deploy-compute.sh
 #   ./scripts/deploy-compute.sh --prefix chat-remove
 #   ./scripts/deploy-compute.sh --skip-build --tag chat-ux-20260810001535
-#   ./scripts/deploy-compute.sh --patch-viewer          # also sync app.js/chat.js/style.css
+#   ./scripts/deploy-compute.sh --patch-viewer          # also sync index.html/app.js/chat.js/style.css
 #   ./scripts/deploy-compute.sh --patch-viewer holland nz-4weeks
 #
 # Optional env:
@@ -104,14 +104,47 @@ aws cloudformation deploy \
 if [[ "$PATCH_VIEWER" -eq 1 ]]; then
   echo "== patch viewer assets → s3://$ITINERARIES_BUCKET =="
   for id in "${TRIPS[@]}"; do
-    for f in app.js chat.js style.css; do
+    for f in index.html app.js chat.js style.css; do
       src="internal/bundle/viewer/$f"
       [[ -f "$src" ]] || { echo "missing $src" >&2; exit 1; }
       ct="text/javascript; charset=utf-8"
       [[ "$f" == *.css ]] && ct="text/css; charset=utf-8"
-      aws s3 cp "$src" "s3://${ITINERARIES_BUCKET}/trips/${id}/bundle/${f}" \
+      [[ "$f" == *.html ]] && ct="text/html; charset=utf-8"
+      upload="$src"
+      if [[ "$f" == "index.html" ]]; then
+        # Preserve per-trip <title>/og meta (same rules as bundle.writeViewerIndex).
+        upload="$(mktemp)"
+        trip_json="$(mktemp)"
+        aws s3 cp "s3://${ITINERARIES_BUCKET}/trips/${id}/bundle/trip.json" "$trip_json"
+        python3 - "$src" "$upload" "$trip_json" <<'PY'
+import html, json, pathlib, sys
+src, dest, trip_path = map(pathlib.Path, sys.argv[1:4])
+t = json.loads(trip_path.read_text())
+page = (t.get("title") or t.get("trip") or "Trip").strip() or "Trip"
+if "itinerary" not in page.lower():
+    page = page + " Itinerary"
+desc = (t.get("description") or page).strip() or page
+meta = (
+    f"<title>{html.escape(page)}</title>\n"
+    f'  <meta name="description" content="{html.escape(desc)}" />\n'
+    f'  <meta property="og:title" content="{html.escape(page)}" />\n'
+    f'  <meta property="og:description" content="{html.escape(desc)}" />\n'
+    f'  <meta property="og:type" content="website" />'
+)
+base = src.read_text()
+out = base.replace("<title>Trip</title>", meta, 1)
+if out == base:
+    raise SystemExit("viewer index.html missing <title>Trip</title> placeholder")
+dest.write_text(out)
+PY
+        rm -f "$trip_json"
+      fi
+      aws s3 cp "$upload" "s3://${ITINERARIES_BUCKET}/trips/${id}/bundle/${f}" \
         --content-type "$ct" \
         --cache-control "private, max-age=60"
+      if [[ "$upload" != "$src" ]]; then
+        rm -f "$upload"
+      fi
     done
     echo "  patched $id"
   done

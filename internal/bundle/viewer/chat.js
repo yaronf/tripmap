@@ -7,7 +7,7 @@
   function loadPersonaStylesheet() {
     return new Promise((resolve, reject) => {
       // Persona Shadow DOM clones link[data-persona] from document.head.
-      const existing = document.head.querySelector('link[data-persona]');
+      const existing = document.head.querySelector("link[data-persona]");
       if (existing) {
         resolve();
         return;
@@ -57,9 +57,85 @@
     return Number.isFinite(n) && n > 0 ? n : i + 1;
   }
 
-  async function mountPersona() {
-    const root = document.getElementById("persona-root");
+  // Persona hard-codes header py-5 / footer py-4 utility classes; theme
+  // padding tokens do not override them. Inject compact rules into each
+  // ShadowRoot (Persona only clones the first link[data-persona]).
+  const COMPACT_CSS = `
+    .persona-widget-header {
+      padding: 0.35rem 0.65rem !important;
+      gap: 0.45rem !important;
+      min-height: 0 !important;
+    }
+    .persona-widget-footer:not(.persona-widget-footer--pill) {
+      padding: 0.25rem 0.5rem !important;
+    }
+    .persona-widget-composer:not(.persona-pill-composer) {
+      padding: 0.1rem 0 !important;
+      gap: 0.25rem !important;
+      align-items: center !important;
+    }
+    .persona-widget-body {
+      padding-top: 0.25rem !important;
+      padding-bottom: 0.25rem !important;
+    }
+    .persona-widget-messages {
+      gap: 0.4rem !important;
+      padding-top: 0.1rem !important;
+      padding-bottom: 0.1rem !important;
+    }
+    /* One-line composer; Persona's JS maxes at 3 rows otherwise. */
+    textarea[data-persona-composer-input],
+    textarea.persona-composer-textarea,
+    [data-persona-composer-input] {
+      height: 1.35rem !important;
+      min-height: 1.35rem !important;
+      max-height: 1.35rem !important;
+      line-height: 1.35rem !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+      overflow-y: auto !important;
+      resize: none !important;
+    }
+    /* Scroll-to-bottom FAB sits on the transcript; hide it in this dock. */
+    .persona-scroll-to-bottom-indicator,
+    [data-persona-scroll-to-bottom],
+    button.persona-scroll-to-bottom-indicator {
+      display: none !important;
+    }
+  `;
+
+  function injectCompactChrome(root) {
     if (!root) return;
+    const visit = (node) => {
+      if (!node) return;
+      if (node instanceof ShadowRoot) {
+        let style = node.querySelector("style[data-tripmap-compact]");
+        if (!style) {
+          style = document.createElement("style");
+          style.setAttribute("data-tripmap-compact", "");
+          node.appendChild(style);
+        }
+        style.textContent = COMPACT_CSS;
+        node.querySelectorAll("*").forEach((el) => {
+          if (el.shadowRoot) visit(el.shadowRoot);
+        });
+        return;
+      }
+      if (node.shadowRoot) visit(node.shadowRoot);
+      if (node.querySelectorAll) {
+        node.querySelectorAll("*").forEach((el) => {
+          if (el.shadowRoot) visit(el.shadowRoot);
+        });
+      }
+    };
+    visit(root);
+  }
+
+  async function mountPersona() {
+    const host = document.getElementById("persona-dock-host");
+    const detailChat = document.getElementById("detail-chat");
+    const toggle = document.getElementById("btn-chat-toggle");
+    if (!host || !detailChat) return;
 
     await loadPersonaStylesheet();
     const AW = await loadScript(PERSONA_JS);
@@ -69,32 +145,82 @@
 
     const apiUrl = new URL("api/chat", window.location.href).pathname;
 
-    // Persona floating panel height is min(640, innerHeight-64) minus heightOffset.
-    // Offset by 30% of that base so the open panel is ~70% of the default height.
-    function floatingHeightOffset() {
-      const base = Math.min(640, Math.max(200, window.innerHeight - 64));
-      return Math.round(base * 0.3);
-    }
-
-    AW.initAgentWidget({
-      target: root,
+    // Dock is left/right only; we size #detail-chat vertically and fill that
+    // pane with a 100%-wide dock (empty content column + full chat panel).
+    const controller = AW.initAgentWidget({
+      target: host,
       useShadowDom: true,
       config: {
         apiUrl,
-        // Disable Persona default starter chips ("Show me what you can help…").
         suggestionChips: [],
+        colorScheme: "light",
+        // Hide the "Online" / connection chip under the composer.
+        statusIndicator: { visible: false },
+        features: {
+          // Floating ↓ over the transcript steals space in the short dock.
+          scrollToBottom: { enabled: false },
+        },
+        layout: {
+          header: {
+            showSubtitle: false,
+          },
+        },
         launcher: {
           enabled: true,
-          mountMode: "floating",
-          position: "bottom-right",
+          mountMode: "docked",
+          dock: {
+            side: "right",
+            width: "100%",
+            animate: false,
+            reveal: "resize",
+            maxHeight: false,
+          },
           title: "Trip assistant",
           subtitle: "Nudge this itinerary",
-          heightOffset: floatingHeightOffset(),
+          agentIconName: "bot",
+          headerIconName: "bot",
+          agentIconSize: "28px",
+          headerIconSize: "28px",
+          closeButtonSize: "28px",
         },
         theme: {
           semantic: {
             colors: {
               accent: "#0f5c5c",
+              primary: "#0f5c5c",
+              surface: "#f3efe6",
+              background: "#f3efe6",
+              text: "#1a1f1c",
+              textMuted: "#5c635c",
+              border: "rgba(26, 31, 28, 0.12)",
+            },
+          },
+          components: {
+            panel: {
+              borderRadius: "0",
+            },
+            // Header defaults to palette primary (near-black); force cream chrome.
+            // Note: Persona also applies py-5/py-4 utility classes — see injectCompactChrome.
+            header: {
+              background: "#e6dfd0",
+              border: "rgba(26, 31, 28, 0.12)",
+              borderRadius: "0",
+              iconBackground: "#0f5c5c",
+              iconForeground: "#f3efe6",
+              titleForeground: "#1a1f1c",
+              subtitleForeground: "#5c635c",
+              actionIconForeground: "#5c635c",
+            },
+            composer: {
+              padding: "0.2rem 0.35rem",
+              gap: "0.3rem",
+              shadow: "none",
+            },
+            input: {
+              padding: "0.35rem 0.55rem",
+            },
+            introCard: {
+              padding: "0.5rem",
             },
           },
         },
@@ -152,6 +278,52 @@
         },
       },
     });
+
+    const compactRoot = detailChat.parentElement || detailChat;
+    injectCompactChrome(compactRoot);
+    // Shadow roots may appear slightly after dock mount / first open.
+    requestAnimationFrame(() => injectCompactChrome(compactRoot));
+    setTimeout(() => injectCompactChrome(compactRoot), 200);
+
+    let syncing = false;
+    function setChatOpen(open, { fromWidget } = {}) {
+      const next = Boolean(open);
+      document.body.classList.toggle("chat-open", next);
+      detailChat.setAttribute("aria-hidden", next ? "false" : "true");
+      if (toggle) {
+        toggle.setAttribute("aria-pressed", String(next));
+        toggle.title = next ? "Close trip assistant" : "Trip assistant";
+      }
+      if (next) {
+        requestAnimationFrame(() => injectCompactChrome(compactRoot));
+      }
+      if (fromWidget || syncing) return;
+      syncing = true;
+      try {
+        if (next) controller.open();
+        else controller.close();
+      } finally {
+        syncing = false;
+      }
+    }
+
+    if (typeof controller?.on === "function") {
+      controller.on("widget:opened", () => setChatOpen(true, { fromWidget: true }));
+      controller.on("widget:closed", () => setChatOpen(false, { fromWidget: true }));
+    }
+
+    if (toggle) {
+      toggle.hidden = false;
+      toggle.addEventListener("click", () => {
+        setChatOpen(!document.body.classList.contains("chat-open"));
+      });
+    }
+
+    window.tripmap = window.tripmap || {};
+    window.tripmap.setChatOpen = (open) => setChatOpen(open);
+    window.tripmap.isChatOpen = () => document.body.classList.contains("chat-open");
+
+    setChatOpen(false);
   }
 
   async function maybeEnableChat() {

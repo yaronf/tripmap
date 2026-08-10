@@ -207,7 +207,7 @@ func buildSystemPrompt(card TripCard, day int) string {
 			fmt.Fprintf(&b, " — %s", title)
 		}
 		b.WriteString(".\n")
-		b.WriteString("When the user says \"this day\", \"today\", \"the current day\", \"here\", or similar, they ALWAYS mean this CURRENT VIEWER DAY (the day shown in the viewer), not day 1 and not a day inferred from chat history. Call get_day on that day number before editing it.\n")
+		b.WriteString("When the user says \"this day\", \"today\", \"the current day\", \"here\", or similar, they ALWAYS mean this CURRENT VIEWER DAY (the day shown in the viewer), not day 1 and not a day inferred from chat history. Call getTripYAML before editing that day when you need its current stops/notes.\n")
 	} else {
 		b.WriteString("\nCURRENT VIEWER DAY: unknown (client did not send day). Ask which day if needed.\n")
 	}

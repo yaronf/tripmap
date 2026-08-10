@@ -289,6 +289,21 @@ func TestCreatePutGetIdempotentPatch(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "version_id") {
 		t.Fatalf("versions = %s", rec.Body.String())
 	}
+	var versPayload struct {
+		Versions []struct {
+			VersionID string `json:"version_id"`
+		} `json:"versions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &versPayload); err != nil || len(versPayload.Versions) == 0 {
+		t.Fatalf("parse versions: %v body=%s", err, rec.Body.String())
+	}
+	vid := versPayload.Versions[0].VersionID
+	req = authReq(http.MethodGet, "/api/agent/trips/smoke-trip/versions/"+vid, "secret", nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "trip:") {
+		t.Fatalf("getVersion status=%d body=%s", rec.Code, rec.Body.String())
+	}
 
 	// schema
 	req = authReq(http.MethodGet, "/api/agent/schema", "secret", nil)

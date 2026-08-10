@@ -30,3 +30,11 @@ func TestCleanAssistantText_StripsStopsFiller(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestCleanAssistantText_StripsAnyMoreAssistance(t *testing.T) {
+	in := "Pacifica Kaimoana is on Day 12. If you need any more assistance, just let me know!"
+	got := cleanAssistantText(in)
+	if got != "Pacifica Kaimoana is on Day 12." {
+		t.Fatalf("got %q", got)
+	}
+}

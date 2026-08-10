@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/openai/openai-go/v3/responses"
+	"github.com/yaronf/tripmap/internal/itinerary"
 )
 
 type memOps struct {
@@ -27,13 +28,44 @@ func (m *memOps) SchemaJSON(context.Context) (json.RawMessage, error) {
 	return m.schema, nil
 }
 func (m *memOps) GetYAML(context.Context, string) ([]byte, error) { return m.yaml, nil }
+func (m *memOps) GetYAMLVersion(_ context.Context, _ string, versionID string) ([]byte, error) {
+	return []byte("trip: historical\nversion: " + versionID + "\n"), nil
+}
 func (m *memOps) GetDay(_ context.Context, _ string, day int) (DayDetail, error) {
 	return DayDetailFromYAML(m.yaml, day)
 }
 func (m *memOps) Patch(_ context.Context, _ string, patchJSON []byte) (PatchResult, error) {
 	m.patches++
 	m.lastPatch = append(json.RawMessage(nil), patchJSON...)
+	if len(m.yaml) > 0 {
+		trip, err := itinerary.ParseYAML(m.yaml)
+		if err != nil {
+			return PatchResult{}, err
+		}
+		var p itinerary.Patch
+		if err := json.Unmarshal(patchJSON, &p); err != nil {
+			return PatchResult{}, err
+		}
+		if err := itinerary.ApplyPatch(&trip, p); err != nil {
+			return PatchResult{}, err
+		}
+		out, err := itinerary.MarshalYAML(trip)
+		if err != nil {
+			return PatchResult{}, err
+		}
+		m.yaml = out
+	}
 	return PatchResult{ID: "t1", VersionID: "v1", BundleOK: true}, nil
+}
+
+func (m *memOps) ListVersions(context.Context, string) ([]VersionEntry, error) {
+	return []VersionEntry{
+		{VersionID: "v1", LastModified: "2026-08-10T12:00:00Z", IsLatest: true},
+	}, nil
+}
+
+func (m *memOps) RestoreVersion(_ context.Context, _ string, versionID string) (PatchResult, error) {
+	return PatchResult{ID: "t1", VersionID: "v2-from-" + versionID, BundleOK: true}, nil
 }
 
 func TestAgentToolLoopPatchesOnce(t *testing.T) {
@@ -47,8 +79,8 @@ func TestAgentToolLoopPatchesOnce(t *testing.T) {
 			"type":"function_call",
 			"id":"fc_1",
 			"call_id":"call1",
-			"name":"patch_trip",
-			"arguments":"{\"patch\":{\"update_day\":{\"day\":1,\"title\":\"New\"}}}"
+			"name":"patchTrip",
+			"arguments":"{\"update_day\":{\"day\":1,\"title\":\"New\"}}"
 		}]
 	}`), &callResp); err != nil {
 		t.Fatal(err)
@@ -112,7 +144,7 @@ func TestChatToolsIncludeWebSearch(t *testing.T) {
 		if tool.OfWebSearch != nil {
 			hasWeb = true
 		}
-		if tool.OfFunction != nil && tool.OfFunction.Name == "patch_trip" {
+		if tool.OfFunction != nil && tool.OfFunction.Name == "patchTrip" {
 			hasPatch = true
 		}
 	}

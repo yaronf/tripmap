@@ -7,8 +7,13 @@ import (
 
 const dateLayout = "2006-01-02"
 
-// ResolveDayDates fills missing day.Date values from trip.Start + (day-1).
-// Explicit per-day dates win. Dates are optional; empty stay empty.
+// ResolveDayDates sets each day's Date for display/bundle use.
+//
+// When trip.Start is set, dates are always derived as start + (day − 1).
+// Stored per-day date values are ignored (they are not persisted when Start
+// is set; see stripDerivedDayDates).
+//
+// When Start is empty, optional explicit per-day dates are validated and kept.
 func ResolveDayDates(t *Trip) error {
 	var start time.Time
 	var hasStart bool
@@ -23,18 +28,32 @@ func ResolveDayDates(t *Trip) error {
 
 	for i := range t.Days {
 		d := &t.Days[i]
-		if d.Date != "" {
-			if _, err := time.Parse(dateLayout, d.Date); err != nil {
-				return fmt.Errorf("day %d date %q: use YYYY-MM-DD", d.Day, d.Date)
+		if hasStart {
+			if d.Day < 1 {
+				continue
 			}
+			d.Date = start.AddDate(0, 0, d.Day-1).Format(dateLayout)
 			continue
 		}
-		if !hasStart || d.Day < 1 {
+		if d.Date == "" {
 			continue
 		}
-		d.Date = start.AddDate(0, 0, d.Day-1).Format(dateLayout)
+		if _, err := time.Parse(dateLayout, d.Date); err != nil {
+			return fmt.Errorf("day %d date %q: use YYYY-MM-DD", d.Day, d.Date)
+		}
 	}
 	return nil
+}
+
+// stripDerivedDayDates clears per-day Date when trip.Start is set so YAML
+// does not persist values that must stay derived from Start + day number.
+func stripDerivedDayDates(t *Trip) {
+	if t == nil || t.Start == "" {
+		return
+	}
+	for i := range t.Days {
+		t.Days[i].Date = ""
+	}
 }
 
 // FormatDayDateShort returns a compact calendar label, e.g. "22 Jun".

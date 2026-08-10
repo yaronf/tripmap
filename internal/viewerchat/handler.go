@@ -102,21 +102,39 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, tripID strin
 	}()
 	defer close(stopPing)
 
+	lastUser := ""
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if strings.EqualFold(msgs[i].Role, "user") {
+			lastUser = msgs[i].Content
+			break
+		}
+	}
+	log.Printf("viewerchat turn trip=%s day=%d msgs=%d user=%q", tripID, day, len(msgs), truncateRunes(lastUser, 120))
+
 	res, err := h.Agent.run(r.Context(), TurnInput{
 		TripID:   tripID,
 		Messages: msgs,
 		Day:      day,
 	}, sw.send)
 	if err != nil {
-		log.Printf("viewerchat trip=%s: %v", tripID, err)
+		log.Printf("viewerchat trip=%s day=%d err=%v", tripID, day, err)
 		_ = sw.send(Event{Type: "error", Error: err.Error()})
 		_ = sw.send(Event{Type: "done", Done: true})
 		return
 	}
+	log.Printf("viewerchat done trip=%s day=%d trip_updated=%v", tripID, day, res.TripUpdated)
 	if res.TripUpdated {
 		_ = sw.send(Event{Type: "trip_updated"})
 	}
 	_ = sw.send(Event{Type: "done", Done: true})
+}
+
+func truncateRunes(s string, max int) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= max {
+		return string(r)
+	}
+	return string(r[:max]) + "…"
 }
 
 func normalizeMessages(in []clientMsg) ([]ClientMessage, error) {

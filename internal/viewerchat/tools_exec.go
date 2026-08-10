@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 )
@@ -17,33 +18,74 @@ type toolHandler func(ctx context.Context, a *Agent, tripID, argsJSON string) (t
 
 func toolHandlers() map[string]toolHandler {
 	return map[string]toolHandler{
-		"get_trip_summary": handleGetTripSummary,
-		"get_schema":       handleGetSchema,
-		"get_trip_yaml":    handleGetTripYAML,
-		"get_day":          handleGetDay,
-		"set_day_photo":    handleSetDayPhoto,
-		"patch_trip":       handlePatchTrip,
+		"getSchema":      handleGetSchema,
+		"getTrip":        handleGetTrip,
+		"getTripYAML":    handleGetTripYAML,
+		"setDayPhoto":    handleSetDayPhoto,
+		"listVersions":   handleListVersions,
+		"getVersion":     handleGetVersion,
+		"restoreVersion": handleRestoreVersion,
+		"patchTrip":      handlePatchTrip,
 	}
 }
 
 func (a *Agent) execTool(ctx context.Context, tripID, name, argsJSON string) (string, bool, error) {
 	h, ok := toolHandlers()[name]
 	if !ok {
-		return "", false, fmt.Errorf("unknown tool %q", name)
+		err := fmt.Errorf("unknown tool %q", name)
+		logToolCall(tripID, name, argsJSON, false, err)
+		return "", false, err
 	}
 	res, err := h(ctx, a, tripID, argsJSON)
 	if err != nil {
+		logToolCall(tripID, name, argsJSON, false, err)
 		return "", false, err
 	}
+	logToolCall(tripID, name, argsJSON, res.Mutated, nil)
 	return res.Content, res.Mutated, nil
 }
 
-func handleGetTripSummary(ctx context.Context, a *Agent, tripID, _ string) (toolResult, error) {
+func logToolCall(tripID, name, argsJSON string, mutated bool, err error) {
+	args := compactJSONForLog(argsJSON, 400)
+	if err != nil {
+		log.Printf("viewerchat tool trip=%s name=%s mutated=false err=%v args=%s", tripID, name, err, args)
+		return
+	}
+	log.Printf("viewerchat tool trip=%s name=%s mutated=%v args=%s", tripID, name, mutated, args)
+}
+
+func compactJSONForLog(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "{}"
+	}
+	var raw any
+	if json.Unmarshal([]byte(s), &raw) == nil {
+		if b, err := json.Marshal(raw); err == nil {
+			s = string(b)
+		}
+	}
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) > max {
+		return s[:max] + "…"
+	}
+	return s
+}
+
+func handleGetTrip(ctx context.Context, a *Agent, tripID, _ string) (toolResult, error) {
 	card, err := a.ops.Summary(ctx, tripID)
 	if err != nil {
 		return toolResult{}, err
 	}
-	b, err := json.Marshal(card)
+	out := map[string]any{
+		"id":             tripID,
+		"schema_version": card.SchemaVersion,
+		"trip":           card.Title,
+		"description":    card.Description,
+		"start":          card.Start,
+		"days":           card.Days,
+	}
+	b, err := json.Marshal(out)
 	return toolResult{Content: string(b)}, err
 }
 
@@ -66,21 +108,6 @@ func handleGetTripYAML(ctx context.Context, a *Agent, tripID, _ string) (toolRes
 	return toolResult{Content: string(body)}, nil
 }
 
-func handleGetDay(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
-	var args struct {
-		Day int `json:"day"`
-	}
-	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil || args.Day < 1 {
-		return toolResult{}, fmt.Errorf("get_day requires {\"day\": <1-based day number>}")
-	}
-	day, err := a.ops.GetDay(ctx, tripID, args.Day)
-	if err != nil {
-		return toolResult{}, err
-	}
-	b, err := json.Marshal(day)
-	return toolResult{Content: string(b)}, err
-}
-
 func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
 	var args struct {
 		Day          int    `json:"day"`
@@ -89,7 +116,7 @@ func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (
 		PhotoCaption string `json:"photo_caption"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
-		return toolResult{}, fmt.Errorf("invalid set_day_photo args: %w", err)
+		return toolResult{}, fmt.Errorf("invalid setDayPhoto args: %w", err)
 	}
 	if args.Day < 1 {
 		return toolResult{}, fmt.Errorf("day must be >= 1")
@@ -129,10 +156,10 @@ func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (
 		got = strings.TrimSpace(day.Photo)
 	}
 	if photoIdentity(got) != photoIdentity(final) {
-		return toolResult{}, fmt.Errorf("set_day_photo did not persist: day %d photo is %q", args.Day, got)
+		return toolResult{}, fmt.Errorf("setDayPhoto did not persist: day %d photo is %q", args.Day, got)
 	}
 	if prev != "" && photoIdentity(prev) == photoIdentity(final) {
-		return toolResult{}, fmt.Errorf("photo unchanged (still %s); try set_day_photo with a different query", sourceTitle)
+		return toolResult{}, fmt.Errorf("photo unchanged (still %s); try setDayPhoto with a different query", sourceTitle)
 	}
 	out := map[string]any{
 		"ok":         true,
@@ -153,17 +180,76 @@ func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (
 	return toolResult{Content: string(b), Mutated: true}, err
 }
 
+func handleListVersions(ctx context.Context, a *Agent, tripID, _ string) (toolResult, error) {
+	vers, err := a.ops.ListVersions(ctx, tripID)
+	if err != nil {
+		return toolResult{}, err
+	}
+	b, err := json.Marshal(map[string]any{
+		"id":       tripID,
+		"versions": vers,
+		"count":    len(vers),
+	})
+	return toolResult{Content: string(b)}, err
+}
+
+func handleGetVersion(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
+	var args struct {
+		VersionID string `json:"version_id"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return toolResult{}, fmt.Errorf("invalid getVersion args: %w", err)
+	}
+	if strings.TrimSpace(args.VersionID) == "" {
+		return toolResult{}, fmt.Errorf("version_id is required")
+	}
+	body, err := a.ops.GetYAMLVersion(ctx, tripID, args.VersionID)
+	if err != nil {
+		return toolResult{}, err
+	}
+	if len(body) > maxYAMLToolBytes {
+		return toolResult{Content: string(body[:maxYAMLToolBytes]) + "\n…[truncated]"}, nil
+	}
+	return toolResult{Content: string(body)}, nil
+}
+
+func handleRestoreVersion(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
+	var args struct {
+		VersionID string `json:"version_id"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return toolResult{}, fmt.Errorf("invalid restoreVersion args: %w", err)
+	}
+	if strings.TrimSpace(args.VersionID) == "" {
+		return toolResult{}, fmt.Errorf("version_id is required")
+	}
+	res, err := a.ops.RestoreVersion(ctx, tripID, args.VersionID)
+	if err != nil {
+		return toolResult{}, err
+	}
+	out := map[string]any{
+		"ok":            true,
+		"id":            res.ID,
+		"version_id":    res.VersionID,
+		"bundle_ok":     res.BundleOK,
+		"restored_from": strings.TrimSpace(args.VersionID),
+	}
+	b, err := json.Marshal(out)
+	return toolResult{Content: string(b), Mutated: true}, err
+}
+
 func handlePatchTrip(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
 	var wrap struct {
 		Patch json.RawMessage `json:"patch"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &wrap); err != nil {
-		return toolResult{}, fmt.Errorf("invalid patch_trip args: %w", err)
+		return toolResult{}, fmt.Errorf("invalid patchTrip args: %w", err)
 	}
-	if len(wrap.Patch) == 0 {
-		wrap.Patch = json.RawMessage(argsJSON)
+	patch := wrap.Patch
+	if len(patch) == 0 {
+		patch = json.RawMessage(argsJSON)
 	}
-	rewritten, err := rewritePhotoURLsInPatch(ctx, wrap.Patch)
+	rewritten, err := rewritePhotoURLsInPatch(ctx, patch)
 	if err != nil {
 		return toolResult{}, err
 	}
@@ -171,7 +257,6 @@ func handlePatchTrip(ctx context.Context, a *Agent, tripID, argsJSON string) (to
 	if err != nil {
 		return toolResult{}, err
 	}
-	// Domain invariants (e.g. remove_stop must remove) live in itinerary.ApplyPatch.
 	out := map[string]any{
 		"ok":         true,
 		"id":         res.ID,

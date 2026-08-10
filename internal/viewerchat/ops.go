@@ -45,13 +45,23 @@ type PatchResult struct {
 	BundleOK  bool   `json:"bundle_ok"`
 }
 
+// VersionEntry is one prior YAML revision (S3 object version).
+type VersionEntry struct {
+	VersionID    string `json:"version_id"`
+	LastModified string `json:"last_modified,omitempty"` // RFC3339
+	IsLatest     bool   `json:"is_latest,omitempty"`
+}
+
 // TripOps is the in-process trip surface chat tools call (scoped by trip ID).
 type TripOps interface {
 	Summary(ctx context.Context, tripID string) (TripCard, error)
 	SchemaJSON(ctx context.Context) (json.RawMessage, error)
 	GetYAML(ctx context.Context, tripID string) ([]byte, error)
+	GetYAMLVersion(ctx context.Context, tripID, versionID string) ([]byte, error)
 	GetDay(ctx context.Context, tripID string, day int) (DayDetail, error)
 	Patch(ctx context.Context, tripID string, patchJSON []byte) (PatchResult, error)
+	ListVersions(ctx context.Context, tripID string) ([]VersionEntry, error)
+	RestoreVersion(ctx context.Context, tripID, versionID string) (PatchResult, error)
 }
 
 // DayDetailFromYAML builds a DayDetail for a 1-based day number.

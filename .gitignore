@@ -7,3 +7,4 @@
 .env.*
 !.env.example
 /tmp/
+/api/openapi.http.yaml

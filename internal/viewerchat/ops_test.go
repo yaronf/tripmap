@@ -30,8 +30,8 @@ days:
 func TestToolHandlersCoverOpenAPI(t *testing.T) {
 	h := toolHandlers()
 	for _, name := range []string{
-		"get_trip_summary", "get_schema", "get_trip_yaml",
-		"get_day", "set_day_photo", "patch_trip",
+		"getSchema", "getTrip", "getTripYAML", "setDayPhoto",
+		"listVersions", "getVersion", "restoreVersion", "patchTrip",
 	} {
 		if h[name] == nil {
 			t.Fatalf("missing handler %s", name)

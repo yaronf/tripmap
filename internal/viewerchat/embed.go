@@ -8,13 +8,11 @@ import (
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/yaronf/mcpopenapi"
+	"github.com/yaronf/tripmap/api"
 )
 
 //go:embed prompt.txt
 var systemPromptBase string
-
-//go:embed tools.openapi.yaml
-var toolsOpenAPI []byte
 
 var (
 	chatToolsOnce   sync.Once
@@ -23,7 +21,10 @@ var (
 )
 
 func loadChatFunctionTools() ([]responses.ToolUnionParam, error) {
-	schemas, err := mcpopenapi.ParseToolSchemas(toolsOpenAPI, "")
+	schemas, err := mcpopenapi.ParseToolSchemasOpts([]byte(api.OpenAPIYAML), mcpopenapi.ParseOptions{
+		Audience:           "chat",
+		IncludeUnannotated: mcpopenapi.Bool(false),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +36,9 @@ func loadChatFunctionTools() ([]responses.ToolUnionParam, error) {
 				"type":       "object",
 				"properties": map[string]any{},
 			}
+		} else {
+			params = cloneSchemaMap(params)
+			stripSessionBoundArgs(params)
 		}
 		desc := s.Description
 		out = append(out, responses.ToolUnionParam{
@@ -47,6 +51,64 @@ func loadChatFunctionTools() ([]responses.ToolUnionParam, error) {
 		})
 	}
 	return out, nil
+}
+
+func stripSessionBoundArgs(schema map[string]any) {
+	props, _ := schema["properties"].(map[string]any)
+	if props != nil {
+		delete(props, "id")
+		delete(props, "Idempotency-Key")
+	}
+	switch req := schema["required"].(type) {
+	case []string:
+		filtered := req[:0]
+		for _, r := range req {
+			if r == "id" || r == "Idempotency-Key" {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		if len(filtered) == 0 {
+			delete(schema, "required")
+		} else {
+			schema["required"] = filtered
+		}
+	case []any:
+		filtered := make([]any, 0, len(req))
+		for _, r := range req {
+			s, _ := r.(string)
+			if s == "id" || s == "Idempotency-Key" {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		if len(filtered) == 0 {
+			delete(schema, "required")
+		} else {
+			schema["required"] = filtered
+		}
+	}
+}
+
+func cloneSchemaMap(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		switch t := v.(type) {
+		case map[string]any:
+			out[k] = cloneSchemaMap(t)
+		case []any:
+			cp := make([]any, len(t))
+			copy(cp, t)
+			out[k] = cp
+		case []string:
+			cp := make([]string, len(t))
+			copy(cp, t)
+			out[k] = cp
+		default:
+			out[k] = v
+		}
+	}
+	return out
 }
 
 func chatTools() []responses.ToolUnionParam {

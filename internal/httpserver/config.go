@@ -47,7 +47,7 @@ func LoadConfig() (Config, error) {
 		HelloRedirectURI:   strings.TrimSpace(os.Getenv("HELLO_REDIRECT_URI")),
 		HelloSessionSecret: strings.TrimSpace(os.Getenv("HELLO_SESSION_SECRET")),
 		OpenAIAPIKey:       resolveOpenAIAPIKey(),
-		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-4o-mini"),
+		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-4o"),
 	}
 	if v := os.Getenv("MAX_YAML_BYTES"); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)

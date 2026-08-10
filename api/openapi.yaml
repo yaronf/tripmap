@@ -1,13 +1,14 @@
 openapi: 3.1.0
 info:
   title: tripmap agent API
-  version: 0.4.1
+  version: 0.4.2
   description: |
     Authenticated itinerary API (MCP tools + optional REST). Schema v2: places
     catalog plus day route/stops as place refs. Notes are human-authored —
     put enrichment in places.id.info, not notes (usage rule, not enforced).
     Use update_day to change a day's title/notes/hike/ferry when the user asks.
     Human viewers sign in with Hellō, then use /me/trips/{id}/ (no capability tokens).
+    Operations may set x-audiences (mcp and/or chat); viewer chat loads audience=chat only.
 servers:
   - url: "{{BASE_URL}}"
 paths:
@@ -27,6 +28,7 @@ paths:
     get:
       operationId: getSchema
       summary: Itinerary schema and version
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       responses:
@@ -83,6 +85,7 @@ paths:
     get:
       operationId: getTrip
       summary: Trip summary
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -103,7 +106,8 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day. Do not put enrichment in notes.
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day. Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -134,6 +138,7 @@ paths:
     get:
       operationId: getTripYAML
       summary: Get raw YAML
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -183,6 +188,7 @@ paths:
     get:
       operationId: listVersions
       summary: List YAML versions
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -198,10 +204,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VersionList"
+  /api/agent/trips/{id}/versions/{version_id}:
+    get:
+      operationId: getVersion
+      summary: Get YAML for a prior version
+      description: |
+        Read-only fetch of a historical revision. Call listVersions first.
+        Prefer this over restoreVersion when inspecting history.
+      x-audiences: [mcp, chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: YAML document for that version
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: Not found
   /api/agent/trips/{id}/restore:
     post:
       operationId: restoreVersion
       summary: Restore a prior YAML version
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -228,6 +265,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MutateResult"
+  /api/chat/trips/{id}/day/photo:
+    post:
+      operationId: setDayPhoto
+      summary: Set a day's hero photo via Commons query or photo URL
+      description: |
+        Viewer-chat only. Prefer query (Commons search). When replacing a photo,
+        pass query again — the server skips the day's current image. Returns the
+        new photo URL in tool JSON only (do not paste it into chat).
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day]
+              properties:
+                day:
+                  type: integer
+                  description: 1-based day number
+                query:
+                  type: string
+                  description: Commons search query when you do not have a URL yet
+                photo:
+                  type: string
+                  description: Optional direct https image URL or Commons File URL
+                photo_caption:
+                  type: string
+                  description: Short caption for the photo
+      responses:
+        "200":
+          description: ok with day photo fields
 components:
   schemas:
     Health:
@@ -294,7 +371,8 @@ components:
       type: object
       description: |
         One or more structured ops. Prefer update_day for day narrative and
-        places.<id>.info for enrichment.
+        places.<id>.info for enrichment. Day calendar dates are derived from
+        trip.start + (day − 1) when start is set — do not patch per-day dates.
       properties:
         swap_days:
           type: array

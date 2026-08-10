@@ -14,8 +14,11 @@ var (
 	// Common GPT closing fluff (applied case-insensitively).
 	fillerCloseRes = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\s*If you need more information or want to adjust any stops, let me know!?\.?\s*$`),
-		regexp.MustCompile(`(?i)\s*If you need any further (help|assistance|adjustments)[^.?!]*[.?!]\s*$`),
+		regexp.MustCompile(`(?i)\s*If you need any (further|more) (help|assistance|adjustments)[^.?!]*[.?!]\s*$`),
+		regexp.MustCompile(`(?i)\s*If you need[^.?!]*(let me know|feel free)[^.?!]*[.?!]\s*$`),
+		regexp.MustCompile(`(?i)\s*If (there's|there is|you('d| would)? like) anything else[^.?!]*[.?!]\s*$`),
 		regexp.MustCompile(`(?i)\s*Let me know if (there's|there is|you need|you'd like|you would like)[^.?!]*[.?!]\s*$`),
+		regexp.MustCompile(`(?i)\s*(Just )?let me know[!?.]*\s*$`),
 		regexp.MustCompile(`(?i)\s*Feel free to (let me know|ask)[^.?!]*[.?!]\s*$`),
 	}
 )

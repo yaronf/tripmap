@@ -12,8 +12,6 @@
   --sans: "Source Sans 3", "Noto Sans", system-ui, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* Clearance for Persona's fixed bottom-right launcher when chat is enabled. */
-  --chat-fab-clearance: 5.5rem;
 }
 
 *,
@@ -40,20 +38,7 @@ body {
   min-height: 100%;
 }
 
-/* Zero-size host: floating Persona UI is position:fixed inside Shadow DOM.
-   Keep pointer-events on so the shadow tree can receive input; 0×0 does not
-   block the page. */
-#persona-root {
-  position: fixed;
-  inset: auto 0 0 auto;
-  width: 0;
-  height: 0;
-  margin: 0;
-  padding: 0;
-  overflow: visible;
-  flex: none;
-  z-index: 50;
-}
+/* Persona docks inside the detail column (split below day body). */
 
 .chrome {
   display: flex;
@@ -195,14 +180,99 @@ body {
 }
 
 .detail {
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   border-left: 1px solid var(--rule);
   background: rgba(255, 255, 255, 0.45);
-  padding: 1rem 1.1rem calc(1.25rem + var(--safe-bottom));
 }
 
-body.chat-enabled .detail {
-  padding-bottom: calc(1.25rem + var(--safe-bottom) + var(--chat-fab-clearance));
+.chat-toggle {
+  display: none;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: rgba(243, 239, 230, 0.9);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+body.chat-enabled .chat-toggle {
+  display: inline-flex;
+}
+
+.chat-toggle:hover,
+.chat-toggle:focus-visible {
+  border-color: rgba(15, 92, 92, 0.35);
+  outline: none;
+}
+
+.chat-toggle[aria-pressed="true"] {
+  background: var(--accent);
+  color: #f3efe6;
+  border-color: var(--accent);
+}
+
+.chat-toggle-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.chat-toggle-label {
+  line-height: 1;
+}
+
+.detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.65rem 1.1rem calc(1.25rem + var(--safe-bottom));
+}
+
+body.chat-open .detail-body {
+  padding-bottom: 1rem;
+}
+
+/* Lower pane for Persona (collapsed until body.chat-open). */
+.detail-chat {
+  flex: 0 0 0;
+  min-height: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  border-top: 1px solid transparent;
+  background: rgba(243, 239, 230, 0.65);
+}
+
+body.chat-open .detail-chat {
+  flex: 0 0 50%;
+  min-height: 11rem;
+  max-height: none;
+  opacity: 1;
+  pointer-events: auto;
+  border-top-color: var(--rule);
+}
+
+.detail-chat,
+.detail-chat > [data-persona-host-layout],
+.persona-dock-host {
+  height: 100%;
+  min-height: 0;
+}
+
+.persona-dock-host {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .detail-micro {
@@ -646,6 +716,15 @@ body.chat-enabled .detail {
     display: inline-flex;
   }
 
+  /* Keep Ask compact next to Days / List|Map. */
+  .chat-toggle-label {
+    display: none;
+  }
+
+  .chat-toggle {
+    padding: 0.28rem;
+  }
+
   .detail-micro {
     display: none;
   }
@@ -745,11 +824,23 @@ body.chat-enabled .detail {
     border-top: 1px solid var(--rule);
     border-radius: 12px 12px 0 0;
     box-shadow: 0 -8px 24px rgba(26, 31, 28, 0.08);
+  }
+
+  body.chat-open.mode-map .detail {
+    max-height: 72%;
+  }
+
+  body.mode-map .detail-body {
     padding-bottom: calc(1rem + var(--safe-bottom));
   }
 
-  body.chat-enabled.mode-map .detail {
-    padding-bottom: calc(1rem + var(--safe-bottom) + var(--chat-fab-clearance));
+  body.chat-open.mode-map .detail-body {
+    padding-bottom: 0.75rem;
+  }
+
+  body.chat-open.mode-map .detail-chat {
+    flex-basis: 50%;
+    min-height: 9.5rem;
   }
 
   body.mode-map .app {

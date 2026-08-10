@@ -9,8 +9,8 @@ Let signed-in viewers nudge the open itinerary from the PWA without switching to
 
 ## Locked decisions
 
-- **UI:** [Persona](https://www.persona-chat.dev/) (`@runtypelabs/persona`) — vanilla JS, **floating** launcher (not docked). No React / no assistant-ui.
-- **Viewer:** keep vanilla [`internal/bundle/viewer/app.js`](../internal/bundle/viewer/app.js); mount Persona with `initAgentWidget` + Shadow DOM. Load Persona CSS as `link[data-persona]` (cloned into the shadow root). Host `#persona-root` is zero-size / fixed so it does not steal flex height from `.app`. Day-nav keys must ignore Shadow DOM focus via `composedPath`.
+- **UI:** [Persona](https://www.persona-chat.dev/) (`@runtypelabs/persona`) — vanilla JS, **docked into the detail column** (vertical split: day body above, chat below when open). No floating FAB; open/close from the detail-chrome **Ask** toggle (robot icon). No React / no assistant-ui.
+- **Viewer:** keep vanilla [`internal/bundle/viewer/app.js`](../internal/bundle/viewer/app.js); mount Persona with `initAgentWidget` + Shadow DOM into `#persona-dock-host` inside `#detail-chat`. Load Persona CSS as `link[data-persona]` (cloned into the shadow root). `#detail` is a column flex; `#detail-body` and `#detail-chat` scroll independently. Day-nav keys/swipes must ignore Shadow DOM / chat pane via `composedPath`.
 - **No Vercel** hosting or Vercel AI SDK.
 - **OpenAI:** official **Go SDK** in `tripmapd` only; key from env/Secrets Manager (`OPENAI_API_KEY` / `OPENAI_SECRET_JSON`), never in the browser.
 - **Agent API (v1.1):** prefer **Responses API** with hosted `{ "type": "web_search" }` (text + **image** results) plus custom function tools for itinerary ops. Chat Completions alone cannot host `web_search` with image results.
@@ -28,7 +28,7 @@ Let signed-in viewers nudge the open itinerary from the PWA without switching to
 ```mermaid
 flowchart LR
   viewer[vanilla viewer]
-  persona[Persona floating]
+  persona[Persona detail split]
   chatAPI["POST /me/trips/id/api/chat SSE"]
   pkg[internal/viewerchat]
   openai[OpenAI Responses API]
@@ -49,14 +49,14 @@ Most logic lives in [`internal/viewerchat`](../internal/viewerchat); `httpserver
 
 1. **Config:** `OPENAI_API_KEY` / `OPENAI_SECRET_JSON`, `OPENAI_MODEL`, chat allowlist. Secrets Manager `tripmap/openai` (created out-of-band); data stack exports ARN + grants task execution role read.
 2. **Route:** `POST /me/trips/{id}/api/chat` under session trip gate (`handleSessionTrip`). API paths return 401 JSON (not login redirect).
-3. **Agent loop (v1.1):** Responses API; tools = hosted `web_search` + function tools from embedded [`tools.openapi.yaml`](../internal/viewerchat/tools.openapi.yaml) via [`mcpopenapi.ParseToolSchemas`](https://github.com/yaronf/mcpopenapi) (`get_trip_summary` / `get_schema` / `get_trip_yaml` / `get_day` / `set_day_photo` / `patch_trip`), scoped to `{id}`. System prompt is embedded [`prompt.txt`](../internal/viewerchat/prompt.txt).
+3. **Agent loop (v1.1):** Responses API; tools = hosted `web_search` + function tools from [`api/openapi.yaml`](../api/openapi.yaml) filtered with `x-audiences: chat` via [`mcpopenapi.ParseToolSchemasOpts`](https://github.com/yaronf/mcpopenapi) (`getSchema` / `getTrip` / `getTripYAML` / `setDayPhoto` / `listVersions` / `getVersion` / `restoreVersion` / `patchTrip`), scoped to `{id}`. System prompt is embedded [`prompt.txt`](../internal/viewerchat/prompt.txt).
 4. **After successful patch:** emit `trip_updated` SSE so the viewer reloads `trip.json`.
 5. **Security:** signed-in session **plus** chat allowlist; 503 if OpenAI unset; cap message size / tool iterations.
 
 ## Frontend
 
 1. Persona via CDN (`index.global.js` + `widget.css` with `data-persona`); [`chat.js`](../internal/bundle/viewer/chat.js) mounts only when `/auth/me` has `chat_enabled`.
-2. Floating launcher; `customFetch` + `parseSSEEvent`; pass current day in context.
+2. Docked fill of `#detail-chat` (100% dock width + CSS vertical split on `body.chat-open`); detail-chrome toggle; paper/teal theme tokens; `customFetch` + `parseSSEEvent`; pass current day in context.
 3. On `trip_updated`, `window.tripmap.reloadTrip()`.
 
 ## Docs / ops
@@ -67,7 +67,7 @@ Most logic lives in [`internal/viewerchat`](../internal/viewerchat); `httpserver
 ## Implementation todos
 
 1. [x] `internal/viewerchat` (+ thin session-authed route): tool loop over itinerary ops; SSE; chat allowlist.
-2. [x] Mount Persona **floating** widget; credentials include; reload trip on patch; layout/keyboard fixes for Shadow DOM.
+2. [x] Mount Persona in detail-column split; credentials include; reload trip on patch; layout/keyboard fixes for Shadow DOM.
 3. [x] Config/secret wiring, docs/TODO; dark-ship without key.
 4. [x] **v1.1:** Responses API + `web_search` / `web_search_preview` (text + images); prompt for research + photo URL selection; itinerary function tools; tests; image `chat-web-20260809202725` deployed.
 

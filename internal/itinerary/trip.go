@@ -80,7 +80,9 @@ type Stop struct {
 // approaches with straight-line trail segments.
 type Day struct {
 	Day          int    `yaml:"day" json:"day"`
-	Date         string `yaml:"date,omitempty" json:"date,omitempty"` // YYYY-MM-DD; optional, or derived from trip.start
+	// Date is YYYY-MM-DD. When trip.Start is set this is derived at read time
+	// (start + day − 1) and not persisted in YAML.
+	Date         string `yaml:"date,omitempty" json:"date,omitempty"`
 	Title        string `yaml:"title" json:"title"`
 	Route        []Stop `yaml:"route,omitempty" json:"route,omitempty"`
 	Stops        []Stop `yaml:"stops,omitempty" json:"stops,omitempty"`
@@ -96,8 +98,9 @@ type Trip struct {
 	SchemaVersion int              `yaml:"schema_version,omitempty" json:"schema_version,omitempty"`
 	Trip          string           `yaml:"trip" json:"trip"`
 	Description   string           `yaml:"description,omitempty" json:"description,omitempty"`
-	// Start is an optional trip start date (YYYY-MM-DD). When set, days
-	// without an explicit date get start + (day number − 1).
+	// Start is an optional trip start date (YYYY-MM-DD). When set, each day's
+	// calendar date is always start + (day number − 1); per-day date in YAML
+	// is ignored and stripped on write.
 	Start  string           `yaml:"start,omitempty" json:"start,omitempty"`
 	Places map[string]Place `yaml:"places,omitempty" json:"places,omitempty"`
 	Days   []Day            `yaml:"days" json:"days"`

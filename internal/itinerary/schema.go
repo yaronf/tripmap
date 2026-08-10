@@ -19,7 +19,15 @@ func ParseYAML(b []byte) (Trip, error) {
 }
 
 // MarshalYAML encodes a trip as YAML with a trailing newline.
+// When trip.Start is set, per-day date fields are omitted (derived at read time).
 func MarshalYAML(t Trip) ([]byte, error) {
+	// Copy days so clearing Date does not mutate the caller's slice backing array.
+	if t.Start != "" && len(t.Days) > 0 {
+		days := make([]Day, len(t.Days))
+		copy(days, t.Days)
+		t.Days = days
+		stripDerivedDayDates(&t)
+	}
 	b, err := yaml.Marshal(&t)
 	if err != nil {
 		return nil, err

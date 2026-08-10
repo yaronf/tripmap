@@ -68,7 +68,7 @@ Places are defined once and referenced by id. Days use `place:` refs (optional d
 schema_version: 2
 trip: Netherlands 2026
 description: Two-week road trip
-start: "2026-06-22"          # optional; day dates = start + (day − 1)
+start: "2026-06-22"          # optional; day dates always = start + (day − 1); not stored per day
 
 places:
   amsterdam:

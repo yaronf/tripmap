@@ -12,7 +12,7 @@ require (
 	github.com/golang/geo v0.0.0-20260713102120-857a528af641
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/openai/openai-go/v3 v3.50.0
-	github.com/yaronf/mcpopenapi v0.2.0
+	github.com/yaronf/mcpopenapi v0.3.0
 	golang.org/x/oauth2 v0.35.0
 	gopkg.in/yaml.v3 v3.0.1
 )

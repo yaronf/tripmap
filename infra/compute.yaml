@@ -79,6 +79,8 @@ Resources:
               - "${Base}/auth/hello/callback"
               - Base:
                   Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
+          - Name: OPENAI_MODEL
+            Value: gpt-4o
         Secrets:
           # Injects the JSON key "token" from tripmap/agent-bearer
           - Name: AGENT_BEARER_TOKEN

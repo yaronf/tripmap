@@ -253,6 +253,9 @@ type ServerInterface interface {
 	// ListVersions List YAML versions
 	// (GET /api/agent/trips/{id}/versions)
 	ListVersions(w http.ResponseWriter, r *http.Request, id string)
+	// GetVersion Get YAML for a prior version
+	// (GET /api/agent/trips/{id}/versions/{version_id})
+	GetVersion(w http.ResponseWriter, r *http.Request, id string, versionId string)
 	// GetTripYAML Get raw YAML
 	// (GET /api/agent/trips/{id}/yaml)
 	GetTripYAML(w http.ResponseWriter, r *http.Request, id string)
@@ -506,6 +509,41 @@ func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetVersion operation middleware
+func (siw *ServerInterfaceWrapper) GetVersion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "version_id" -------------
+	var versionId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "version_id", r.PathValue("version_id"), &versionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVersion(w, r, id, versionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetTripYAML operation middleware
 func (siw *ServerInterfaceWrapper) GetTripYAML(w http.ResponseWriter, r *http.Request) {
 
@@ -720,16 +758,17 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.Health)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/schema", wrapper.GetSchema)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips", wrapper.ListTrips)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/agent/trips", wrapper.CreateTrip)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}", wrapper.GetTrip)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/agent/trips/{id}", wrapper.PatchTrip)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/agent/trips/{id}/restore", wrapper.RestoreVersion)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}/versions", wrapper.ListVersions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}/versions/{version_id}", wrapper.GetVersion)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}/yaml", wrapper.GetTripYAML)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/agent/trips/{id}/yaml", wrapper.PutTripYAML)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}/versions", wrapper.ListVersions)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/agent/trips/{id}/restore", wrapper.RestoreVersion)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.Health)
 
 	return m
 }
