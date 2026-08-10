@@ -19,7 +19,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, id string) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "chat unavailable (OpenAI not configured)"})
 		return
 	}
-	s.chat.ServeHTTP(w, r, id)
+	s.chat.ServeHTTP(w, r, id, strings.TrimSpace(sess.Sub))
 }
 
 func (s *Server) chatAllowed(sess sessionCookie) bool {

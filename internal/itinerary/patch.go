@@ -100,6 +100,9 @@ func ApplyPatch(t *Trip, p Patch) error {
 			if err != nil {
 				return fmt.Errorf("places.%s: %w", id, err)
 			}
+			if !ok && strings.TrimSpace(merged.Title) == "" {
+				return fmt.Errorf("places.%s: top-level title is required for new places (not under info); also set lat, lon, type", id)
+			}
 			t.Places[id] = merged
 		}
 	}
@@ -172,7 +175,33 @@ func ApplyPatch(t *Trip, p Patch) error {
 	return ValidateBasic(*t)
 }
 
+// checkPlacePatchShape catches common agent mistakes before silent field drops.
+func checkPlacePatchShape(raw any) error {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	info, hasInfo := m["info"]
+	if !hasInfo {
+		return nil
+	}
+	switch v := info.(type) {
+	case string:
+		return fmt.Errorf("info must be an object, not a string; put title/lat/lon/type on the place, and enrichment (highlights, links, …) under info")
+	case map[string]any:
+		if _, has := v["title"]; has {
+			if _, top := m["title"]; !top {
+				return fmt.Errorf("title belongs on the place object, not under info (use places.<id>.title)")
+			}
+		}
+	}
+	return nil
+}
+
 func mergePlace(cur Place, raw any) (Place, error) {
+	if err := checkPlacePatchShape(raw); err != nil {
+		return cur, err
+	}
 	b, err := json.Marshal(raw)
 	if err != nil {
 		return cur, err
@@ -353,7 +382,7 @@ func applyUpsertStop(t *Trip, u UpsertStop) error {
 		return fmt.Errorf("upsert_stop: place is required")
 	}
 	if _, ok := t.Places[u.Place]; !ok {
-		return fmt.Errorf("upsert_stop: unknown place %q", u.Place)
+		return fmt.Errorf("upsert_stop: unknown place %q — create it in the same patch under places with a kebab-case id and top-level title/lat/lon/type", u.Place)
 	}
 	ref := Stop{Place: u.Place, Type: u.Type, Notes: u.Notes, MapsURL: u.MapsURL}
 	switch u.List {

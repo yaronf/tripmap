@@ -52,9 +52,10 @@ func (a *Agent) openaiRespond(ctx context.Context, params responses.ResponseNewP
 	return a.client.Responses.New(ctx, params)
 }
 
-// TurnInput is one chat request scoped to a trip.
+// TurnInput is one chat request scoped to a trip and signed-in user.
 type TurnInput struct {
 	TripID   string
+	UserSub  string // Hellō subject; required for preference tools
 	Messages []ClientMessage
 	Day      int // 1-based current day from the viewer; 0 if unknown
 }
@@ -73,6 +74,13 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 	card, err := a.ops.Summary(ctx, in.TripID)
 	if err != nil {
 		return turnResult{}, err
+	}
+
+	prefs := []Preference{}
+	if strings.TrimSpace(in.UserSub) != "" {
+		if list, err := a.ops.ListPreferences(ctx, in.UserSub); err == nil {
+			prefs = list
+		}
 	}
 
 	inputItems, err := buildInputItems(in.Messages)
@@ -99,7 +107,7 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 	tools := chatTools()
 	params := responses.ResponseNewParams{
 		Model:        a.model,
-		Instructions: openai.String(buildSystemPrompt(card, in.Day)),
+		Instructions: openai.String(buildSystemPrompt(card, in.Day, prefs)),
 		Tools:        tools,
 		Store:        openai.Bool(true),
 		Input: responses.ResponseNewParamsInputUnion{
@@ -127,7 +135,7 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 
 		outputs := make([]responses.ResponseInputItemUnionParam, 0, len(fnCalls))
 		for _, fc := range fnCalls {
-			out, patched, callErr := a.execTool(ctx, in.TripID, fc.Name, fc.Arguments)
+			out, patched, callErr := a.execTool(ctx, in, fc.Name, fc.Arguments)
 			if patched {
 				result.TripUpdated = true
 			}
@@ -194,22 +202,31 @@ func functionCalls(resp *responses.Response) []responses.ResponseFunctionToolCal
 	return out
 }
 
-func buildSystemPrompt(card TripCard, day int) string {
+func buildSystemPrompt(card TripCard, day int, prefs []Preference) string {
 	var b strings.Builder
 	b.WriteString(baseSystemPrompt())
 	b.WriteString("Trip context (JSON):\n")
 	raw, _ := json.Marshal(card)
 	b.Write(raw)
+	b.WriteByte('\n')
+	if len(prefs) == 0 {
+		b.WriteString("Standing preferences: none saved yet.\n")
+	} else {
+		b.WriteString("Standing preferences (JSON; apply when choosing venues/logistics):\n")
+		prefJSON, _ := json.Marshal(prefs)
+		b.Write(prefJSON)
+		b.WriteByte('\n')
+	}
 	if day > 0 {
 		title := dayTitle(card, day)
-		fmt.Fprintf(&b, "\nCURRENT VIEWER DAY: %d", day)
+		fmt.Fprintf(&b, "CURRENT VIEWER DAY: %d", day)
 		if title != "" {
 			fmt.Fprintf(&b, " — %s", title)
 		}
 		b.WriteString(".\n")
 		b.WriteString("When the user says \"this day\", \"today\", \"the current day\", \"here\", or similar, they ALWAYS mean this CURRENT VIEWER DAY (the day shown in the viewer), not day 1 and not a day inferred from chat history. Call getTripYAML before editing that day when you need its current stops/notes.\n")
 	} else {
-		b.WriteString("\nCURRENT VIEWER DAY: unknown (client did not send day). Ask which day if needed.\n")
+		b.WriteString("CURRENT VIEWER DAY: unknown (client did not send day). Ask which day if needed.\n")
 	}
 	return b.String()
 }

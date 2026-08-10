@@ -2,12 +2,15 @@ package httpserver
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/yaronf/tripmap/internal/itinerary"
+	"github.com/yaronf/tripmap/internal/store"
 	"github.com/yaronf/tripmap/internal/viewerchat"
 )
 
@@ -45,6 +48,7 @@ func (o chatTripOps) SchemaJSON(context.Context) (json.RawMessage, error) {
 		"schema_version": itinerary.CurrentSchemaVersion,
 		"description":    "tripmap itinerary YAML schema with places catalog",
 		"patch_ops":      []string{"swap_days", "update_day", "days", "places", "upsert_stop", "remove_stop", "insert_day", "delete_day"},
+		"replace_day_routes": "Use replaceDayRoutes for overnight/endpoint or full route changes (not upsert_stop).",
 		"notes_policy":   "Day and stop notes are human-authored. Do not modify them unless the user explicitly asks. Put enrichment in places.*.info.",
 		"update_day_example": map[string]any{
 			"update_day": map[string]any{
@@ -200,4 +204,118 @@ func (o chatTripOps) RestoreVersion(ctx context.Context, tripID, versionID strin
 		VersionID: res.VersionID,
 		BundleOK:  res.BundleOK,
 	}, nil
+}
+
+func (o chatTripOps) ListPreferences(ctx context.Context, userSub string) ([]viewerchat.Preference, error) {
+	doc, err := o.s.store.GetPreferences(ctx, userSub)
+	if err != nil {
+		return nil, err
+	}
+	return viewerchat.PreferencesFromDoc(doc), nil
+}
+
+func (o chatTripOps) SavePreference(ctx context.Context, userSub, id, text string, tags []string) (viewerchat.Preference, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return viewerchat.Preference{}, fmt.Errorf("text is required")
+	}
+	if len([]rune(text)) > store.MaxPreferenceText {
+		return viewerchat.Preference{}, fmt.Errorf("text exceeds %d characters", store.MaxPreferenceText)
+	}
+	doc, err := o.s.store.GetPreferences(ctx, userSub)
+	if err != nil {
+		return viewerchat.Preference{}, err
+	}
+	now := time.Now().UTC()
+	id = strings.TrimSpace(id)
+	if id == "" {
+		id, err = newPreferenceID()
+		if err != nil {
+			return viewerchat.Preference{}, err
+		}
+	}
+	cleanTags := normalizePrefTags(tags)
+	updated := false
+	for i := range doc.Items {
+		if doc.Items[i].ID == id {
+			doc.Items[i].Text = text
+			doc.Items[i].Tags = cleanTags
+			doc.Items[i].UpdatedAt = now
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		if len(doc.Items) >= store.MaxPreferenceItems {
+			return viewerchat.Preference{}, fmt.Errorf("at most %d preferences", store.MaxPreferenceItems)
+		}
+		doc.Items = append(doc.Items, store.PreferenceItem{
+			ID:        id,
+			Text:      text,
+			Tags:      cleanTags,
+			UpdatedAt: now,
+		})
+	}
+	doc.UpdatedAt = now
+	if err := o.s.store.PutPreferences(ctx, userSub, doc); err != nil {
+		return viewerchat.Preference{}, err
+	}
+	return viewerchat.Preference{ID: id, Text: text, Tags: cleanTags}, nil
+}
+
+func (o chatTripOps) ForgetPreference(ctx context.Context, userSub, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+	doc, err := o.s.store.GetPreferences(ctx, userSub)
+	if err != nil {
+		return err
+	}
+	out := make([]store.PreferenceItem, 0, len(doc.Items))
+	found := false
+	for _, it := range doc.Items {
+		if it.ID == id {
+			found = true
+			continue
+		}
+		out = append(out, it)
+	}
+	if !found {
+		return fmt.Errorf("preference %q not found", id)
+	}
+	doc.Items = out
+	doc.UpdatedAt = time.Now().UTC()
+	return o.s.store.PutPreferences(ctx, userSub, doc)
+}
+
+func newPreferenceID() (string, error) {
+	var b [6]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return "pref_" + hex.EncodeToString(b[:]), nil
+}
+
+func normalizePrefTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		out = append(out, t)
+		if len(out) >= 8 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

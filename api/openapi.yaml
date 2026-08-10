@@ -106,7 +106,7 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day. Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day. For overnight/endpoint or full route replacement, use replaceDayRoutes (not upsert_stop or swap_days). Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -238,6 +238,10 @@ paths:
     post:
       operationId: restoreVersion
       summary: Restore a prior YAML version
+      description: |
+        Restores TO the given version_id (makes that revision current). To undo
+        only the latest change, pass the previous version_id from listVersions
+        (first entry with is_latest false) — not the current/latest id.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -261,6 +265,46 @@ paths:
       responses:
         "200":
           description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MutateResult"
+  /api/agent/trips/{id}/day-routes:
+    post:
+      operationId: replaceDayRoutes
+      summary: Replace full day routes (overnight / endpoint changes)
+      description: |
+        Replace the full route array for one or more days in a single call.
+        Use this for overnight or day-endpoint changes — include both day N and
+        day N+1 when continuity matters, with updated titles. For day N+1, keep
+        existing mid/end stops; only change the start place — do not collapse a
+        travel day to a single stop. Set each route[].type to the day role:
+        lodging ends overnight (not via/depart), road waypoints via, sights
+        attraction/etc. Optional places creates/updates the catalog in the same
+        request. Do not use upsert_stop or swap_days for this.
+      x-audiences: [mcp, chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceDayRoutesRequest"
+      responses:
+        "200":
+          description: Updated
           content:
             application/json:
               schema:
@@ -305,6 +349,67 @@ paths:
       responses:
         "200":
           description: ok with day photo fields
+  /api/chat/preferences:
+    get:
+      operationId: listPreferences
+      summary: List standing user preferences for viewer chat
+      description: |
+        Viewer-chat only. Preferences are per Hellō user (not per trip) and are
+        also injected into the system prompt each turn.
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Preference list
+    post:
+      operationId: savePreference
+      summary: Save or update a standing user preference
+      description: |
+        Viewer-chat only. Ask the user before calling. Upsert by id when provided;
+        otherwise a new id is generated.
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                preference_id:
+                  type: string
+                  description: Optional existing preference id to update
+                text:
+                  type: string
+                  description: Short standing preference statement
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional tags e.g. food, pace
+      responses:
+        "200":
+          description: Saved preference
+  /api/chat/preferences/{preference_id}:
+    delete:
+      operationId: forgetPreference
+      summary: Delete a standing user preference
+      description: Viewer-chat only. Ask the user before calling.
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: preference_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
 components:
   schemas:
     Health:
@@ -376,7 +481,10 @@ components:
       properties:
         swap_days:
           type: array
-          description: Exactly two day numbers to swap
+          description: >
+            Exactly two day numbers whose entire day bodies are exchanged (reorder).
+            Do not use for changing an overnight or day endpoint — that needs route
+            edits on the affected days (and the next day's start), not a swap.
           items:
             type: integer
           minItems: 2
@@ -404,18 +512,24 @@ components:
               type: string
         places:
           type: object
-          description: Map of place id to partial place fields (info is deep-merged)
+          description: >
+            Map of kebab-case place id to partial place fields. For a new place,
+            title, lat, lon, and type are required at the top level of that object.
+            Never put title under info — info is structured enrichment only
+            (highlights, links, stats, …) and is deep-merged.
           additionalProperties:
             type: object
             properties:
               title:
                 type: string
+                description: Display name; required on the place for new ids (not under info)
               lat:
                 type: number
               lon:
                 type: number
               type:
                 type: string
+                description: e.g. overnight, restaurant, attraction, via
               notes:
                 type: string
               photo:
@@ -429,7 +543,13 @@ components:
                 $ref: "#/components/schemas/PlaceInfo"
         days:
           type: object
-          description: Legacy map form; prefer update_day
+          description: >
+            Day-number string keys (e.g. "10") to partial day updates. Prefer
+            update_day for title/notes alone. To change an overnight or reorder
+            a route — especially when the next day's start must change too —
+            replace the full route arrays for both days here in one patch
+            (upsert_stop only appends and cannot set the next day's start).
+            Include title (and notes if the narrative should change) on those days.
           additionalProperties:
             type: object
             properties:
@@ -437,13 +557,49 @@ components:
                 type: string
               notes:
                 type: string
-                description: Human notes; agents should not modify unless asked
+                description: Day narrative; set when the overnight or story changes
               hike:
                 type: boolean
               ferry:
                 type: boolean
+              route:
+                type: array
+                description: Full replacement of that day's route (ordered place refs)
+                items:
+                  type: object
+                  required: [place]
+                  properties:
+                    place:
+                      type: string
+                      description: Kebab-case place id
+                    type:
+                      type: string
+                    notes:
+                      type: string
+                    maps_url:
+                      type: string
+              stops:
+                type: array
+                description: Full replacement of that day's stops list
+                items:
+                  type: object
+                  required: [place]
+                  properties:
+                    place:
+                      type: string
+                    type:
+                      type: string
+                    notes:
+                      type: string
+                    maps_url:
+                      type: string
         upsert_stop:
           type: object
+          description: >
+            Add or update a stop ref by place id on route or stops. If that place
+            id is not already on the list, it is appended. For overnight/endpoint
+            or full route replacement, use replaceDayRoutes instead. place must be
+            a kebab-case id that exists in places (not a display title).
           properties:
             day:
               type: integer
@@ -452,6 +608,7 @@ components:
               description: route or stops
             place:
               type: string
+              description: Kebab-case place id from places (e.g. greymouth), not a display title
             type:
               type: string
             notes:
@@ -461,6 +618,9 @@ components:
               description: Optional Google Maps URL override on this stop ref
         remove_stop:
           type: object
+          description: >
+            Remove one or more place refs from route and/or stops. Use when
+            replacing a day's overnight — remove the old end before upserting the new one.
           properties:
             day:
               type: integer
@@ -469,6 +629,12 @@ components:
               description: route, stops, or empty for both
             place:
               type: string
+              description: Place id or exact title
+            places:
+              type: array
+              items:
+                type: string
+              description: Several place ids or exact titles
         delete_day:
           type: integer
         insert_day:
@@ -498,7 +664,9 @@ components:
                     $ref: "#/components/schemas/StopRef"
     PlaceInfo:
       type: object
-      description: Structured enrichment for a place (optional throughout)
+      description: >
+        Structured enrichment for a place (optional throughout). Does not include
+        title, lat, lon, or type — those belong on the place object itself.
       properties:
         source:
           type: object
@@ -559,8 +727,14 @@ components:
       properties:
         place:
           type: string
+          description: Kebab-case place id from places
         type:
           type: string
+          description: >
+            Day-local role for this stop on the route (overrides places.*.type).
+            Travel day: first and last lodging = overnight (never via; never
+            depart — the viewer shows Depart on the morning start). Mid road
+            waypoints = via. Sights = attraction, viewpoint, trailhead, etc.
         notes:
           type: string
         maps_url:
@@ -607,6 +781,55 @@ components:
       properties:
         version_id:
           type: string
+    ReplaceDayRoutesRequest:
+      type: object
+      required:
+        - days
+      properties:
+        places:
+          type: object
+          description: >
+            Optional place catalog upserts (kebab-case ids). New places need
+            top-level title, lat, lon, and type — not under info.
+          additionalProperties:
+            type: object
+            properties:
+              title:
+                type: string
+              lat:
+                type: number
+              lon:
+                type: number
+              type:
+                type: string
+              notes:
+                type: string
+              maps_url:
+                type: string
+              info:
+                $ref: "#/components/schemas/PlaceInfo"
+        days:
+          type: object
+          description: >
+            Day-number string keys (e.g. "7"). Each entry replaces that day's
+            full route. Include title when the overnight/endpoint changes.
+            Typically update day N and day N+1 together. On each route, mark
+            start/end lodging as overnight so the viewer can label Depart.
+          minProperties: 1
+          additionalProperties:
+            type: object
+            required:
+              - route
+            properties:
+              title:
+                type: string
+              notes:
+                type: string
+              route:
+                type: array
+                minItems: 1
+                items:
+                  $ref: "#/components/schemas/StopRef"
   securitySchemes:
     bearerAuth:
       type: http

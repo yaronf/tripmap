@@ -371,16 +371,6 @@ func (s *Server) PatchTrip(w http.ResponseWriter, r *http.Request, id string, _ 
 	if !s.requireTripID(w, id) {
 		return
 	}
-	obj, err := s.store.GetYAML(r.Context(), id)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
-		return
-	}
-	trip, err := itinerary.ParseYAML(obj.Body)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
 	body, err := s.readBody(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
@@ -389,6 +379,40 @@ func (s *Server) PatchTrip(w http.ResponseWriter, r *http.Request, id string, _ 
 	var p itinerary.Patch
 	if err := json.Unmarshal(body, &p); err != nil {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("invalid patch json: %w", err))
+		return
+	}
+	s.applyTripPatch(w, r, id, p)
+}
+
+func (s *Server) ReplaceDayRoutes(w http.ResponseWriter, r *http.Request, id string, _ api.ReplaceDayRoutesParams) {
+	if err := s.requireIdempotency(w, r); err != nil {
+		return
+	}
+	if !s.requireTripID(w, id) {
+		return
+	}
+	body, err := s.readBody(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	p, err := itinerary.ParseReplaceDayRoutes(body)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	s.applyTripPatch(w, r, id, p)
+}
+
+func (s *Server) applyTripPatch(w http.ResponseWriter, r *http.Request, id string, p itinerary.Patch) {
+	obj, err := s.store.GetYAML(r.Context(), id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	trip, err := itinerary.ParseYAML(obj.Body)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	if err := itinerary.ApplyPatch(&trip, p); err != nil {

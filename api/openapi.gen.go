@@ -35,7 +35,7 @@ type MutateResult struct {
 	ViewerUrl *string `json:"viewer_url,omitempty"`
 }
 
-// PlaceInfo Structured enrichment for a place (optional throughout)
+// PlaceInfo Structured enrichment for a place (optional throughout). Does not include title, lat, lon, or type — those belong on the place object itself.
 type PlaceInfo struct {
 	Facilities *struct {
 		DrinkingWater *bool `json:"drinking_water,omitempty"`
@@ -64,6 +64,28 @@ type PlaceInfo struct {
 	Warnings *[]string `json:"warnings,omitempty"`
 }
 
+// ReplaceDayRoutesRequest defines model for ReplaceDayRoutesRequest.
+type ReplaceDayRoutesRequest struct {
+	// Days Day-number string keys (e.g. "7"). Each entry replaces that day's full route. Include title when the overnight/endpoint changes. Typically update day N and day N+1 together. On each route, mark start/end lodging as overnight so the viewer can label Depart.
+	Days map[string]struct {
+		Notes *string   `json:"notes,omitempty"`
+		Route []StopRef `json:"route"`
+		Title *string   `json:"title,omitempty"`
+	} `json:"days"`
+
+	// Places Optional place catalog upserts (kebab-case ids). New places need top-level title, lat, lon, and type — not under info.
+	Places *map[string]struct {
+		// Info Structured enrichment for a place (optional throughout). Does not include title, lat, lon, or type — those belong on the place object itself.
+		Info    *PlaceInfo `json:"info,omitempty"`
+		Lat     *float32   `json:"lat,omitempty"`
+		Lon     *float32   `json:"lon,omitempty"`
+		MapsUrl *string    `json:"maps_url,omitempty"`
+		Notes   *string    `json:"notes,omitempty"`
+		Title   *string    `json:"title,omitempty"`
+		Type    *string    `json:"type,omitempty"`
+	} `json:"places,omitempty"`
+}
+
 // RestoreRequest defines model for RestoreRequest.
 type RestoreRequest struct {
 	VersionId string `json:"version_id"`
@@ -86,8 +108,12 @@ type StopRef struct {
 	// MapsUrl Optional per-stop Google Maps URL override for the viewer pin
 	MapsUrl *string `json:"maps_url,omitempty"`
 	Notes   *string `json:"notes,omitempty"`
-	Place   string  `json:"place"`
-	Type    *string `json:"type,omitempty"`
+
+	// Place Kebab-case place id from places
+	Place string `json:"place"`
+
+	// Type Day-local role for this stop on the route (overrides places.*.type). Travel day: first and last lodging = overnight (never via; never depart — the viewer shows Depart on the morning start). Mid road waypoints = via. Sights = attraction, viewpoint, trailhead, etc.
+	Type *string `json:"type,omitempty"`
 }
 
 // TripList defines model for TripList.
@@ -96,15 +122,34 @@ type TripList struct {
 }
 
 // TripPatch One or more structured ops. Prefer update_day for day narrative and
-// places.<id>.info for enrichment.
+// places.<id>.info for enrichment. Day calendar dates are derived from
+// trip.start + (day − 1) when start is set — do not patch per-day dates.
 type TripPatch struct {
-	// Days Legacy map form; prefer update_day
+	// Days Day-number string keys (e.g. "10") to partial day updates. Prefer update_day for title/notes alone. To change an overnight or reorder a route — especially when the next day's start must change too — replace the full route arrays for both days here in one patch (upsert_stop only appends and cannot set the next day's start). Include title (and notes if the narrative should change) on those days.
 	Days *map[string]struct {
 		Ferry *bool `json:"ferry,omitempty"`
 		Hike  *bool `json:"hike,omitempty"`
 
-		// Notes Human notes; agents should not modify unless asked
+		// Notes Day narrative; set when the overnight or story changes
 		Notes *string `json:"notes,omitempty"`
+
+		// Route Full replacement of that day's route (ordered place refs)
+		Route *[]struct {
+			MapsUrl *string `json:"maps_url,omitempty"`
+			Notes   *string `json:"notes,omitempty"`
+
+			// Place Kebab-case place id
+			Place string  `json:"place"`
+			Type  *string `json:"type,omitempty"`
+		} `json:"route,omitempty"`
+
+		// Stops Full replacement of that day's stops list
+		Stops *[]struct {
+			MapsUrl *string `json:"maps_url,omitempty"`
+			Notes   *string `json:"notes,omitempty"`
+			Place   string  `json:"place"`
+			Type    *string `json:"type,omitempty"`
+		} `json:"stops,omitempty"`
 		Title *string `json:"title,omitempty"`
 	} `json:"days,omitempty"`
 	DeleteDay *int `json:"delete_day,omitempty"`
@@ -122,9 +167,9 @@ type TripPatch struct {
 		} `json:"day,omitempty"`
 	} `json:"insert_day,omitempty"`
 
-	// Places Map of place id to partial place fields (info is deep-merged)
+	// Places Map of kebab-case place id to partial place fields. For a new place, title, lat, lon, and type are required at the top level of that object. Never put title under info — info is structured enrichment only (highlights, links, stats, …) and is deep-merged.
 	Places *map[string]struct {
-		// Info Structured enrichment for a place (optional throughout)
+		// Info Structured enrichment for a place (optional throughout). Does not include title, lat, lon, or type — those belong on the place object itself.
 		Info *PlaceInfo `json:"info,omitempty"`
 		Lat  *float32   `json:"lat,omitempty"`
 		Lon  *float32   `json:"lon,omitempty"`
@@ -134,18 +179,29 @@ type TripPatch struct {
 		Notes        *string `json:"notes,omitempty"`
 		Photo        *string `json:"photo,omitempty"`
 		PhotoCaption *string `json:"photo_caption,omitempty"`
-		Title        *string `json:"title,omitempty"`
-		Type         *string `json:"type,omitempty"`
+
+		// Title Display name; required on the place for new ids (not under info)
+		Title *string `json:"title,omitempty"`
+
+		// Type e.g. overnight, restaurant, attraction, via
+		Type *string `json:"type,omitempty"`
 	} `json:"places,omitempty"`
+
+	// RemoveStop Remove one or more place refs from route and/or stops. Use when replacing a day's overnight — remove the old end before upserting the new one.
 	RemoveStop *struct {
 		Day *int `json:"day,omitempty"`
 
 		// List route, stops, or empty for both
-		List  *string `json:"list,omitempty"`
+		List *string `json:"list,omitempty"`
+
+		// Place Place id or exact title
 		Place *string `json:"place,omitempty"`
+
+		// Places Several place ids or exact titles
+		Places *[]string `json:"places,omitempty"`
 	} `json:"remove_stop,omitempty"`
 
-	// SwapDays Exactly two day numbers to swap
+	// SwapDays Exactly two day numbers whose entire day bodies are exchanged (reorder). Do not use for changing an overnight or day endpoint — that needs route edits on the affected days (and the next day's start), not a swap.
 	SwapDays *[]int `json:"swap_days,omitempty"`
 
 	// UpdateDay Partial update of one existing day (omit fields to leave unchanged)
@@ -160,6 +216,8 @@ type TripPatch struct {
 		PhotoCaption *string `json:"photo_caption,omitempty"`
 		Title        *string `json:"title,omitempty"`
 	} `json:"update_day,omitempty"`
+
+	// UpsertStop Add or update a stop ref by place id on route or stops. If that place id is not already on the list, it is appended. For overnight/endpoint or full route replacement, use replaceDayRoutes instead. place must be a kebab-case id that exists in places (not a display title).
 	UpsertStop *struct {
 		Day *int `json:"day,omitempty"`
 
@@ -169,8 +227,10 @@ type TripPatch struct {
 		// MapsUrl Optional Google Maps URL override on this stop ref
 		MapsUrl *string `json:"maps_url,omitempty"`
 		Notes   *string `json:"notes,omitempty"`
-		Place   *string `json:"place,omitempty"`
-		Type    *string `json:"type,omitempty"`
+
+		// Place Kebab-case place id from places (e.g. greymouth), not a display title
+		Place *string `json:"place,omitempty"`
+		Type  *string `json:"type,omitempty"`
 	} `json:"upsert_stop,omitempty"`
 }
 
@@ -205,6 +265,11 @@ type PatchTripParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
+// ReplaceDayRoutesParams defines parameters for ReplaceDayRoutes.
+type ReplaceDayRoutesParams struct {
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
 // RestoreVersionParams defines parameters for RestoreVersion.
 type RestoreVersionParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
@@ -223,6 +288,9 @@ type CreateTripJSONRequestBody = CreateTripRequest
 
 // PatchTripJSONRequestBody defines body for PatchTrip for application/json ContentType.
 type PatchTripJSONRequestBody = TripPatch
+
+// ReplaceDayRoutesJSONRequestBody defines body for ReplaceDayRoutes for application/json ContentType.
+type ReplaceDayRoutesJSONRequestBody = ReplaceDayRoutesRequest
 
 // RestoreVersionJSONRequestBody defines body for RestoreVersion for application/json ContentType.
 type RestoreVersionJSONRequestBody = RestoreRequest
@@ -247,6 +315,9 @@ type ServerInterface interface {
 	// PatchTrip Patch places info, day narrative, or structure
 	// (PATCH /api/agent/trips/{id})
 	PatchTrip(w http.ResponseWriter, r *http.Request, id string, params PatchTripParams)
+	// ReplaceDayRoutes Replace full day routes (overnight / endpoint changes)
+	// (POST /api/agent/trips/{id}/day-routes)
+	ReplaceDayRoutes(w http.ResponseWriter, r *http.Request, id string, params ReplaceDayRoutesParams)
 	// RestoreVersion Restore a prior YAML version
 	// (POST /api/agent/trips/{id}/restore)
 	RestoreVersion(w http.ResponseWriter, r *http.Request, id string, params RestoreVersionParams)
@@ -420,6 +491,60 @@ func (siw *ServerInterfaceWrapper) PatchTrip(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PatchTrip(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceDayRoutes operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceDayRoutes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReplaceDayRoutesParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceDayRoutes(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -763,6 +888,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/agent/trips", wrapper.CreateTrip)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}", wrapper.GetTrip)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/agent/trips/{id}", wrapper.PatchTrip)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/agent/trips/{id}/day-routes", wrapper.ReplaceDayRoutes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/agent/trips/{id}/restore", wrapper.RestoreVersion)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}/versions", wrapper.ListVersions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/agent/trips/{id}/versions/{version_id}", wrapper.GetVersion)

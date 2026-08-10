@@ -18,6 +18,7 @@ type memOps struct {
 	yaml      []byte
 	patches   int
 	lastPatch json.RawMessage
+	prefs     []Preference
 }
 
 func (m *memOps) Summary(context.Context, string) (TripCard, error) { return m.card, nil }
@@ -66,6 +67,37 @@ func (m *memOps) ListVersions(context.Context, string) ([]VersionEntry, error) {
 
 func (m *memOps) RestoreVersion(_ context.Context, _ string, versionID string) (PatchResult, error) {
 	return PatchResult{ID: "t1", VersionID: "v2-from-" + versionID, BundleOK: true}, nil
+}
+
+func (m *memOps) ListPreferences(context.Context, string) ([]Preference, error) {
+	return append([]Preference(nil), m.prefs...), nil
+}
+
+func (m *memOps) SavePreference(_ context.Context, _, id, text string, tags []string) (Preference, error) {
+	if id == "" {
+		id = "pref_test"
+	}
+	p := Preference{ID: id, Text: text, Tags: tags}
+	for i := range m.prefs {
+		if m.prefs[i].ID == id {
+			m.prefs[i] = p
+			return p, nil
+		}
+	}
+	m.prefs = append(m.prefs, p)
+	return p, nil
+}
+
+func (m *memOps) ForgetPreference(_ context.Context, _, id string) error {
+	out := make([]Preference, 0, len(m.prefs))
+	for _, p := range m.prefs {
+		if p.ID == id {
+			continue
+		}
+		out = append(out, p)
+	}
+	m.prefs = out
+	return nil
 }
 
 func TestAgentToolLoopPatchesOnce(t *testing.T) {
@@ -160,7 +192,7 @@ func TestHandlerRejectsEmptyBody(t *testing.T) {
 	}}}
 	req := httptest.NewRequest(http.MethodPost, "/chat", strings.NewReader(`{}`))
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req, "t1")
+	h.ServeHTTP(rec, req, "t1", "sub1")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
 	}

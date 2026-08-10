@@ -290,3 +290,57 @@ func (s *S3) PutNotes(ctx context.Context, id string, body []byte) error {
 	})
 	return err
 }
+
+func (s *S3) GetPreferences(ctx context.Context, userSub string) (PreferencesDoc, error) {
+	key, err := preferencesKey(userSub)
+	if err != nil {
+		return PreferencesDoc{}, err
+	}
+	if s.CommentsBucket == "" {
+		return PreferencesDoc{}, fmt.Errorf("comments bucket not configured")
+	}
+	out, err := s.Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.CommentsBucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return EmptyPreferences(), nil
+	}
+	defer out.Body.Close()
+	body, err := io.ReadAll(out.Body)
+	if err != nil {
+		return PreferencesDoc{}, err
+	}
+	var doc PreferencesDoc
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return PreferencesDoc{}, fmt.Errorf("preferences json: %w", err)
+	}
+	if doc.Items == nil {
+		doc.Items = []PreferenceItem{}
+	}
+	return doc, nil
+}
+
+func (s *S3) PutPreferences(ctx context.Context, userSub string, doc PreferencesDoc) error {
+	key, err := preferencesKey(userSub)
+	if err != nil {
+		return err
+	}
+	if s.CommentsBucket == "" {
+		return fmt.Errorf("comments bucket not configured")
+	}
+	if doc.Items == nil {
+		doc.Items = []PreferenceItem{}
+	}
+	body, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+	_, err = s.Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.CommentsBucket),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(body),
+		ContentType: aws.String("application/json"),
+	})
+	return err
+}

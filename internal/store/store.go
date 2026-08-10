@@ -41,6 +41,8 @@ type Store interface {
 	GetBundleObject(ctx context.Context, id, rel string) (body []byte, contentType string, err error)
 	GetNotes(ctx context.Context, id string) ([]byte, error)
 	PutNotes(ctx context.Context, id string, body []byte) error
+	GetPreferences(ctx context.Context, userSub string) (PreferencesDoc, error)
+	PutPreferences(ctx context.Context, userSub string, doc PreferencesDoc) error
 	Exists(ctx context.Context, id string) (bool, error)
 }
 

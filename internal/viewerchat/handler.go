@@ -35,7 +35,7 @@ type Handler struct {
 }
 
 // ServeHTTP runs one chat turn as an SSE stream.
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, tripID string) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, tripID, userSub string) {
 	if h == nil || h.Agent == nil {
 		http.Error(w, "chat unavailable", http.StatusServiceUnavailable)
 		return
@@ -109,10 +109,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, tripID strin
 			break
 		}
 	}
-	log.Printf("viewerchat turn trip=%s day=%d msgs=%d user=%q", tripID, day, len(msgs), truncateRunes(lastUser, 120))
+	log.Printf("viewerchat turn trip=%s day=%d msgs=%d sub=%s user=%q", tripID, day, len(msgs), userSub, truncateRunes(lastUser, 120))
 
 	res, err := h.Agent.run(r.Context(), TurnInput{
 		TripID:   tripID,
+		UserSub:  userSub,
 		Messages: msgs,
 		Day:      day,
 	}, sw.send)

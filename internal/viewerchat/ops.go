@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/yaronf/tripmap/internal/itinerary"
+	"github.com/yaronf/tripmap/internal/store"
 )
 
 // TripCard is a compact trip summary for the system prompt.
@@ -52,6 +53,13 @@ type VersionEntry struct {
 	IsLatest     bool   `json:"is_latest,omitempty"`
 }
 
+// Preference is one standing user preference exposed to chat tools/prompt.
+type Preference struct {
+	ID   string   `json:"id"`
+	Text string   `json:"text"`
+	Tags []string `json:"tags,omitempty"`
+}
+
 // TripOps is the in-process trip surface chat tools call (scoped by trip ID).
 type TripOps interface {
 	Summary(ctx context.Context, tripID string) (TripCard, error)
@@ -62,6 +70,18 @@ type TripOps interface {
 	Patch(ctx context.Context, tripID string, patchJSON []byte) (PatchResult, error)
 	ListVersions(ctx context.Context, tripID string) ([]VersionEntry, error)
 	RestoreVersion(ctx context.Context, tripID, versionID string) (PatchResult, error)
+	ListPreferences(ctx context.Context, userSub string) ([]Preference, error)
+	SavePreference(ctx context.Context, userSub, id, text string, tags []string) (Preference, error)
+	ForgetPreference(ctx context.Context, userSub, id string) error
+}
+
+// PreferencesFromDoc maps store doc items for prompt/tools.
+func PreferencesFromDoc(doc store.PreferencesDoc) []Preference {
+	out := make([]Preference, 0, len(doc.Items))
+	for _, it := range doc.Items {
+		out = append(out, Preference{ID: it.ID, Text: it.Text, Tags: it.Tags})
+	}
+	return out
 }
 
 // DayDetailFromYAML builds a DayDetail for a 1-based day number.

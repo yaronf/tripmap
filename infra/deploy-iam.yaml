@@ -172,6 +172,19 @@ Resources:
               - s3:DeleteObject
             Resource: !Sub "arn:aws:s3:::${ProjectName}-comments-${AWS::AccountId}-${AWS::Region}/*"
 
+          # Container stdout (viewerchat tool turns) lands in Express/ECS log groups
+          - Sid: CloudWatchLogsRead
+            Effect: Allow
+            Action:
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+              - logs:GetLogEvents
+              - logs:FilterLogEvents
+              - logs:StartQuery
+              - logs:GetQueryResults
+              - logs:StopQuery
+            Resource: "*"
+
   # Group tripmap-deploy is managed outside this stack (created via CLI) so we
   # do not fight AlreadyExists on updates. Attach DeployPolicy +
   # SignInLocalDevelopmentAccess to that group; add DeployUser as a member.

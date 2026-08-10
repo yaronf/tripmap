@@ -7,6 +7,8 @@ import (
 	"log"
 	"sort"
 	"strings"
+
+	"github.com/yaronf/tripmap/internal/itinerary"
 )
 
 type toolResult struct {
@@ -14,34 +16,38 @@ type toolResult struct {
 	Mutated bool
 }
 
-type toolHandler func(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error)
+type toolHandler func(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error)
 
 func toolHandlers() map[string]toolHandler {
 	return map[string]toolHandler{
-		"getSchema":      handleGetSchema,
-		"getTrip":        handleGetTrip,
-		"getTripYAML":    handleGetTripYAML,
-		"setDayPhoto":    handleSetDayPhoto,
-		"listVersions":   handleListVersions,
-		"getVersion":     handleGetVersion,
-		"restoreVersion": handleRestoreVersion,
-		"patchTrip":      handlePatchTrip,
+		"getSchema":        handleGetSchema,
+		"getTrip":          handleGetTrip,
+		"getTripYAML":      handleGetTripYAML,
+		"setDayPhoto":      handleSetDayPhoto,
+		"listVersions":     handleListVersions,
+		"getVersion":       handleGetVersion,
+		"restoreVersion":   handleRestoreVersion,
+		"patchTrip":        handlePatchTrip,
+		"replaceDayRoutes": handleReplaceDayRoutes,
+		"listPreferences":  handleListPreferences,
+		"savePreference":   handleSavePreference,
+		"forgetPreference": handleForgetPreference,
 	}
 }
 
-func (a *Agent) execTool(ctx context.Context, tripID, name, argsJSON string) (string, bool, error) {
+func (a *Agent) execTool(ctx context.Context, in TurnInput, name, argsJSON string) (string, bool, error) {
 	h, ok := toolHandlers()[name]
 	if !ok {
 		err := fmt.Errorf("unknown tool %q", name)
-		logToolCall(tripID, name, argsJSON, false, err)
+		logToolCall(in.TripID, name, argsJSON, false, err)
 		return "", false, err
 	}
-	res, err := h(ctx, a, tripID, argsJSON)
+	res, err := h(ctx, a, in, argsJSON)
 	if err != nil {
-		logToolCall(tripID, name, argsJSON, false, err)
+		logToolCall(in.TripID, name, argsJSON, false, err)
 		return "", false, err
 	}
-	logToolCall(tripID, name, argsJSON, res.Mutated, nil)
+	logToolCall(in.TripID, name, argsJSON, res.Mutated, nil)
 	return res.Content, res.Mutated, nil
 }
 
@@ -72,13 +78,20 @@ func compactJSONForLog(s string, max int) string {
 	return s
 }
 
-func handleGetTrip(ctx context.Context, a *Agent, tripID, _ string) (toolResult, error) {
-	card, err := a.ops.Summary(ctx, tripID)
+func requireUserSub(in TurnInput) error {
+	if strings.TrimSpace(in.UserSub) == "" {
+		return fmt.Errorf("signed-in user required for preferences")
+	}
+	return nil
+}
+
+func handleGetTrip(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+	card, err := a.ops.Summary(ctx, in.TripID)
 	if err != nil {
 		return toolResult{}, err
 	}
 	out := map[string]any{
-		"id":             tripID,
+		"id":             in.TripID,
 		"schema_version": card.SchemaVersion,
 		"trip":           card.Title,
 		"description":    card.Description,
@@ -89,7 +102,7 @@ func handleGetTrip(ctx context.Context, a *Agent, tripID, _ string) (toolResult,
 	return toolResult{Content: string(b)}, err
 }
 
-func handleGetSchema(ctx context.Context, a *Agent, _, _ string) (toolResult, error) {
+func handleGetSchema(ctx context.Context, a *Agent, _ TurnInput, _ string) (toolResult, error) {
 	raw, err := a.ops.SchemaJSON(ctx)
 	if err != nil {
 		return toolResult{}, err
@@ -97,8 +110,8 @@ func handleGetSchema(ctx context.Context, a *Agent, _, _ string) (toolResult, er
 	return toolResult{Content: string(raw)}, nil
 }
 
-func handleGetTripYAML(ctx context.Context, a *Agent, tripID, _ string) (toolResult, error) {
-	body, err := a.ops.GetYAML(ctx, tripID)
+func handleGetTripYAML(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+	body, err := a.ops.GetYAML(ctx, in.TripID)
 	if err != nil {
 		return toolResult{}, err
 	}
@@ -108,7 +121,7 @@ func handleGetTripYAML(ctx context.Context, a *Agent, tripID, _ string) (toolRes
 	return toolResult{Content: string(body)}, nil
 }
 
-func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
+func handleSetDayPhoto(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
 	var args struct {
 		Day          int    `json:"day"`
 		Query        string `json:"query"`
@@ -122,12 +135,10 @@ func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (
 		return toolResult{}, fmt.Errorf("day must be >= 1")
 	}
 	prev := ""
-	if cur, err := a.ops.GetDay(ctx, tripID, args.Day); err == nil {
+	if cur, err := a.ops.GetDay(ctx, in.TripID, args.Day); err == nil {
 		prev = strings.TrimSpace(cur.Photo)
 	}
 	var exclude []string
-	// Skip the current day photo when searching by query so "different photo"
-	// cannot re-select the same Commons file.
 	if prev != "" && strings.TrimSpace(args.Photo) == "" {
 		exclude = append(exclude, prev)
 	}
@@ -147,12 +158,12 @@ func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (
 	if err != nil {
 		return toolResult{}, err
 	}
-	res, err := a.ops.Patch(ctx, tripID, patchJSON)
+	res, err := a.ops.Patch(ctx, in.TripID, patchJSON)
 	if err != nil {
 		return toolResult{}, err
 	}
 	got := ""
-	if day, err := a.ops.GetDay(ctx, tripID, args.Day); err == nil {
+	if day, err := a.ops.GetDay(ctx, in.TripID, args.Day); err == nil {
 		got = strings.TrimSpace(day.Photo)
 	}
 	if photoIdentity(got) != photoIdentity(final) {
@@ -180,20 +191,20 @@ func handleSetDayPhoto(ctx context.Context, a *Agent, tripID, argsJSON string) (
 	return toolResult{Content: string(b), Mutated: true}, err
 }
 
-func handleListVersions(ctx context.Context, a *Agent, tripID, _ string) (toolResult, error) {
-	vers, err := a.ops.ListVersions(ctx, tripID)
+func handleListVersions(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+	vers, err := a.ops.ListVersions(ctx, in.TripID)
 	if err != nil {
 		return toolResult{}, err
 	}
 	b, err := json.Marshal(map[string]any{
-		"id":       tripID,
+		"id":       in.TripID,
 		"versions": vers,
 		"count":    len(vers),
 	})
 	return toolResult{Content: string(b)}, err
 }
 
-func handleGetVersion(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
+func handleGetVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
 	var args struct {
 		VersionID string `json:"version_id"`
 	}
@@ -203,7 +214,7 @@ func handleGetVersion(ctx context.Context, a *Agent, tripID, argsJSON string) (t
 	if strings.TrimSpace(args.VersionID) == "" {
 		return toolResult{}, fmt.Errorf("version_id is required")
 	}
-	body, err := a.ops.GetYAMLVersion(ctx, tripID, args.VersionID)
+	body, err := a.ops.GetYAMLVersion(ctx, in.TripID, args.VersionID)
 	if err != nil {
 		return toolResult{}, err
 	}
@@ -213,7 +224,7 @@ func handleGetVersion(ctx context.Context, a *Agent, tripID, argsJSON string) (t
 	return toolResult{Content: string(body)}, nil
 }
 
-func handleRestoreVersion(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
+func handleRestoreVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
 	var args struct {
 		VersionID string `json:"version_id"`
 	}
@@ -223,7 +234,7 @@ func handleRestoreVersion(ctx context.Context, a *Agent, tripID, argsJSON string
 	if strings.TrimSpace(args.VersionID) == "" {
 		return toolResult{}, fmt.Errorf("version_id is required")
 	}
-	res, err := a.ops.RestoreVersion(ctx, tripID, args.VersionID)
+	res, err := a.ops.RestoreVersion(ctx, in.TripID, args.VersionID)
 	if err != nil {
 		return toolResult{}, err
 	}
@@ -238,7 +249,7 @@ func handleRestoreVersion(ctx context.Context, a *Agent, tripID, argsJSON string
 	return toolResult{Content: string(b), Mutated: true}, err
 }
 
-func handlePatchTrip(ctx context.Context, a *Agent, tripID, argsJSON string) (toolResult, error) {
+func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
 	var wrap struct {
 		Patch json.RawMessage `json:"patch"`
 	}
@@ -253,7 +264,7 @@ func handlePatchTrip(ctx context.Context, a *Agent, tripID, argsJSON string) (to
 	if err != nil {
 		return toolResult{}, err
 	}
-	res, err := a.ops.Patch(ctx, tripID, rewritten)
+	res, err := a.ops.Patch(ctx, in.TripID, rewritten)
 	if err != nil {
 		return toolResult{}, err
 	}
@@ -266,6 +277,79 @@ func handlePatchTrip(ctx context.Context, a *Agent, tripID, argsJSON string) (to
 	}
 	b, err := json.Marshal(out)
 	return toolResult{Content: string(b), Mutated: true}, err
+}
+
+func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+	p, err := itinerary.ParseReplaceDayRoutes([]byte(argsJSON))
+	if err != nil {
+		return toolResult{}, err
+	}
+	patch, err := json.Marshal(p)
+	if err != nil {
+		return toolResult{}, err
+	}
+	res, err := a.ops.Patch(ctx, in.TripID, patch)
+	if err != nil {
+		return toolResult{}, err
+	}
+	out := map[string]any{
+		"ok":         true,
+		"id":         res.ID,
+		"version_id": res.VersionID,
+		"bundle_ok":  res.BundleOK,
+		"op":         "replaceDayRoutes",
+	}
+	b, err := json.Marshal(out)
+	return toolResult{Content: string(b), Mutated: true}, err
+}
+
+func handleListPreferences(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+	if err := requireUserSub(in); err != nil {
+		return toolResult{}, err
+	}
+	prefs, err := a.ops.ListPreferences(ctx, in.UserSub)
+	if err != nil {
+		return toolResult{}, err
+	}
+	b, err := json.Marshal(map[string]any{"preferences": prefs, "count": len(prefs)})
+	return toolResult{Content: string(b)}, err
+}
+
+func handleSavePreference(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+	if err := requireUserSub(in); err != nil {
+		return toolResult{}, err
+	}
+	var args struct {
+		PreferenceID string   `json:"preference_id"`
+		Text         string   `json:"text"`
+		Tags         []string `json:"tags"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return toolResult{}, fmt.Errorf("invalid savePreference args: %w", err)
+	}
+	pref, err := a.ops.SavePreference(ctx, in.UserSub, args.PreferenceID, args.Text, args.Tags)
+	if err != nil {
+		return toolResult{}, err
+	}
+	b, err := json.Marshal(map[string]any{"ok": true, "preference": pref})
+	return toolResult{Content: string(b)}, err
+}
+
+func handleForgetPreference(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+	if err := requireUserSub(in); err != nil {
+		return toolResult{}, err
+	}
+	var args struct {
+		PreferenceID string `json:"preference_id"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return toolResult{}, fmt.Errorf("invalid forgetPreference args: %w", err)
+	}
+	if err := a.ops.ForgetPreference(ctx, in.UserSub, args.PreferenceID); err != nil {
+		return toolResult{}, err
+	}
+	b, err := json.Marshal(map[string]any{"ok": true, "forgotten": args.PreferenceID})
+	return toolResult{Content: string(b)}, err
 }
 
 func patchOpNames(patchJSON json.RawMessage) []string {

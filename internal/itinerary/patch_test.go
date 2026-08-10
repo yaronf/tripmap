@@ -1,6 +1,9 @@
 package itinerary
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestApplyPatchRejectsEmpty(t *testing.T) {
 	trip := Trip{Trip: "T", Days: []Day{{Day: 1, Title: "A"}}}
@@ -116,6 +119,118 @@ func TestApplyPatchPlacesMapsURL(t *testing.T) {
 	}
 	if trip.Places["trail"].MapsURL != "https://maps.app.goo.gl/example" {
 		t.Fatalf("maps_url = %q", trip.Places["trail"].MapsURL)
+	}
+}
+
+func TestApplyPatchNewPlaceTitleUnderInfo(t *testing.T) {
+	trip := Trip{
+		Trip:   "T",
+		Places: map[string]Place{"a": {Title: "A", Lat: 1, Lon: 2, Type: "overnight"}},
+		Days:   []Day{{Day: 1, Title: "D", Route: []Stop{{Place: "a"}}}},
+	}
+	err := ApplyPatch(&trip, Patch{
+		Places: map[string]any{
+			"greymouth": map[string]any{
+				"info": map[string]any{
+					"title":      "Greymouth",
+					"highlights": []string{"West Coast town"},
+				},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not under info") {
+		t.Fatalf("expected title-under-info error, got %v", err)
+	}
+}
+
+func TestApplyPatchNewPlaceInfoString(t *testing.T) {
+	trip := Trip{
+		Trip:   "T",
+		Places: map[string]Place{"a": {Title: "A", Lat: 1, Lon: 2, Type: "overnight"}},
+		Days:   []Day{{Day: 1, Title: "D", Route: []Stop{{Place: "a"}}}},
+	}
+	err := ApplyPatch(&trip, Patch{
+		Places: map[string]any{
+			"greymouth": map[string]any{
+				"info": "A town on the West Coast",
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "info must be an object") {
+		t.Fatalf("expected info-string error, got %v", err)
+	}
+}
+
+func TestApplyPatchNewPlaceMissingTitle(t *testing.T) {
+	trip := Trip{
+		Trip:   "T",
+		Places: map[string]Place{"a": {Title: "A", Lat: 1, Lon: 2, Type: "overnight"}},
+		Days:   []Day{{Day: 1, Title: "D", Route: []Stop{{Place: "a"}}}},
+	}
+	err := ApplyPatch(&trip, Patch{
+		Places: map[string]any{
+			"greymouth": map[string]any{
+				"lat":  -42.45,
+				"lon":  171.21,
+				"type": "overnight",
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "top-level title is required") {
+		t.Fatalf("expected missing-title error, got %v", err)
+	}
+}
+
+func TestApplyPatchOvernightViaDaysRoutes(t *testing.T) {
+	trip := Trip{
+		Trip: "T",
+		Places: map[string]Place{
+			"a": {Title: "A", Lat: 1, Lon: 2, Type: "overnight"},
+			"b": {Title: "B", Lat: 3, Lon: 4, Type: "overnight"},
+			"c": {Title: "C", Lat: 5, Lon: 6, Type: "overnight"},
+			"d": {Title: "D", Lat: 7, Lon: 8, Type: "overnight"},
+		},
+		Days: []Day{
+			{Day: 1, Title: "A → B", Route: []Stop{{Place: "a"}, {Place: "b"}}},
+			{Day: 2, Title: "B → C", Route: []Stop{{Place: "b"}, {Place: "c"}}},
+		},
+	}
+	if err := ApplyPatch(&trip, Patch{
+		Places: map[string]any{
+			"d": map[string]any{"title": "D", "lat": 7.0, "lon": 8.0, "type": "overnight"},
+		},
+		Days: map[string]any{
+			"1": map[string]any{
+				"title": "A → D",
+				"route": []map[string]string{{"place": "a"}, {"place": "d"}},
+			},
+			"2": map[string]any{
+				"title": "D → C",
+				"route": []map[string]string{{"place": "d"}, {"place": "c"}},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if trip.Days[0].Title != "A → D" || trip.Days[0].Route[1].Place != "d" {
+		t.Fatalf("day1 = %+v", trip.Days[0])
+	}
+	if trip.Days[1].Title != "D → C" || trip.Days[1].Route[0].Place != "d" {
+		t.Fatalf("day2 = %+v", trip.Days[1])
+	}
+}
+
+func TestApplyPatchUpsertUnknownPlaceHint(t *testing.T) {
+	trip := Trip{
+		Trip:   "T",
+		Places: map[string]Place{"a": {Title: "A", Lat: 1, Lon: 2, Type: "overnight"}},
+		Days:   []Day{{Day: 1, Title: "D", Route: []Stop{{Place: "a"}}}},
+	}
+	err := ApplyPatch(&trip, Patch{
+		UpsertStop: &UpsertStop{Day: 1, List: "route", Place: "Greymouth"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "kebab-case") {
+		t.Fatalf("expected unknown-place hint, got %v", err)
 	}
 }
 
