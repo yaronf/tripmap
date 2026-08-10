@@ -27,6 +27,9 @@ func (m *memOps) SchemaJSON(context.Context) (json.RawMessage, error) {
 	return m.schema, nil
 }
 func (m *memOps) GetYAML(context.Context, string) ([]byte, error) { return m.yaml, nil }
+func (m *memOps) GetDay(_ context.Context, _ string, day int) (DayDetail, error) {
+	return DayDetailFromYAML(m.yaml, day)
+}
 func (m *memOps) Patch(_ context.Context, _ string, patchJSON []byte) (PatchResult, error) {
 	m.patches++
 	m.lastPatch = append(json.RawMessage(nil), patchJSON...)

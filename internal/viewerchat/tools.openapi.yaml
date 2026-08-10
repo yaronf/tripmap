@@ -77,7 +77,7 @@ paths:
                   description: Short caption for the photo
       responses:
         "200":
-          description: ok + verify
+          description: ok with day photo fields
   /chat/patch_trip:
     post:
       operationId: patch_trip
@@ -85,6 +85,7 @@ paths:
       description: |
         remove_stop example {day, list:"stops", places:["hellobeasty","Hawthorn Lounge"]}.
         places.*.maps_url must be a Google Maps URL. For day photos use set_day_photo instead.
+        Domain errors (e.g. remove_stop of a missing place) are returned as tool errors.
       requestBody:
         required: true
         content:

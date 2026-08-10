@@ -63,6 +63,14 @@ func (o chatTripOps) GetYAML(ctx context.Context, tripID string) ([]byte, error)
 	return obj.Body, nil
 }
 
+func (o chatTripOps) GetDay(ctx context.Context, tripID string, day int) (viewerchat.DayDetail, error) {
+	body, err := o.GetYAML(ctx, tripID)
+	if err != nil {
+		return viewerchat.DayDetail{}, err
+	}
+	return viewerchat.DayDetailFromYAML(body, day)
+}
+
 func (o chatTripOps) Patch(ctx context.Context, tripID string, patchJSON []byte) (viewerchat.PatchResult, error) {
 	obj, err := o.s.store.GetYAML(ctx, tripID)
 	if err != nil {
