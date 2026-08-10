@@ -49,7 +49,7 @@ Most logic lives in [`internal/viewerchat`](../internal/viewerchat); `httpserver
 
 1. **Config:** `OPENAI_API_KEY` / `OPENAI_SECRET_JSON`, `OPENAI_MODEL`, chat allowlist. Secrets Manager `tripmap/openai` (created out-of-band); data stack exports ARN + grants task execution role read.
 2. **Route:** `POST /me/trips/{id}/api/chat` under session trip gate (`handleSessionTrip`). API paths return 401 JSON (not login redirect).
-3. **Agent loop (v1.1):** Responses API; tools = hosted `web_search` (image+text) + function tools `get_trip_summary` / `get_schema` / `get_trip_yaml` / `patch_trip`, scoped to `{id}`.
+3. **Agent loop (v1.1):** Responses API; tools = hosted `web_search` + function tools from embedded [`tools.openapi.yaml`](../internal/viewerchat/tools.openapi.yaml) via [`mcpopenapi.ParseToolSchemas`](https://github.com/yaronf/mcpopenapi) (`get_trip_summary` / `get_schema` / `get_trip_yaml` / `get_day` / `set_day_photo` / `patch_trip`), scoped to `{id}`. System prompt is embedded [`prompt.txt`](../internal/viewerchat/prompt.txt).
 4. **After successful patch:** emit `trip_updated` SSE so the viewer reloads `trip.json`.
 5. **Security:** signed-in session **plus** chat allowlist; 503 if OpenAI unset; cap message size / tool iterations.
 

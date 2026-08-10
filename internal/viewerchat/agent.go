@@ -197,16 +197,7 @@ func functionCalls(resp *responses.Response) []responses.ResponseFunctionToolCal
 
 func buildSystemPrompt(card TripCard, day int) string {
 	var b strings.Builder
-	b.WriteString("You are tripmap's itinerary assistant inside the signed-in trip viewer.\n")
-	b.WriteString("You can research the live web (trails, opening hours, logistics, photos) via the web_search tool, then edit the open trip with function tools.\n")
-	b.WriteString("Edit only the open trip via patch_trip (update_day, places, upsert_stop, remove_stop, swap_days). Prefer places.*.info for enrichment; do not rewrite day/stop notes unless the user asks.\n")
-	b.WriteString("Adding a new venue/stop: in one patch_trip include places.{id} with title, lat, lon, type, maps_url AND upsert_stop {day, list:\"stops\", place:id, notes}. upsert_stop fails if the place id does not exist yet.\n")
-	b.WriteString("maps_url MUST be a Google Maps URL (https://www.google.com/maps/... or https://maps.app.goo.gl/... or https://g.page/...). Never put a restaurant/pub website in maps_url.\n")
-	b.WriteString("Removing stops: use patch_trip remove_stop with day, list:\"stops\", and places:[\"id-or-exact-title\", ...] (or place for one). Always get_day first. Only tell the user a stop is gone if patch_trip returned ok and verify.still_present is false / verify.removed lists it. If the tool errors, say so — never invent a successful removal.\n")
-	b.WriteString("Never claim you changed the itinerary unless patch_trip returned ok in this turn (check the tool JSON, including verify). If a tool returns error, tell the user what failed — do not invent success.\n")
-	b.WriteString("Units: this product's trips use metric. Always use kilometres/metres (and °C if needed). Never use miles, feet, yards, or °F.\n")
-	b.WriteString("Photos (day hero): MUST call set_day_photo. Prefer {day, query:\"place name + country\", photo_caption}. For \"different/another photo\", call set_day_photo again with query (server excludes the current image automatically). Do not invent Commons filenames. Never paste image URLs into the chat reply — the day card shows the photo after a successful tool call. Never tell the user to browse Commons. Never claim success unless set_day_photo returned ok with verify.photo_set true and photo changed when they asked for a different one.\n")
-	b.WriteString("Be concise. Do not repeat the same sentence. Never end with filler offers like \"If you need more information…\", \"let me know\", \"feel free to ask\", or \"if you'd like to adjust any stops\". Stop after the useful answer.\n")
+	b.WriteString(baseSystemPrompt())
 	b.WriteString("Trip context (JSON):\n")
 	raw, _ := json.Marshal(card)
 	b.Write(raw)
@@ -232,85 +223,6 @@ func dayTitle(card TripCard, day int) string {
 		}
 	}
 	return ""
-}
-
-func chatTools() []responses.ToolUnionParam {
-	// Single hosted web_search tool (avoid dual preview+modern tools, which can
-	// confuse the model and stretch latency past CloudFront's origin timeout).
-	web := responses.ToolUnionParam{
-		OfWebSearch: &responses.WebSearchToolParam{
-			Type:              responses.WebSearchToolTypeWebSearch,
-			SearchContextSize: responses.WebSearchToolSearchContextSizeLow,
-		},
-	}
-
-	emptyProps := map[string]any{
-		"type":       "object",
-		"properties": map[string]any{},
-	}
-	fns := []responses.ToolUnionParam{
-		{OfFunction: &responses.FunctionToolParam{
-			Name:        "get_trip_summary",
-			Description: openai.String("Get a compact summary of the open trip (titles, day count)."),
-			Parameters:  emptyProps,
-			Strict:      openai.Bool(false),
-		}},
-		{OfFunction: &responses.FunctionToolParam{
-			Name:        "get_schema",
-			Description: openai.String("Get the itinerary YAML schema and patch operation hints."),
-			Parameters:  emptyProps,
-			Strict:      openai.Bool(false),
-		}},
-		{OfFunction: &responses.FunctionToolParam{
-			Name:        "get_trip_yaml",
-			Description: openai.String("Fetch the current itinerary YAML (may be truncated for large trips). Prefer summary + targeted patches."),
-			Parameters:  emptyProps,
-			Strict:      openai.Bool(false),
-		}},
-		{OfFunction: &responses.FunctionToolParam{
-			Name:        "get_day",
-			Description: openai.String("Get one day's title, notes, and stop place ids/titles/types. Use for the CURRENT VIEWER DAY before editing."),
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"day": map[string]any{"type": "integer", "description": "1-based day number"},
-				},
-				"required": []string{"day"},
-			},
-			Strict: openai.Bool(false),
-		}},
-		{OfFunction: &responses.FunctionToolParam{
-			Name:        "set_day_photo",
-			Description: openai.String("Set a day's hero photo via Commons query (preferred) or photo URL. When replacing/changing a photo, pass query again — the server skips the day's current image so a different file is chosen. Returns the new photo URL in tool JSON only (do not paste it into chat)."),
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"day":           map[string]any{"type": "integer", "description": "1-based day number"},
-					"query":         map[string]any{"type": "string", "description": "Commons search query when you do not have a URL yet"},
-					"photo":         map[string]any{"type": "string", "description": "Optional direct https image URL or Commons File: URL"},
-					"photo_caption": map[string]any{"type": "string", "description": "Short caption for the photo"},
-				},
-				"required": []string{"day"},
-			},
-			Strict: openai.Bool(false),
-		}},
-		{OfFunction: &responses.FunctionToolParam{
-			Name:        "patch_trip",
-			Description: openai.String("Apply a structured patch. remove_stop: {day, list:\"stops\", places:[\"hellobeasty\",\"Hawthorn Lounge\"]}. places.*.maps_url must be a Google Maps URL. For day photos use set_day_photo instead."),
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"patch": map[string]any{
-						"type":        "object",
-						"description": "Patch object: update_day, places, upsert_stop, remove_stop (place or places[]), swap_days, insert_day, delete_day, days",
-					},
-				},
-				"required": []string{"patch"},
-			},
-			Strict: openai.Bool(false),
-		}},
-	}
-	return append([]responses.ToolUnionParam{web}, fns...)
 }
 
 func (a *Agent) execTool(ctx context.Context, tripID, name, argsJSON string) (string, bool, error) {
