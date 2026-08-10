@@ -3,6 +3,7 @@ package itinerary
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Patch is a structured itinerary mutation (agent API / MCP).
@@ -39,11 +40,13 @@ type UpsertStop struct {
 	MapsURL string `json:"maps_url,omitempty"`
 }
 
-// RemoveStop removes a route/stop ref matching place id from a day.
+// RemoveStop removes route/stop refs from a day.
+// Use Place for one id, or Places for several. Values may be place ids or exact titles.
 type RemoveStop struct {
-	Day   int    `json:"day"`
-	List  string `json:"list"` // "route" or "stops"; empty = both
-	Place string `json:"place"`
+	Day    int      `json:"day"`
+	List   string   `json:"list"` // "route" or "stops"; empty = both
+	Place  string   `json:"place,omitempty"`
+	Places []string `json:"places,omitempty"`
 }
 
 // InsertDay inserts a day after the given day number.
@@ -52,8 +55,23 @@ type InsertDay struct {
 	Day   json.RawMessage `json:"day"`
 }
 
+// Empty reports whether the patch carries no operations.
+func (p Patch) Empty() bool {
+	return len(p.SwapDays) == 0 &&
+		len(p.Days) == 0 &&
+		p.UpdateDay == nil &&
+		len(p.Places) == 0 &&
+		p.UpsertStop == nil &&
+		p.RemoveStop == nil &&
+		p.InsertDay == nil &&
+		p.DeleteDay == nil
+}
+
 // ApplyPatch mutates t in place.
 func ApplyPatch(t *Trip, p Patch) error {
+	if p.Empty() {
+		return fmt.Errorf("patch is empty")
+	}
 	if len(p.SwapDays) == 2 {
 		a, b := p.SwapDays[0], p.SwapDays[1]
 		ia, ib := dayIndex(*t, a), dayIndex(*t, b)
@@ -364,21 +382,94 @@ func applyRemoveStop(t *Trip, r RemoveStop) error {
 	if i < 0 {
 		return fmt.Errorf("remove_stop: day %d not found", r.Day)
 	}
-	if r.Place == "" {
-		return fmt.Errorf("remove_stop: place is required")
+	refs := make([]string, 0, 1+len(r.Places))
+	if strings.TrimSpace(r.Place) != "" {
+		refs = append(refs, r.Place)
+	}
+	for _, p := range r.Places {
+		if strings.TrimSpace(p) != "" {
+			refs = append(refs, p)
+		}
+	}
+	if len(refs) == 0 {
+		return fmt.Errorf("remove_stop: place or places is required")
 	}
 	switch r.List {
-	case "route":
-		t.Days[i].Route = filterPlace(t.Days[i].Route, r.Place)
-	case "stops":
-		t.Days[i].Stops = filterPlace(t.Days[i].Stops, r.Place)
-	case "":
-		t.Days[i].Route = filterPlace(t.Days[i].Route, r.Place)
-		t.Days[i].Stops = filterPlace(t.Days[i].Stops, r.Place)
+	case "route", "stops", "":
 	default:
 		return fmt.Errorf("remove_stop: list must be \"route\", \"stops\", or empty")
 	}
+
+	for _, ref := range refs {
+		id, err := resolveDayPlaceRef(t, i, ref, r.List)
+		if err != nil {
+			return fmt.Errorf("remove_stop: %w", err)
+		}
+		removed := false
+		switch r.List {
+		case "route":
+			before := len(t.Days[i].Route)
+			t.Days[i].Route = filterPlace(t.Days[i].Route, id)
+			removed = len(t.Days[i].Route) < before
+		case "stops":
+			before := len(t.Days[i].Stops)
+			t.Days[i].Stops = filterPlace(t.Days[i].Stops, id)
+			removed = len(t.Days[i].Stops) < before
+		case "":
+			br, bs := len(t.Days[i].Route), len(t.Days[i].Stops)
+			t.Days[i].Route = filterPlace(t.Days[i].Route, id)
+			t.Days[i].Stops = filterPlace(t.Days[i].Stops, id)
+			removed = len(t.Days[i].Route) < br || len(t.Days[i].Stops) < bs
+		}
+		if !removed {
+			return fmt.Errorf("remove_stop: place %q not found on day %d", ref, r.Day)
+		}
+	}
 	return nil
+}
+
+// resolveDayPlaceRef maps a place id or exact title to a place id on the day.
+func resolveDayPlaceRef(t *Trip, dayIdx int, ref, list string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", fmt.Errorf("empty place")
+	}
+	candidates := make([]Stop, 0, len(t.Days[dayIdx].Route)+len(t.Days[dayIdx].Stops))
+	switch list {
+	case "route":
+		candidates = append(candidates, t.Days[dayIdx].Route...)
+	case "stops":
+		candidates = append(candidates, t.Days[dayIdx].Stops...)
+	default:
+		candidates = append(candidates, t.Days[dayIdx].Route...)
+		candidates = append(candidates, t.Days[dayIdx].Stops...)
+	}
+	for _, s := range candidates {
+		if s.Place == ref {
+			return ref, nil
+		}
+	}
+	want := strings.ToLower(ref)
+	var matches []string
+	seen := map[string]bool{}
+	for _, s := range candidates {
+		p, ok := t.Places[s.Place]
+		if !ok || seen[s.Place] {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(p.Title)) == want {
+			matches = append(matches, s.Place)
+			seen[s.Place] = true
+		}
+	}
+	switch len(matches) {
+	case 1:
+		return matches[0], nil
+	case 0:
+		return "", fmt.Errorf("place %q not found on day %d (use place id from get_day)", ref, t.Days[dayIdx].Day)
+	default:
+		return "", fmt.Errorf("place title %q is ambiguous on day %d", ref, t.Days[dayIdx].Day)
+	}
 }
 
 func filterPlace(list []Stop, place string) []Stop {

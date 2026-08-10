@@ -68,3 +68,15 @@ func resolveAllowlistPath() string {
 	}
 	return "config/hello-allowlist.csv"
 }
+
+func resolveChatAllowlistPath() string {
+	if p := strings.TrimSpace(os.Getenv("CHAT_ALLOWLIST_FILE")); p != "" {
+		return p
+	}
+	for _, p := range []string{"config/chat-allowlist.csv", "/config/chat-allowlist.csv"} {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
+	}
+	return "config/chat-allowlist.csv"
+}

@@ -15,7 +15,21 @@ After a full compute **delete**, recreate needs `ecs:CreateCluster` on the deplo
 - [ ] Local `.env` has `AGENT_BEARER_TOKEN` (never commit; not readable by `tripmap-deploy`)
 - [ ] Agent Bearer already configured for MCP / scripts (unchanged across seasons)
 
-## 1. Build and push (if needed)
+## 1–2. Build, push, and update compute (preferred)
+
+As `tripmap-deploy`, from the repo root:
+
+```bash
+./scripts/deploy-compute.sh
+# or: ./scripts/deploy-compute.sh --prefix chat-remove
+# or: ./scripts/deploy-compute.sh --patch-viewer   # also sync app.js/chat.js/style.css to trip bundles
+```
+
+That script ECR-logins, builds `linux/amd64`, pushes the tag + `latest`, runs `aws cloudformation deploy` on `tripmap-compute`, waits for ECS, and hits `/health`.
+
+Manual steps below remain if you need to reuse an existing tag or change only one piece.
+
+### Manual: build and push
 
 ```bash
 cd /path/to/tripmap
@@ -35,9 +49,10 @@ docker push "$REPO:$TAG"
 docker push "$REPO:latest"
 ```
 
-Skip this section if reusing an existing tag (e.g. last known-good `openapi-gpt-…`).
+Skip build if reusing an existing tag (e.g. last known-good `openapi-gpt-…`), or:
+`./scripts/deploy-compute.sh --skip-build --tag existing-tag`.
 
-## 2. Create or update compute stack
+### Manual: create or update compute stack
 
 ```bash
 TAG=…   # from step 1, or an existing ECR tag
@@ -57,6 +72,29 @@ aws cloudformation deploy \
 Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/callback` (exact path).
 
 `HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer. Signed-in ACL is `config/hello-allowlist.csv` (baked into the image).
+
+In-viewer chat (Persona) uses Secrets Manager `tripmap/openai` (`{"api_key":"sk-…"}`). Empty/missing key dark-ships chat (503). Chat ACL is `config/chat-allowlist.csv` (subset of Hellō users).
+
+The secret is **not** created by CloudFormation (create/put as admin). `tripmap-data` only exports its ARN and grants the task execution role `GetSecretValue`. After changing the secret or the data export, redeploy compute so ECS re-injects `OPENAI_SECRET_JSON`:
+
+```bash
+# Create once (admin), then put/rotate the key
+aws secretsmanager create-secret --region eu-central-1 \
+  --name tripmap/openai --secret-string '{"api_key":""}'
+aws secretsmanager put-secret-value --region eu-central-1 \
+  --secret-id tripmap/openai \
+  --secret-string '{"api_key":"sk-..."}'
+
+# Admin: refresh data stack so export + execution-role IAM include the ARN
+aws cloudformation deploy \
+  --stack-name tripmap-data \
+  --template-file infra/data.yaml \
+  --region eu-central-1 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides ProjectName=tripmap
+
+# Deploy role: new image + compute ImageTag (injects OPENAI_SECRET_JSON)
+```
 
 Day-to-day **image-only** updates (same stack, new `ImageTag`) typically finish in ~3 minutes after the Express bake tweak below. A full seasonal **create** still needs edge (step 3) and the bake step.
 

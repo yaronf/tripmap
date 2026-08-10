@@ -68,6 +68,45 @@ func TestSessionTripRequiresLogin(t *testing.T) {
 	}
 }
 
+func TestSessionTripManifestPublicWithoutCookie(t *testing.T) {
+	srv, _ := testServer(t)
+	srv.cfg.HelloClientID = "app_test"
+	srv.cfg.HelloSessionSecret = "session-test-key"
+	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+
+	createBody, _ := json.Marshal(map[string]string{"id": "manifest-trip", "yaml": sampleYAML})
+	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))
+	req.Header.Set("Idempotency-Key", "manifest-c")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/me/trips/manifest-trip/manifest.webmanifest", nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "manifest") && !strings.Contains(ct, "json") {
+		t.Fatalf("content-type=%s", ct)
+	}
+	if !strings.Contains(rec.Body.String(), `"name"`) {
+		t.Fatalf("body=%s", rec.Body.String())
+	}
+
+	// Still require login for the trip shell itself.
+	req = httptest.NewRequest(http.MethodGet, "/me/trips/manifest-trip/", nil)
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("index code=%d want 302", rec.Code)
+	}
+}
+
 func TestSessionTripServesBundle(t *testing.T) {
 	srv, _ := testServer(t)
 	srv.cfg.HelloClientID = "app_test"

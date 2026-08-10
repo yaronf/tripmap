@@ -43,6 +43,9 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+              # Chat SSE + OpenAI web_search routinely exceeds the 30s default.
+              OriginReadTimeout: 60
+              OriginKeepaliveTimeout: 60
         DefaultCacheBehavior:
           TargetOriginId: express-alb
           ViewerProtocolPolicy: redirect-to-https

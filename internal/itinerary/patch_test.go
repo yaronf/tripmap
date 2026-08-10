@@ -2,6 +2,13 @@ package itinerary
 
 import "testing"
 
+func TestApplyPatchRejectsEmpty(t *testing.T) {
+	trip := Trip{Trip: "T", Days: []Day{{Day: 1, Title: "A"}}}
+	if err := ApplyPatch(&trip, Patch{}); err == nil {
+		t.Fatal("expected empty patch error")
+	}
+}
+
 func TestApplyPatchSwapAndDelete(t *testing.T) {
 	trip := Trip{
 		Trip: "T",
@@ -136,5 +143,38 @@ func TestApplyPatchUpsertRemoveStop(t *testing.T) {
 	}
 	if len(trip.Days[0].Stops) != 0 {
 		t.Fatalf("expected empty stops, got %+v", trip.Days[0].Stops)
+	}
+	if err := ApplyPatch(&trip, Patch{
+		RemoveStop: &RemoveStop{Day: 1, List: "stops", Place: "missing"},
+	}); err == nil {
+		t.Fatal("expected error removing missing place")
+	}
+}
+
+func TestApplyPatchRemoveStopsByTitleAndIDs(t *testing.T) {
+	trip := Trip{
+		Trip: "T",
+		Places: map[string]Place{
+			"a": {Title: "Alpha Pub", Lat: 1, Lon: 2, Type: "pub"},
+			"b": {Title: "Beta Lounge", Lat: 3, Lon: 4, Type: "pub"},
+			"c": {Title: "Camp", Lat: 5, Lon: 6, Type: "overnight"},
+		},
+		Days: []Day{{
+			Day:   1,
+			Title: "D",
+			Stops: []Stop{{Place: "a"}, {Place: "b"}, {Place: "c"}},
+		}},
+	}
+	if err := ApplyPatch(&trip, Patch{
+		RemoveStop: &RemoveStop{
+			Day:    1,
+			List:   "stops",
+			Places: []string{"Alpha Pub", "b"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(trip.Days[0].Stops) != 1 || trip.Days[0].Stops[0].Place != "c" {
+		t.Fatalf("stops = %+v", trip.Days[0].Stops)
 	}
 }

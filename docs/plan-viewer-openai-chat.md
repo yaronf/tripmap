@@ -1,26 +1,29 @@
 # Plan: in-viewer OpenAI chat (Persona)
 
-**Status:** planned (not implemented).  
-**Overview:** Persona (vanilla JS) chat in the signed-in tripmap viewer, backed by a streaming `tripmapd` endpoint that tool-calls the existing agent handlers — no React, no Vercel, no browser API keys.
+**Status:** implemented (v1 chat + itinerary tools); **v1.1 deployed** (`chat-sse-20260809234123`) — Responses API + `web_search`; SSE flush/heartbeats; CF origin read timeout 60s.  
+**Overview:** Persona (vanilla JS) chat in the signed-in tripmap viewer, backed by a streaming `tripmapd` endpoint that tool-calls itinerary ops and (v1.1) OpenAI hosted web/image search — no React, no Vercel, no browser API keys.
 
 ## Goal
 
-Let signed-in viewers nudge the open itinerary from the PWA without switching to ChatGPT/Codex: a **Persona** chat panel that streams replies and applies edits via the same trip operations MCP already uses.
+Let signed-in viewers nudge the open itinerary from the PWA without switching to ChatGPT/Codex: a **Persona** chat panel that streams replies, looks up trails / hours / photos on the web, and applies edits via the same trip operations MCP already uses.
 
 ## Locked decisions
 
 - **UI:** [Persona](https://www.persona-chat.dev/) (`@runtypelabs/persona`) — vanilla JS, **floating** launcher (not docked). No React / no assistant-ui.
-- **Viewer:** keep vanilla [`internal/bundle/viewer/app.js`](../internal/bundle/viewer/app.js); mount Persona with `initAgentWidget` + Shadow DOM (no style fights with Leaflet).
+- **Viewer:** keep vanilla [`internal/bundle/viewer/app.js`](../internal/bundle/viewer/app.js); mount Persona with `initAgentWidget` + Shadow DOM. Load Persona CSS as `link[data-persona]` (cloned into the shadow root). Host `#persona-root` is zero-size / fixed so it does not steal flex height from `.app`. Day-nav keys must ignore Shadow DOM focus via `composedPath`.
 - **No Vercel** hosting or Vercel AI SDK.
-- **OpenAI:** official **Go SDK** in `tripmapd` only; key from env/Secrets Manager (`OPENAI_API_KEY`), never in the browser.
-- **Backend shape:** put **all/most** of the chat agent loop (OpenAI client, tool wiring, SSE) in a **separate package** (e.g. `internal/viewerchat`), not sprawled across `httpserver`. HTTP route stays a thin session-authed wrapper on the viewer trip paths.
+- **OpenAI:** official **Go SDK** in `tripmapd` only; key from env/Secrets Manager (`OPENAI_API_KEY` / `OPENAI_SECRET_JSON`), never in the browser.
+- **Agent API (v1.1):** prefer **Responses API** with hosted `{ "type": "web_search" }` (text + **image** results) plus custom function tools for itinerary ops. Chat Completions alone cannot host `web_search` with image results.
+- **Backend shape:** put **all/most** of the chat agent loop in [`internal/viewerchat`](../internal/viewerchat); `httpserver` only authenticates and delegates.
 - **Auth:** viewer session cookie after Hellō login (same as comments) — not agent Bearer. Persona `customFetch` sends `credentials: "include"`.
-- **Security (chat):** separate allowlist / authz for chat (not every signed-in Hellō user); 503 if OpenAI unset; cap message size / tool iterations.
-- **Itinerary tools (server only):** in-process calls to existing agent handlers (`api.ServerInterface` / OpenAPI), same semantics as MCP — S3 patches stay in `tripmapd`. **Not** Persona WebMCP page tools for mutating YAML.
-- **Page tools:** out of scope v1. Optional later for UI-only actions (jump to day, focus stop) after a server `trip_updated` event; never for SoT writes.
-- **Context (server-assembled each turn):** system prompt + compact trip card (id, title, current day from client, short YAML/summary) + last N messages + tool results. Prefer tools over stuffing full multi-week YAML every turn.
-- **History v1:** Persona/client-held thread (session); server mostly stateless per request. No cross-device resume in v1.
-- **Out of scope v1:** Codex/MCP changes, Custom GPT Actions, billing UI, multi-model picker, WebMCP page tools, shared-comments tools (separate TODO).
+- **Security (chat):** separate allowlist (`config/chat-allowlist.csv`); 503 if OpenAI unset; cap message size / tool iterations.
+- **Itinerary tools (server only):** in-process trip ops (summary / schema / YAML / patch), same semantics as MCP — S3 patches stay in `tripmapd`. **Not** Persona WebMCP page tools for mutating YAML.
+- **Web research (v1.1):** OpenAI hosted `web_search` for opening times, trail conditions, logistics, etc. No separate Bing/Tavily secret unless we later add a fallback.
+- **Photos (v1.1):** still **URL-only** in YAML (`photo` / `photo_caption`) — tripmap does not host image bytes. Flow: `web_search` with `search_content_types: ["image","text"]` → optional vision review of candidate `image_url`s → `patch_trip` / `update_day` with the chosen HTTPS URL. Prefer stable sources (Wikimedia, official tourism); hotlink/license risk accepted; broken URLs may still happen.
+- **Page tools:** out of scope. Optional later for UI-only actions (jump to day) after `trip_updated`; never for SoT writes.
+- **Context (server-assembled each turn):** system prompt + compact trip card + last N messages + tool results. Prefer tools over stuffing full multi-week YAML every turn.
+- **History v1:** Persona/client-held thread (session); server mostly stateless per request.
+- **Out of scope:** Codex/MCP changes, Custom GPT Actions, billing UI, multi-model picker, WebMCP page tools, shared-comments tools, embedding/uploading photo files into S3.
 
 ```mermaid
 flowchart LR
@@ -28,11 +31,13 @@ flowchart LR
   persona[Persona floating]
   chatAPI["POST /me/trips/id/api/chat SSE"]
   pkg[internal/viewerchat]
-  openai[OpenAI SDK]
-  tools[existing agent handlers]
+  openai[OpenAI Responses API]
+  web[web_search text+images]
+  tools[itinerary function tools]
   s3[S3 YAML]
   viewer --> persona --> chatAPI --> pkg --> openai
-  openai -->|tool calls| tools --> s3
+  openai --> web
+  openai -->|function calls| tools --> s3
   tools --> openai
   openai -->|stream| pkg --> chatAPI --> persona
   chatAPI -->|trip_updated| viewer
@@ -40,36 +45,33 @@ flowchart LR
 
 ## Backend (`tripmapd`)
 
-Most logic lives in a dedicated package (e.g. [`internal/viewerchat`](../internal/httpserver)); `httpserver` only authenticates and delegates.
+Most logic lives in [`internal/viewerchat`](../internal/viewerchat); `httpserver` only authenticates and delegates.
 
-1. **Config:** `OPENAI_API_KEY`, model name (e.g. `OPENAI_MODEL`), optional rate limit; chat allowlist path/env. Wire into [`internal/httpserver`](../internal/httpserver) config like other secrets.
-2. **Route:** `POST /me/trips/{id}/api/chat` under existing session trip gate (`handleSessionTrip`).
-   - Body: messages + optional `day` / client context (adapt to whatever Persona posts; use `parseSSEEvent` / `customFetch` on the client if shapes differ).
-   - Response: **SSE** stream of assistant text (+ tool progress if useful); document the event format Persona’s parser expects and match it (or ship a thin `parseSSEEvent`).
-3. **Agent loop** (in `viewerchat`): OpenAI tool-calling; each tool maps to `/api/agent/*` handler logic (get schema / get trip / patch trip as needed), **scoped to `{id}`**.
-4. **After successful patch:** emit `trip_updated` (SSE event or trailer) so the viewer reloads `trip.json` / geo without a full page refresh.
-5. **Security:** signed-in viewer session required **plus** separate chat allowlist/authz; 503 if OpenAI unset; cap message size / tool iterations.
+1. **Config:** `OPENAI_API_KEY` / `OPENAI_SECRET_JSON`, `OPENAI_MODEL`, chat allowlist. Secrets Manager `tripmap/openai` (created out-of-band); data stack exports ARN + grants task execution role read.
+2. **Route:** `POST /me/trips/{id}/api/chat` under session trip gate (`handleSessionTrip`). API paths return 401 JSON (not login redirect).
+3. **Agent loop (v1.1):** Responses API; tools = hosted `web_search` (image+text) + function tools `get_trip_summary` / `get_schema` / `get_trip_yaml` / `patch_trip`, scoped to `{id}`.
+4. **After successful patch:** emit `trip_updated` SSE so the viewer reloads `trip.json`.
+5. **Security:** signed-in session **plus** chat allowlist; 503 if OpenAI unset; cap message size / tool iterations.
 
 ## Frontend
 
-1. **Deps:** add `@runtypelabs/persona` to the viewer (script tag or small bundled entry next to `app.js` — prefer the lightest path that still embeds cleanly in the PWA/CLI bundle).
-2. **Mount:** `initAgentWidget` with `apiUrl` → `/me/trips/{id}/api/chat`, **floating** launcher; theme tokens aligned with viewer chrome.
-3. **Transport:** `customFetch` with session cookies; `parseSSEEvent` if the Go stream is not Persona’s default shape.
-4. **Reload:** on `trip_updated`, call existing viewer reload/fetch in `app.js`. Pass current day into chat context when sending.
+1. Persona via CDN (`index.global.js` + `widget.css` with `data-persona`); [`chat.js`](../internal/bundle/viewer/chat.js) mounts only when `/auth/me` has `chat_enabled`.
+2. Floating launcher; `customFetch` + `parseSSEEvent`; pass current day in context.
+3. On `trip_updated`, `window.tripmap.reloadTrip()`.
 
 ## Docs / ops
 
-- README or runbook: enable key, model, viewer session + chat allowlist, Persona floating widget.
-- TODO: track “in-viewer OpenAI chat (Persona)” (already linked from [`TODO.md`](../TODO.md)).
-- Deploy: same ECS image; new secret when ready (dark-ship until key set).
+- `.env.example`, runbook: OpenAI secret, chat allowlist, Persona widget.
+- Deploy: ECS injects `OPENAI_SECRET_JSON`; regen trip bundles after viewer shell changes.
 
 ## Implementation todos
 
-1. `internal/viewerchat` (+ thin session-authed route): OpenAI Go SDK tool loop over agent handlers; SSE shape Persona can parse; chat allowlist.
-2. Mount Persona **floating** widget in the vanilla viewer; credentials include; reload trip on patch.
-3. Config/secret wiring, docs/TODO, dark-ship without key; theme tokens to match viewer.
+1. [x] `internal/viewerchat` (+ thin session-authed route): tool loop over itinerary ops; SSE; chat allowlist.
+2. [x] Mount Persona **floating** widget; credentials include; reload trip on patch; layout/keyboard fixes for Shadow DOM.
+3. [x] Config/secret wiring, docs/TODO; dark-ship without key.
+4. [x] **v1.1:** Responses API + `web_search` / `web_search_preview` (text + images); prompt for research + photo URL selection; itinerary function tools; tests; image `chat-web-20260809202725` deployed.
 
 ## Tests
 
-- Handler unit test: unauthenticated → 401; not on chat allowlist → 403; no API key → 503; mocked OpenAI tool loop calls patch once for a fixture trip.
-- Smoke: Persona mounts in viewer shell; SSE parse against a recorded fixture stream.
+- Handler unit test: unauthenticated → 401; not on chat allowlist → 403; no API key → 503; mocked tool loop calls patch once for a fixture trip.
+- Smoke: Persona mounts; SSE parse; (v1.1) research turn returns citations / photo URL patch without crashing the loop.

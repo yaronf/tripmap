@@ -119,9 +119,24 @@
     return labels[type] || type || "Stop";
   }
 
+  function isGoogleMapsURL(url) {
+    try {
+      const u = new URL(url);
+      const host = u.hostname.toLowerCase();
+      if (host === "g.page" || host === "maps.app.goo.gl" || host === "goo.gl") return true;
+      if (host === "maps.google.com" || host.endsWith(".google.com") || host.endsWith(".google.co.nz")) {
+        return /maps/i.test(host + u.pathname + u.search);
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   function mapsPinURL(stop) {
     const override = typeof stop?.maps_url === "string" ? stop.maps_url.trim() : "";
-    if (override && /^https?:\/\//i.test(override)) return override;
+    // Chat sometimes stores a venue website in maps_url — only trust Google Maps links.
+    if (override && isGoogleMapsURL(override)) return override;
     return mapsSearchURL(Number(stop?.lat), Number(stop?.lon));
   }
 
@@ -845,6 +860,35 @@
     return best;
   }
 
+  async function applyTrip(trip, { preserveDay } = {}) {
+    const prevDayNum = preserveDay && state.trip?.days?.[state.dayIndex]?.day;
+    state.trip = trip;
+    state.geoCache.clear();
+    await loadSharedNotes();
+    el.title.textContent = state.trip.title;
+    const pageTitle = /itinerary/i.test(state.trip.title)
+      ? state.trip.title
+      : `${state.trip.title} Itinerary`;
+    document.title = pageTitle;
+
+    el.modeToggle.hidden = false;
+    el.btnDays.hidden = false;
+
+    let idx = initialDayIndex();
+    if (prevDayNum != null) {
+      const found = state.trip.days.findIndex((d) => d.day === prevDayNum);
+      if (found >= 0) idx = found;
+    }
+    await selectDay(idx, false);
+    updateOnline();
+  }
+
+  async function reloadTrip() {
+    const res = await fetch("trip.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("Could not reload trip.json");
+    await applyTrip(await res.json(), { preserveDay: true });
+  }
+
   async function boot() {
     initMap();
     setMode(window.matchMedia("(max-width: 899px)").matches ? "list" : "list");
@@ -856,20 +900,20 @@
       el.meta.textContent = "Retry after checking that trip.json is next to index.html.";
       return;
     }
-    state.trip = await res.json();
-    await loadSharedNotes();
-    el.title.textContent = state.trip.title;
-    const pageTitle = /itinerary/i.test(state.trip.title)
-      ? state.trip.title
-      : `${state.trip.title} Itinerary`;
-    document.title = pageTitle;
-
-    el.modeToggle.hidden = false;
-    el.btnDays.hidden = false;
-
-    await selectDay(initialDayIndex(), false);
-    updateOnline();
+    await applyTrip(await res.json());
   }
+
+  window.tripmap = {
+    reloadTrip,
+    getTrip: () => state.trip,
+    getDayIndex: () => state.dayIndex,
+    getDayNumber: () => {
+      const d = state.trip?.days?.[state.dayIndex];
+      if (!d) return 0;
+      const n = Number(d.day);
+      return Number.isFinite(n) && n > 0 ? n : state.dayIndex + 1;
+    },
+  };
 
   el.modeToggle.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-mode]");
@@ -906,6 +950,37 @@
   window.addEventListener("online", updateOnline);
   window.addEventListener("offline", updateOnline);
 
+  // Shadow DOM (Persona floating launcher) retargets e.target to the host;
+  // day-nav must ignore keys that originate inside the widget.
+  function eventFromEditable(e) {
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+    for (const node of path) {
+      if (!node || node.nodeType !== 1) continue;
+      if (
+        node.id === "persona-root" ||
+        node.hasAttribute?.("data-persona-root") ||
+        node.hasAttribute?.("data-persona")
+      ) {
+        return true;
+      }
+      const tag = node.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return true;
+      if (node.isContentEditable) return true;
+      const role = node.getAttribute?.("role");
+      if (role === "textbox" || role === "searchbox" || role === "combobox") return true;
+    }
+    const t = e.target;
+    if (t instanceof Element) {
+      if (t.closest("#persona-root, [data-persona-root], [data-persona]")) return true;
+      if (t.matches("textarea, input, select, [contenteditable=''], [contenteditable=true], [role=textbox]")) {
+        return true;
+      }
+      // Open Persona host (floating widget mounts a shadow root on a host element).
+      if (t.shadowRoot) return true;
+    }
+    return false;
+  }
+
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       if (!el.lightbox.hidden) {
@@ -918,7 +993,7 @@
       }
     }
     if (!state.trip) return;
-    if (e.target.matches("textarea, input")) return;
+    if (eventFromEditable(e)) return;
     if (e.key === "ArrowDown" || e.key === "j") {
       e.preventDefault();
       stepDay(1);

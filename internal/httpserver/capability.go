@@ -17,11 +17,6 @@ const maxNotesBytes = 64 * 1024
 
 // handleSessionTrip serves /me/trips/{id}/… to signed-in Hellō users.
 func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.sessionFromRequest(r); !ok {
-		http.Redirect(w, r, "/auth/hello/login?return_to="+url.QueryEscape(r.URL.Path), http.StatusFound)
-		return
-	}
-
 	rest := strings.TrimPrefix(r.URL.Path, "/me/trips/")
 	if rest == "" || rest == "/" {
 		http.Redirect(w, r, "/", http.StatusFound)
@@ -37,6 +32,29 @@ func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 {
 		rel = parts[1]
 	}
+
+	sess, authed := s.sessionFromRequest(r)
+	if !authed {
+		if strings.HasPrefix(rel, "api/") {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+			return
+		}
+		// Chrome fetches link[rel=manifest] (and often the icon) without cookies.
+		// Redirecting those to the HTML login page yields "Manifest: Syntax error".
+		if publicBundleRel(rel) {
+			ok, err := s.store.Exists(r.Context(), id)
+			if err != nil || !ok {
+				http.NotFound(w, r)
+				return
+			}
+			s.serveTripBundle(w, r, id, rel)
+			return
+		}
+		http.Redirect(w, r, "/auth/hello/login?return_to="+url.QueryEscape(r.URL.Path), http.StatusFound)
+		return
+	}
+	_ = sess
+
 	if rel == "" && !strings.HasSuffix(r.URL.Path, "/") {
 		http.Redirect(w, r, r.URL.Path+"/", http.StatusFound)
 		return
@@ -50,9 +68,24 @@ func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
 	s.serveTripBundle(w, r, id, rel)
 }
 
+// publicBundleRel is true for install-surface assets that must be readable
+// without a session cookie. Keep this list minimal (no trip.json / geo / photos).
+func publicBundleRel(rel string) bool {
+	switch strings.TrimSpace(rel) {
+	case "manifest.webmanifest", "icon.svg":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Server) serveTripBundle(w http.ResponseWriter, r *http.Request, id, rel string) {
 	if rel == "api/notes" || strings.HasPrefix(rel, "api/notes/") {
 		s.handleNotes(w, r, id)
+		return
+	}
+	if rel == "api/chat" || strings.HasPrefix(rel, "api/chat/") {
+		s.handleChat(w, r, id)
 		return
 	}
 

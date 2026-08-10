@@ -92,6 +92,10 @@ Resources:
               - "${SecretArn}:secret::"
               - SecretArn:
                   Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
+          # Injects full JSON; tripmapd reads api_key (empty disables chat)
+          - Name: OPENAI_SECRET_JSON
+            ValueFrom:
+              Fn::ImportValue: !Sub "${ProjectName}-OpenAISecretArn"
       ScalingTarget:
         MinTaskCount: !Ref MinTaskCount
         MaxTaskCount: !Ref MaxTaskCount

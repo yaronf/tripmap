@@ -25,6 +25,10 @@ type Config struct {
 	HelloSessionSecret string
 	HelloAllowedEmails []string // lowercase
 	HelloAllowedSubs   []string
+	OpenAIAPIKey       string
+	OpenAIModel        string
+	ChatAllowedEmails  []string // lowercase; subset of Hellō users allowed to chat
+	ChatAllowedSubs    []string
 }
 
 // LoadConfig reads configuration from the environment.
@@ -42,6 +46,8 @@ func LoadConfig() (Config, error) {
 		HelloClientSecret:  strings.TrimSpace(os.Getenv("HELLO_CLIENT_SECRET")),
 		HelloRedirectURI:   strings.TrimSpace(os.Getenv("HELLO_REDIRECT_URI")),
 		HelloSessionSecret: strings.TrimSpace(os.Getenv("HELLO_SESSION_SECRET")),
+		OpenAIAPIKey:       resolveOpenAIAPIKey(),
+		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-4o-mini"),
 	}
 	if v := os.Getenv("MAX_YAML_BYTES"); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)
@@ -72,7 +78,34 @@ func LoadConfig() (Config, error) {
 			return Config{}, fmt.Errorf("HELLO allowlist %s is empty", path)
 		}
 	}
+	if cfg.OpenAIAPIKey != "" {
+		path := resolveChatAllowlistPath()
+		emails, subs, err := loadHelloAllowlistFile(path)
+		if err != nil {
+			return Config{}, fmt.Errorf("CHAT allowlist %s: %w", path, err)
+		}
+		cfg.ChatAllowedEmails = emails
+		cfg.ChatAllowedSubs = subs
+		if len(cfg.ChatAllowedEmails) == 0 && len(cfg.ChatAllowedSubs) == 0 {
+			return Config{}, fmt.Errorf("CHAT allowlist %s is empty", path)
+		}
+	}
 	return cfg, nil
+}
+
+func resolveOpenAIAPIKey() string {
+	if k := strings.TrimSpace(os.Getenv("OPENAI_API_KEY")); k != "" {
+		return k
+	}
+	if raw := strings.TrimSpace(os.Getenv("OPENAI_SECRET_JSON")); raw != "" {
+		var m map[string]string
+		if err := json.Unmarshal([]byte(raw), &m); err == nil {
+			if k := strings.TrimSpace(m["api_key"]); k != "" {
+				return k
+			}
+		}
+	}
+	return ""
 }
 
 func resolveAgentToken() (string, error) {

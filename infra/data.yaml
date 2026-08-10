@@ -8,6 +8,11 @@ Parameters:
     Type: String
     Default: tripmap
     AllowedPattern: "^[a-z0-9-]+$"
+  # Created out-of-band (aws secretsmanager create-secret); not managed by this stack.
+  OpenAISecretArn:
+    Type: String
+    Default: "arn:aws:secretsmanager:eu-central-1:077804408159:secret:tripmap/openai-Uy9vLX"
+    Description: Existing Secrets Manager ARN for viewer chat (JSON key api_key)
 
 Resources:
   ItinerariesBucket:
@@ -124,6 +129,7 @@ Resources:
                 Resource:
                   - !Ref AgentBearerSecret
                   - !Ref HelloSessionSecret
+                  - !Ref OpenAISecretArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -226,6 +232,12 @@ Outputs:
     Value: !Ref HelloSessionSecret
     Export:
       Name: !Sub "${ProjectName}-HelloSessionSecretArn"
+
+  OpenAISecretArnExport:
+    Description: Secrets Manager ARN for OpenAI API key (viewer chat)
+    Value: !Ref OpenAISecretArn
+    Export:
+      Name: !Sub "${ProjectName}-OpenAISecretArn"
 
   EcrRepositoryUri:
     Description: ECR repository URI for tripmapd image

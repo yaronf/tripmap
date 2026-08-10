@@ -238,7 +238,9 @@ func contentTypeFor(rel string) string {
 		ct = "text/javascript; charset=utf-8"
 	case strings.HasSuffix(rel, ".css"):
 		ct = "text/css; charset=utf-8"
-	case strings.HasSuffix(rel, ".json"), strings.HasSuffix(rel, ".webmanifest"):
+	case strings.HasSuffix(rel, ".webmanifest"):
+		ct = "application/manifest+json"
+	case strings.HasSuffix(rel, ".json"):
 		ct = "application/json"
 	case strings.HasSuffix(rel, ".svg"):
 		ct = "image/svg+xml"

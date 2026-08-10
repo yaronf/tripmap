@@ -16,6 +16,7 @@ import (
 	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/routebuild"
 	"github.com/yaronf/tripmap/internal/store"
+	"github.com/yaronf/tripmap/internal/viewerchat"
 )
 
 var _ api.ServerInterface = (*Server)(nil)
@@ -25,11 +26,21 @@ type Server struct {
 	cfg   Config
 	store store.Store
 	mux   *http.ServeMux
+	chat  *viewerchat.Handler
 }
 
 // New builds the HTTP server.
 func New(cfg Config, st store.Store) *Server {
 	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux()}
+	if cfg.OpenAIAPIKey != "" {
+		s.chat = &viewerchat.Handler{
+			Agent: viewerchat.NewAgent(viewerchat.Config{
+				APIKey: cfg.OpenAIAPIKey,
+				Model:  cfg.OpenAIModel,
+				Ops:    chatTripOps{s: s},
+			}),
+		}
+	}
 	s.routes()
 	return s
 }
@@ -182,7 +193,7 @@ func (s *Server) GetSchema(w http.ResponseWriter, _ *http.Request) {
 			"places":         "map of place id -> {title, lat, lon, type?, notes?, photo?, photo_caption?, maps_url?, info?}",
 			"days":           "array of day objects; route/stops are {place, type?, notes?, maps_url?}",
 		},
-		"patch_ops": []string{"swap_days", "update_day", "days", "places", "upsert_stop", "remove_stop", "insert_day", "delete_day"},
+		"patch_ops":    []string{"swap_days", "update_day", "days", "places", "upsert_stop", "remove_stop", "insert_day", "delete_day"},
 		"notes_policy": "Day and stop notes are human-authored. Agents should not modify them unless the user explicitly asks. Put enrichment in places.*.info. Not enforced by the API.",
 		"update_day_example": map[string]any{
 			"update_day": map[string]any{

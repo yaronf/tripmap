@@ -12,6 +12,8 @@
   --sans: "Source Sans 3", "Noto Sans", system-ui, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Clearance for Persona's fixed bottom-right launcher when chat is enabled. */
+  --chat-fab-clearance: 5.5rem;
 }
 
 *,
@@ -36,6 +38,21 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+}
+
+/* Zero-size host: floating Persona UI is position:fixed inside Shadow DOM.
+   Keep pointer-events on so the shadow tree can receive input; 0×0 does not
+   block the page. */
+#persona-root {
+  position: fixed;
+  inset: auto 0 0 auto;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  flex: none;
+  z-index: 50;
 }
 
 .chrome {
@@ -182,6 +199,10 @@ body {
   border-left: 1px solid var(--rule);
   background: rgba(255, 255, 255, 0.45);
   padding: 1rem 1.1rem calc(1.25rem + var(--safe-bottom));
+}
+
+body.chat-enabled .detail {
+  padding-bottom: calc(1.25rem + var(--safe-bottom) + var(--chat-fab-clearance));
 }
 
 .detail-micro {
@@ -725,6 +746,10 @@ body {
     border-radius: 12px 12px 0 0;
     box-shadow: 0 -8px 24px rgba(26, 31, 28, 0.08);
     padding-bottom: calc(1rem + var(--safe-bottom));
+  }
+
+  body.chat-enabled.mode-map .detail {
+    padding-bottom: calc(1rem + var(--safe-bottom) + var(--chat-fab-clearance));
   }
 
   body.mode-map .app {

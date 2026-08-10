@@ -360,6 +360,7 @@ func writeServiceWorker(outDir string, tj TripJSON) error {
 		"./",
 		"./index.html",
 		"./app.js",
+		"./chat.js",
 		"./style.css",
 		"./manifest.webmanifest",
 		"./icon.svg",
@@ -424,8 +425,13 @@ self.addEventListener("fetch", (e) => {
     url.pathname.includes("/geo/") ||
     url.pathname.endsWith("/api/notes") ||
     url.pathname.includes("/api/notes/") ||
+    url.pathname.endsWith("/api/chat") ||
+    url.pathname.includes("/api/chat/") ||
     url.pathname.endsWith("/app.js") ||
+    url.pathname.endsWith("/chat.js") ||
     url.pathname.endsWith("/style.css") ||
+    url.pathname.endsWith("/manifest.webmanifest") ||
+    url.pathname.endsWith("/icon.svg") ||
     url.pathname.endsWith("/index.html") ||
     url.pathname.endsWith("/");
   if (live) {
@@ -444,13 +450,15 @@ self.addEventListener("fetch", (e) => {
   }
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(e.request, copy));
+      if (res && res.ok && e.request.method === "GET") {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+      }
       return res;
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v33", string(list))
+`, "tripmap-"+tj.ID+"-v38", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 
