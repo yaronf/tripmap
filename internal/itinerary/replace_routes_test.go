@@ -13,6 +13,49 @@ func TestParseReplaceDayRoutesRequiresRoute(t *testing.T) {
 	}
 }
 
+func TestParseReplaceDayRoutesNormalizesViaEnds(t *testing.T) {
+	p, err := ParseReplaceDayRoutes([]byte(`{
+		"days":{"10":{"route":[
+			{"place":"murchison","type":"via","maps_url":"https://maps/?q=wrong"},
+			{"place":"westport","type":"via"},
+			{"place":"punakaiki","type":"overnight"}
+		]}}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	day := p.Days["10"].(map[string]any)
+	route := day["route"].([]any)
+	start := route[0].(map[string]any)
+	if start["type"] != "overnight" {
+		t.Fatalf("start type = %v, want overnight", start["type"])
+	}
+	if _, ok := start["maps_url"]; ok {
+		t.Fatal("expected maps_url cleared on rewritten start")
+	}
+	mid := route[1].(map[string]any)
+	if mid["type"] != "via" {
+		t.Fatalf("mid type = %v, want via", mid["type"])
+	}
+}
+
+func TestParseReplaceDayRoutesKeepsFerryStart(t *testing.T) {
+	p, err := ParseReplaceDayRoutes([]byte(`{
+		"days":{"7":{"route":[
+			{"place":"wellington-ferry-terminal","type":"ferry_terminal"},
+			{"place":"picton-ferry-terminal","type":"ferry_terminal"},
+			{"place":"motueka","type":"overnight"}
+		]}}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := p.Days["7"].(map[string]any)["route"].([]any)[0].(map[string]any)
+	if start["type"] != "ferry_terminal" {
+		t.Fatalf("ferry start rewritten: %v", start["type"])
+	}
+}
+
 func TestApplyReplaceDayRoutes(t *testing.T) {
 	trip := Trip{
 		Trip: "T",

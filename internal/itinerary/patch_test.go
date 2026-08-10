@@ -181,6 +181,45 @@ func TestApplyPatchNewPlaceMissingTitle(t *testing.T) {
 	}
 }
 
+func TestApplyPatchDaysRouteClearsStaleMapsURL(t *testing.T) {
+	trip := Trip{
+		Trip: "T",
+		Places: map[string]Place{
+			"a": {Title: "A", Lat: 1, Lon: 2, Type: "overnight"},
+			"b": {Title: "B", Lat: 3, Lon: 4, Type: "via"},
+			"c": {Title: "C", Lat: 5, Lon: 6, Type: "overnight"},
+		},
+		Days: []Day{{
+			Day:   1,
+			Title: "A → C",
+			Route: []Stop{
+				{Place: "a", Type: "overnight", MapsURL: "https://maps/?q=A"},
+				{Place: "b", Type: "via", MapsURL: "https://maps/?q=WRONG"},
+				{Place: "c", Type: "overnight", MapsURL: "https://maps/?q=C"},
+			},
+		}},
+	}
+	if err := ApplyPatch(&trip, Patch{
+		Days: map[string]any{
+			"1": map[string]any{
+				"route": []map[string]string{
+					{"place": "a", "type": "overnight"},
+					{"place": "b", "type": "via"},
+					{"place": "c", "type": "overnight"},
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if trip.Days[0].Route[1].MapsURL != "" {
+		t.Fatalf("stale maps_url kept on mid stop: %q", trip.Days[0].Route[1].MapsURL)
+	}
+	if trip.Days[0].Route[0].MapsURL != "" || trip.Days[0].Route[2].MapsURL != "" {
+		t.Fatalf("stale maps_url kept on ends: %+v", trip.Days[0].Route)
+	}
+}
+
 func TestApplyPatchOvernightViaDaysRoutes(t *testing.T) {
 	trip := Trip{
 		Trip: "T",

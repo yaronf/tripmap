@@ -121,6 +121,14 @@ func ApplyPatch(t *Trip, p Patch) error {
 			return err
 		}
 		cur := t.Days[i]
+		// encoding/json reuses slice backing arrays; omitted stop fields would
+		// otherwise keep stale maps_url/type from the previous route/stops.
+		if dayPatchHasKey(raw, "route") {
+			cur.Route = nil
+		}
+		if dayPatchHasKey(raw, "stops") {
+			cur.Stops = nil
+		}
 		if err := json.Unmarshal(b, &cur); err != nil {
 			return fmt.Errorf("days.%d: %w", n, err)
 		}
@@ -173,6 +181,15 @@ func ApplyPatch(t *Trip, p Patch) error {
 	}
 
 	return ValidateBasic(*t)
+}
+
+func dayPatchHasKey(raw any, key string) bool {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return false
+	}
+	_, ok = m[key]
+	return ok
 }
 
 // checkPlacePatchShape catches common agent mistakes before silent field drops.
