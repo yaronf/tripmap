@@ -87,8 +87,9 @@ paths:
       summary: Compact trip title card (not full routes)
       description: |
         Returns id, title, description, start, day count — not per-day routes.
-        For overnight/endpoint edits use getTripYAML (source of truth) then
-        replaceDayRoutes. Prefer getTripYAML over getTrip when you need stops.
+        For overnight/endpoint edits use getTripYAML with scope=full (source of
+        truth) then replaceDayRoutes. Prefer getTripYAML over getTrip when you
+        need stops; chat defaults to day-neighborhood scope.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -141,10 +142,14 @@ paths:
   /api/agent/trips/{id}/yaml:
     get:
       operationId: getTripYAML
-      summary: Get raw YAML (source of truth before edits)
+      summary: Get itinerary YAML (day neighborhood by default in chat)
       description: |
-        Full itinerary YAML. Call before replaceDayRoutes / structural patchTrip.
-        Prefer this over getTrip when you need route endpoints or stop lists.
+        Source of truth for routes/stops before edits.
+        In viewer chat, omit scope (or pass scope=day) to get days day-1..day+1
+        plus only places referenced by those days — enough for stop/notes/hours
+        edits on the current day. Pass scope=full for the entire itinerary
+        (overnight/endpoint changes, cross-day lookup, or structural work).
+        HTTP GET with no query params still returns the full YAML (compat).
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -154,6 +159,22 @@ paths:
           required: true
           schema:
             type: string
+        - name: scope
+          in: query
+          required: false
+          description: |
+            day = neighborhood YAML (days N±1 + referenced places).
+            full = entire itinerary. Chat tools default to day when a viewer day is known.
+          schema:
+            type: string
+            enum: [day, full]
+        - name: day
+          in: query
+          required: false
+          description: Center day for scope=day (chat defaults to the viewer day).
+          schema:
+            type: integer
+            minimum: 1
       responses:
         "200":
           description: YAML document

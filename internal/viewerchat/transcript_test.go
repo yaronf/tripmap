@@ -1,8 +1,11 @@
 package viewerchat
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/yaronf/tripmap/internal/itinerary"
 )
 
 func TestCurateMessagesShort(t *testing.T) {
@@ -66,6 +69,116 @@ days:
 	}
 	if frag.Days[0].Day != 1 || frag.Days[1].Day != 2 || frag.Days[2].Day != 3 {
 		t.Fatalf("%+v", frag.Days)
+	}
+}
+
+func TestBuildDayScopedYAML(t *testing.T) {
+	body := []byte(`
+trip: T
+schema_version: 2
+description: demo
+places:
+  a: {title: A, type: overnight}
+  b: {title: B, type: via}
+  c: {title: C, type: overnight}
+  d: {title: D, type: overnight}
+  far: {title: Far, type: attraction}
+days:
+  - day: 1
+    title: One
+    route: [{place: a, type: overnight}, {place: b, type: via}, {place: c, type: overnight}]
+  - day: 2
+    title: Two
+    route: [{place: c, type: overnight}, {place: d, type: overnight}]
+    stops: [{place: far, type: attraction}]
+  - day: 3
+    title: Three
+    route: [{place: d, type: overnight}]
+  - day: 10
+    title: Distant
+    route: [{place: a, type: overnight}]
+`)
+	// Center on day 1: window is 1..2 — includes far via day 2 stops; excludes only day 10 unique content.
+	scoped, err := BuildDayScopedYAML(body, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(scoped)
+	if !strings.Contains(text, "# scope: day") {
+		t.Fatalf("missing header: %s", text)
+	}
+	if !strings.Contains(text, "title: One") || !strings.Contains(text, "title: Two") {
+		t.Fatalf("expected days 1-2: %s", text)
+	}
+	if strings.Contains(text, "title: Three") || strings.Contains(text, "title: Distant") {
+		t.Fatalf("unexpected days: %s", text)
+	}
+	trip, err := itinerary.ParseYAML(scoped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := trip.Places["far"]; !ok {
+		t.Fatalf("expected stop place far: %#v", trip.Places)
+	}
+	if _, ok := trip.Places["a"]; !ok {
+		t.Fatalf("expected place a: %#v", trip.Places)
+	}
+	// Day 10 not in window — but place a is still included from day 1.
+	if len(trip.Days) != 2 {
+		t.Fatalf("days=%d", len(trip.Days))
+	}
+}
+
+func TestHandleGetTripYAMLScope(t *testing.T) {
+	body := []byte(`
+trip: T
+schema_version: 2
+places:
+  a: {title: A, type: overnight}
+  b: {title: B, type: overnight}
+  z: {title: Z, type: attraction}
+days:
+  - day: 1
+    title: One
+    route: [{place: a, type: overnight}, {place: b, type: overnight}]
+  - day: 2
+    title: Two
+    route: [{place: b, type: overnight}]
+`)
+	ops := &memOps{yaml: body}
+	a := &Agent{ops: ops}
+
+	// Default with viewer day → day scope.
+	res, err := handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1", Day: 1}, `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Content, "# scope: day") {
+		t.Fatalf("want day scope: %s", res.Content)
+	}
+	if strings.Contains(res.Content, "title: Z") {
+		t.Fatalf("should omit unused place z: %s", res.Content)
+	}
+
+	// Explicit full.
+	res, err = handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1", Day: 1}, `{"scope":"full"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(res.Content, "# scope: day") {
+		t.Fatalf("want full: %s", res.Content)
+	}
+	if !strings.Contains(res.Content, "title: Z") {
+		t.Fatalf("full should include z: %s", res.Content)
+	}
+
+	// No viewer day and no args → full.
+	res, err = handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1"}, `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(res.Content, "# scope: day") {
+		t.Fatalf("want full without day: %s", res.Content)
 	}
 }
 

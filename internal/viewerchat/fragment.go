@@ -8,6 +8,67 @@ import (
 	"github.com/yaronf/tripmap/internal/itinerary"
 )
 
+// dayNeighborhoodRange returns inclusive day numbers max(1, day-1)..day+1.
+func dayNeighborhoodRange(day int) (start, end int) {
+	start = day - 1
+	if start < 1 {
+		start = 1
+	}
+	return start, day + 1
+}
+
+// BuildDayScopedYAML returns a YAML document with only days in the viewer
+// neighborhood (day±1) and places referenced by those days' route/stops.
+func BuildDayScopedYAML(body []byte, day int) ([]byte, error) {
+	if day < 1 {
+		return nil, fmt.Errorf("day must be >= 1")
+	}
+	trip, err := itinerary.ParseYAML(body)
+	if err != nil {
+		return nil, err
+	}
+	byDay := map[int]*itinerary.Day{}
+	for i := range trip.Days {
+		byDay[trip.Days[i].Day] = &trip.Days[i]
+	}
+	start, end := dayNeighborhoodRange(day)
+	scoped := itinerary.Trip{
+		SchemaVersion: trip.SchemaVersion,
+		Trip:          trip.Trip,
+		Description:   trip.Description,
+		Start:         trip.Start,
+		Places:        map[string]itinerary.Place{},
+		Days:          make([]itinerary.Day, 0, 3),
+	}
+	used := map[string]bool{}
+	for d := start; d <= end; d++ {
+		dayDoc, ok := byDay[d]
+		if !ok {
+			continue
+		}
+		scoped.Days = append(scoped.Days, *dayDoc)
+		for _, s := range append(append([]itinerary.Stop{}, dayDoc.Route...), dayDoc.Stops...) {
+			id := strings.TrimSpace(s.Place)
+			if id == "" || used[id] {
+				continue
+			}
+			used[id] = true
+			if p, ok := trip.Places[id]; ok {
+				scoped.Places[id] = p
+			}
+		}
+	}
+	if len(scoped.Days) == 0 {
+		return nil, fmt.Errorf("day %d not found", day)
+	}
+	raw, err := itinerary.MarshalYAML(scoped)
+	if err != nil {
+		return nil, err
+	}
+	header := fmt.Sprintf("# scope: day (days %d..%d; pass scope=full for entire trip)\n", start, end)
+	return append([]byte(header), raw...), nil
+}
+
 // TripFragmentStop is one route stop in the per-turn orientation sketch.
 type TripFragmentStop struct {
 	Place string `json:"place"`
@@ -39,11 +100,7 @@ func BuildTripFragment(body []byte, day int) (TripFragment, error) {
 	for i := range trip.Days {
 		byDay[trip.Days[i].Day] = &trip.Days[i]
 	}
-	start := day - 1
-	if start < 1 {
-		start = 1
-	}
-	end := day + 1
+	start, end := dayNeighborhoodRange(day)
 	out := TripFragment{Days: make([]TripFragmentDay, 0, 3)}
 	for d := start; d <= end; d++ {
 		dayDoc, ok := byDay[d]

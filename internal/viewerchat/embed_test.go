@@ -25,6 +25,9 @@ func TestEmbeddedPrompt(t *testing.T) {
 	if !strings.Contains(p, "getSchema") || !strings.Contains(p, "OpenAPI component") {
 		t.Fatal("prompt should tell the agent to use getSchema for OpenAPI component schemas")
 	}
+	if !strings.Contains(p, "scope=full") {
+		t.Fatal("prompt should mention getTripYAML scope=full for structural edits")
+	}
 	if !strings.Contains(p, "follow-up getTripYAML confirms") {
 		t.Fatal("prompt should require verify-after for note/pin claims")
 	}
@@ -84,12 +87,15 @@ func TestChatToolsFromOpenAPI(t *testing.T) {
 		}
 	}
 	for _, tool := range tools[1:] {
-		if tool.OfFunction.Name != "forgetPreference" {
+		if tool.OfFunction.Name != "getTripYAML" {
 			continue
 		}
 		props, _ := tool.OfFunction.Parameters["properties"].(map[string]any)
-		if _, ok := props["preference_id"]; !ok {
-			t.Fatalf("forgetPreference should expose preference_id: %#v", props)
+		if _, ok := props["scope"]; !ok {
+			t.Fatalf("getTripYAML should expose scope: %#v", props)
+		}
+		if _, ok := props["day"]; !ok {
+			t.Fatalf("getTripYAML should expose day: %#v", props)
 		}
 	}
 	for _, tool := range tools[1:] {

@@ -220,7 +220,7 @@ func (s *Server) GetTrip(w http.ResponseWriter, r *http.Request, id string) {
 	})
 }
 
-func (s *Server) GetTripYAML(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) GetTripYAML(w http.ResponseWriter, r *http.Request, id string, params api.GetTripYAMLParams) {
 	if !s.requireTripID(w, id) {
 		return
 	}
@@ -229,10 +229,28 @@ func (s *Server) GetTripYAML(w http.ResponseWriter, r *http.Request, id string) 
 		writeErr(w, http.StatusNotFound, err)
 		return
 	}
+	body := obj.Body
+	// HTTP default remains full YAML when scope is omitted (compat for MCP/scripts).
+	if params.Scope != nil && *params.Scope == api.Day {
+		day := 0
+		if params.Day != nil {
+			day = *params.Day
+		}
+		if day < 1 {
+			writeErr(w, http.StatusBadRequest, fmt.Errorf("day is required when scope=day"))
+			return
+		}
+		scoped, err := viewerchat.BuildDayScopedYAML(body, day)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		body = scoped
+	}
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 	w.Header().Set("X-Tripmap-Version-Id", obj.VersionID)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(obj.Body)
+	_, _ = w.Write(body)
 }
 
 func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.CreateTripParams) {

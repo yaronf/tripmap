@@ -238,7 +238,7 @@ func buildSystemPrompt(card TripCard, day int, prefs []Preference, learnings []L
 	b.Write(raw)
 	b.WriteByte('\n')
 	if fragment != nil && len(fragment.Days) > 0 {
-		b.WriteString("trip_fragment (JSON; day neighborhood orientation — not source of truth; call getTripYAML before mutate):\n")
+		b.WriteString("trip_fragment (JSON; day neighborhood orientation — not source of truth; call getTripYAML before mutate; default is day-scoped YAML, use scope=full only when needed):\n")
 		fragJSON, _ := json.Marshal(fragment)
 		b.Write(fragJSON)
 		b.WriteByte('\n')
@@ -275,7 +275,7 @@ func buildSystemPrompt(card TripCard, day int, prefs []Preference, learnings []L
 			fmt.Fprintf(&b, " — %s", title)
 		}
 		b.WriteString(".\n")
-		b.WriteString("When the user says \"this day\", \"today\", \"the current day\", \"here\", or similar, they ALWAYS mean this CURRENT VIEWER DAY (the day shown in the viewer), not day 1 and not a day inferred from chat history. Call getTripYAML before editing that day when you need its current stops/notes.\n")
+		b.WriteString("When the user says \"this day\", \"today\", \"the current day\", \"here\", or similar, they ALWAYS mean this CURRENT VIEWER DAY (the day shown in the viewer), not day 1 and not a day inferred from chat history. Call getTripYAML (day-scoped by default) before editing that day when you need its current stops/notes.\n")
 	} else {
 		b.WriteString("CURRENT VIEWER DAY: unknown (client did not send day). Ask which day if needed.\n")
 	}

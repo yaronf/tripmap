@@ -113,10 +113,48 @@ func handleGetSchema(ctx context.Context, a *Agent, _ TurnInput, _ string) (tool
 	return toolResult{Content: string(raw)}, nil
 }
 
-func handleGetTripYAML(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+func handleGetTripYAML(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+	var args struct {
+		Day   int    `json:"day"`
+		Scope string `json:"scope"`
+	}
+	if strings.TrimSpace(argsJSON) != "" && argsJSON != "{}" {
+		if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+			return toolResult{}, fmt.Errorf("invalid getTripYAML args: %w", err)
+		}
+	}
+	scope := strings.ToLower(strings.TrimSpace(args.Scope))
+	day := args.Day
+	if day < 1 {
+		day = in.Day
+	}
+	// Chat default: day-neighborhood SoT. Fall back to full when there is no day.
+	if scope == "" {
+		if day >= 1 {
+			scope = "day"
+		} else {
+			scope = "full"
+		}
+	}
+	switch scope {
+	case "day", "full":
+	default:
+		return toolResult{}, fmt.Errorf("scope must be \"day\" or \"full\"")
+	}
+
 	body, err := a.ops.GetYAML(ctx, in.TripID)
 	if err != nil {
 		return toolResult{}, err
+	}
+	if scope == "day" {
+		if day < 1 {
+			return toolResult{}, fmt.Errorf("day is required when scope=day")
+		}
+		scoped, err := BuildDayScopedYAML(body, day)
+		if err != nil {
+			return toolResult{}, err
+		}
+		return toolResult{Content: string(scoped)}, nil
 	}
 	if len(body) > maxYAMLToolBytes {
 		return toolResult{Content: string(body[:maxYAMLToolBytes]) + "\n…[truncated]"}, nil
