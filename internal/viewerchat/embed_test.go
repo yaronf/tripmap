@@ -22,8 +22,11 @@ func TestEmbeddedPrompt(t *testing.T) {
 	if !strings.Contains(p, "saveLearning") {
 		t.Fatal("prompt should mention saveLearning")
 	}
-	if !strings.Contains(p, "Want me to remember") {
-		t.Fatal("prompt should include prefs offer example utterance")
+	if !strings.Contains(p, "Day notes vs stop notes") {
+		t.Fatal("prompt should distinguish day notes vs stop notes")
+	}
+	if !strings.Contains(p, "follow-up getTripYAML confirms") {
+		t.Fatal("prompt should require verify-after for note/pin claims")
 	}
 	if !strings.Contains(p, "Itinerary integrity") {
 		t.Fatal("prompt should mention itinerary integrity")
