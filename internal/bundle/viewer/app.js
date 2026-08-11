@@ -187,8 +187,14 @@
       if (s.difficulty) bits.push(s.difficulty);
       if (bits.length) parts.push(`<div class="stop-info-row stop-info-stats">${escapeHtml(bits.join(" · "))}</div>`);
     }
-    if (info.logistics && info.logistics.parking) {
-      parts.push(`<div class="stop-info-row"><span class="stop-info-label">Parking</span> ${escapeHtml(info.logistics.parking)}</div>`);
+    if (info.logistics) {
+      const L = info.logistics;
+      if (L.opening_hours) {
+        parts.push(`<div class="stop-info-row"><span class="stop-info-label">Hours</span> ${escapeHtml(L.opening_hours)}</div>`);
+      }
+      if (L.parking) {
+        parts.push(`<div class="stop-info-row"><span class="stop-info-label">Parking</span> ${escapeHtml(L.parking)}</div>`);
+      }
     }
     if (info.warnings && info.warnings.length) {
       parts.push(

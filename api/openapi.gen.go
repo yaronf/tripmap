@@ -49,6 +49,7 @@ type PlaceInfo struct {
 	} `json:"links,omitempty"`
 	Logistics *struct {
 		BookingRequired *bool   `json:"booking_required,omitempty"`
+		OpeningHours    *string `json:"opening_hours,omitempty"`
 		Parking         *string `json:"parking,omitempty"`
 	} `json:"logistics,omitempty"`
 	Source *struct {

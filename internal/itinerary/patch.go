@@ -1,6 +1,7 @@
 package itinerary
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -284,8 +285,8 @@ func mergePlaceInfo(cur *PlaceInfo, raw json.RawMessage) (*PlaceInfo, error) {
 		Warnings   []string         `json:"warnings"`
 		Highlights []string         `json:"highlights"`
 	}
-	if err := json.Unmarshal(raw, &patch); err != nil {
-		return nil, err
+	if err := decodeJSONStrict(raw, &patch); err != nil {
+		return nil, fmt.Errorf("place info: %w", err)
 	}
 	out := *cur
 	if patch.Source != nil {
@@ -310,6 +311,15 @@ func mergePlaceInfo(cur *PlaceInfo, raw json.RawMessage) (*PlaceInfo, error) {
 		out.Highlights = patch.Highlights
 	}
 	return &out, nil
+}
+
+func decodeJSONStrict(raw json.RawMessage, dest any) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dest); err != nil {
+		return err
+	}
+	return nil
 }
 
 func mergeStats(cur, patch *PlaceStats) *PlaceStats {
@@ -339,6 +349,9 @@ func mergeLogistics(cur, patch *PlaceLogistics) *PlaceLogistics {
 	out := *cur
 	if patch.Parking != "" {
 		out.Parking = patch.Parking
+	}
+	if patch.OpeningHours != "" {
+		out.OpeningHours = patch.OpeningHours
 	}
 	if patch.BookingRequired != nil {
 		out.BookingRequired = patch.BookingRequired

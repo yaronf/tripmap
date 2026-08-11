@@ -50,6 +50,7 @@ type PlaceStats struct {
 // PlaceLogistics holds optional practical logistics.
 type PlaceLogistics struct {
 	Parking         string `yaml:"parking,omitempty" json:"parking,omitempty"`
+	OpeningHours    string `yaml:"opening_hours,omitempty" json:"opening_hours,omitempty"`
 	BookingRequired *bool  `yaml:"booking_required,omitempty" json:"booking_required,omitempty"`
 }
 

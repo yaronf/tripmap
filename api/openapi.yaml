@@ -775,6 +775,9 @@ components:
           properties:
             parking:
               type: string
+            opening_hours:
+              type: string
+              description: Human-readable opening hours (e.g. Daily 10:00–22:30)
             booking_required:
               type: boolean
         facilities:

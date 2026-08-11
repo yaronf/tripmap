@@ -57,6 +57,9 @@ func TestApplyPatchPlacesInfo(t *testing.T) {
 						{"type": "alltrails", "title": "AllTrails", "url": "https://example.com"},
 					},
 					"warnings": []string{"Alpine weather"},
+					"logistics": map[string]any{
+						"opening_hours": "Daily 10:00–17:00",
+					},
 				},
 			},
 		},
@@ -70,6 +73,36 @@ func TestApplyPatchPlacesInfo(t *testing.T) {
 	}
 	if len(info.Warnings) != 1 {
 		t.Fatalf("warnings = %v", info.Warnings)
+	}
+	if info.Logistics == nil || info.Logistics.OpeningHours != "Daily 10:00–17:00" {
+		t.Fatalf("logistics = %+v", info.Logistics)
+	}
+}
+
+func TestApplyPatchRejectsUnknownPlaceInfoFields(t *testing.T) {
+	trip := Trip{
+		Trip: "T",
+		Places: map[string]Place{
+			"venue": {Title: "Venue", Lat: 1, Lon: 2, Type: "attraction"},
+		},
+		Days: []Day{{Day: 1, Title: "Day", Stops: []Stop{{Place: "venue"}}}},
+	}
+	err := ApplyPatch(&trip, Patch{
+		Places: map[string]any{
+			"venue": map[string]any{
+				"info": map[string]any{
+					"stats": map[string]any{
+						"opening_hours": "Daily 10:00–22:30",
+					},
+				},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "opening_hours") {
+		t.Fatalf("expected unknown-field error for stats.opening_hours, got %v", err)
+	}
+	if trip.Places["venue"].Info != nil {
+		t.Fatalf("info should be unchanged, got %+v", trip.Places["venue"].Info)
 	}
 }
 
