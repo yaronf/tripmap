@@ -34,7 +34,54 @@ ChatGPT “learns” ≈ agent learnings + thread. Prefs are taste. Tools are ho
 
 ## Optional ChatGPT distill
 
-Use a long ChatGPT thread once to seed **edits to `prompt.txt`** or **agent learnings you approve in chat**—not a parallel `lessons.txt` embed or PR-gated lessons pipeline.
+Use a long ChatGPT itinerary / product thread once to seed **edits to `prompt.txt`** or **agent learnings you approve in chat**—not a parallel `lessons.txt` embed.
+
+Paste this into that ChatGPT thread (adjust the “already known” list if it drifts):
+
+````
+You have been helping design and edit a road-trip itinerary app called tripmap (YAML days/places, overnight continuity, in-viewer chat tools).
+
+Distill ONLY durable rules from THIS conversation. Ignore one-off trip facts (specific towns, day numbers, restaurant names) unless they illustrate a reusable rule.
+
+Split output into exactly three sections. Use short imperative bullets (max ~20 words each). Cap each section at 15 bullets. Prefer fewer high-value items over completeness.
+
+### A. Agent learnings (how to operate the app)
+Rules about tools, patch shape, stop types, undo/restore, verify-before-claim, continuity procedure.
+These are procedural — not food/pace taste.
+Format each as:
+- LEARNING: <rule>
+  WHY: <one line from this thread>
+
+### B. User preferences (taste / constraints)
+Standing likes/dislikes that should follow the traveler across trips (diet, budget, driving length, lodging style, etc.).
+Format each as:
+- PREF: <statement>
+  WHY: <one line>
+
+### C. Prompt bootstrap candidates (product/tool facts for developers)
+Rules that belong in the static system prompt (tool recipes, never/always for itinerary integrity). Skip anything already covered below.
+
+Already known — DO NOT repeat:
+- Prefer replaceDayRoutes for overnight/endpoint or full route replacement; never swap_days for that; don’t use upsert_stop to change overnight ends.
+- Route lodging ends use type overnight (never via/depart); mid road towns via; viewer derives Depart.
+- For day N+1 after an overnight change, keep mid/end stops; only change the start; don’t shrink a travel day to one stop unless asked.
+- Undo = restoreVersion of the first non-latest version; never restore is_latest to “undo”.
+- Verify with getTripYAML before claiming success; never invent successful mutations.
+- Metric units only; day hero photos via setDayPhoto; don’t paste image URLs in chat.
+- Prefs = taste (savePreference after asking); learnings = procedure (saveLearning after asking).
+
+Also:
+- No Greymouth/Punakaiki/Franz Josef (or other trip-specific) copy-paste.
+- No Markdown tables.
+- End with a 5-bullet “highest impact to try first” shortlist mixing A/B/C.
+````
+
+**What to do with the answer**
+
+1. **A** → in viewer chat, approve and `saveLearning` (or ask the agent to save after you paste the shortlist).
+2. **B** → same with `savePreference`.
+3. **C** → hand-edit [`internal/viewerchat/prompt.txt`](../internal/viewerchat/prompt.txt) only if it isn’t already there; then redeploy.
+
 
 ## Golden scenarios (manual)
 
