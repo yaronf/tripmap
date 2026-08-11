@@ -32,6 +32,9 @@ func toolHandlers() map[string]toolHandler {
 		"listPreferences":  handleListPreferences,
 		"savePreference":   handleSavePreference,
 		"forgetPreference": handleForgetPreference,
+		"listLearnings":    handleListLearnings,
+		"saveLearning":     handleSaveLearning,
+		"forgetLearning":   handleForgetLearning,
 	}
 }
 
@@ -80,7 +83,7 @@ func compactJSONForLog(s string, max int) string {
 
 func requireUserSub(in TurnInput) error {
 	if strings.TrimSpace(in.UserSub) == "" {
-		return fmt.Errorf("signed-in user required for preferences")
+		return fmt.Errorf("signed-in user required for preferences and learnings")
 	}
 	return nil
 }
@@ -299,8 +302,33 @@ func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSO
 		"bundle_ok":  res.BundleOK,
 		"op":         "replaceDayRoutes",
 	}
+	if body, err := a.ops.GetYAML(ctx, in.TripID); err == nil {
+		if warns := ContinuityWarnings(body, dayNumsFromReplaceArgs(argsJSON)); len(warns) > 0 {
+			out["warnings"] = warns
+		}
+		// Echo applied routes for the days touched so the model can self-check types.
+		if frag, err := BuildTripFragment(body, firstDayOr(in.Day, dayNumsFromReplaceArgs(argsJSON))); err == nil && len(frag.Days) > 0 {
+			out["trip_fragment"] = frag
+		}
+	}
 	b, err := json.Marshal(out)
 	return toolResult{Content: string(b), Mutated: true}, err
+}
+
+func firstDayOr(viewerDay int, nums []int) int {
+	if len(nums) > 0 {
+		min := nums[0]
+		for _, n := range nums[1:] {
+			if n < min {
+				min = n
+			}
+		}
+		return min
+	}
+	if viewerDay > 0 {
+		return viewerDay
+	}
+	return 1
 }
 
 func handleListPreferences(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
@@ -349,6 +377,55 @@ func handleForgetPreference(ctx context.Context, a *Agent, in TurnInput, argsJSO
 		return toolResult{}, err
 	}
 	b, err := json.Marshal(map[string]any{"ok": true, "forgotten": args.PreferenceID})
+	return toolResult{Content: string(b)}, err
+}
+
+func handleListLearnings(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+	if err := requireUserSub(in); err != nil {
+		return toolResult{}, err
+	}
+	items, err := a.ops.ListLearnings(ctx, in.UserSub)
+	if err != nil {
+		return toolResult{}, err
+	}
+	b, err := json.Marshal(map[string]any{"learnings": items, "count": len(items)})
+	return toolResult{Content: string(b)}, err
+}
+
+func handleSaveLearning(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+	if err := requireUserSub(in); err != nil {
+		return toolResult{}, err
+	}
+	var args struct {
+		LearningID string   `json:"learning_id"`
+		Text       string   `json:"text"`
+		Tags       []string `json:"tags"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return toolResult{}, fmt.Errorf("invalid saveLearning args: %w", err)
+	}
+	item, err := a.ops.SaveLearning(ctx, in.UserSub, args.LearningID, args.Text, args.Tags)
+	if err != nil {
+		return toolResult{}, err
+	}
+	b, err := json.Marshal(map[string]any{"ok": true, "learning": item})
+	return toolResult{Content: string(b)}, err
+}
+
+func handleForgetLearning(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+	if err := requireUserSub(in); err != nil {
+		return toolResult{}, err
+	}
+	var args struct {
+		LearningID string `json:"learning_id"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return toolResult{}, fmt.Errorf("invalid forgetLearning args: %w", err)
+	}
+	if err := a.ops.ForgetLearning(ctx, in.UserSub, args.LearningID); err != nil {
+		return toolResult{}, err
+	}
+	b, err := json.Marshal(map[string]any{"ok": true, "forgotten": args.LearningID})
 	return toolResult{Content: string(b)}, err
 }
 

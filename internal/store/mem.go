@@ -22,8 +22,9 @@ type Mem struct {
 	meta  map[string]Meta
 	idem  map[string][]byte
 	bund  map[string]map[string][]byte // id -> relpath -> bytes
-	notes map[string][]byte
-	prefs map[string]PreferencesDoc // userSub -> doc
+	notes     map[string][]byte
+	prefs     map[string]PreferencesDoc // userSub -> doc
+	learnings map[string]LearningsDoc   // userSub -> doc
 }
 
 type yamlVer struct {
@@ -39,8 +40,9 @@ func NewMem() *Mem {
 		meta:  map[string]Meta{},
 		idem:  map[string][]byte{},
 		bund:  map[string]map[string][]byte{},
-		notes: map[string][]byte{},
-		prefs: map[string]PreferencesDoc{},
+		notes:     map[string][]byte{},
+		prefs:     map[string]PreferencesDoc{},
+		learnings: map[string]LearningsDoc{},
 	}
 }
 
@@ -247,6 +249,38 @@ func (m *Mem) PutPreferences(_ context.Context, userSub string, doc PreferencesD
 		Items:     append([]PreferenceItem(nil), doc.Items...),
 	}
 	m.prefs[strings.TrimSpace(userSub)] = cp
+	return nil
+}
+
+func (m *Mem) GetLearnings(_ context.Context, userSub string) (LearningsDoc, error) {
+	if _, err := learningsKey(userSub); err != nil {
+		return LearningsDoc{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	doc, ok := m.learnings[strings.TrimSpace(userSub)]
+	if !ok {
+		return EmptyLearnings(), nil
+	}
+	return LearningsDoc{
+		UpdatedAt: doc.UpdatedAt,
+		Items:     append([]LearningItem(nil), doc.Items...),
+	}, nil
+}
+
+func (m *Mem) PutLearnings(_ context.Context, userSub string, doc LearningsDoc) error {
+	if _, err := learningsKey(userSub); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if doc.Items == nil {
+		doc.Items = []LearningItem{}
+	}
+	m.learnings[strings.TrimSpace(userSub)] = LearningsDoc{
+		UpdatedAt: doc.UpdatedAt,
+		Items:     append([]LearningItem(nil), doc.Items...),
+	}
 	return nil
 }
 

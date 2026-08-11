@@ -33,6 +33,7 @@ func TestToolHandlersCoverOpenAPI(t *testing.T) {
 		"getSchema", "getTrip", "getTripYAML", "setDayPhoto",
 		"listVersions", "getVersion", "restoreVersion", "patchTrip", "replaceDayRoutes",
 		"listPreferences", "savePreference", "forgetPreference",
+		"listLearnings", "saveLearning", "forgetLearning",
 	} {
 		if h[name] == nil {
 			t.Fatalf("missing handler %s", name)

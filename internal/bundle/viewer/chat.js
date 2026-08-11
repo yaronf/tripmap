@@ -144,6 +144,51 @@
     }
 
     const apiUrl = new URL("api/chat", window.location.href).pathname;
+    const feedbackUrl = new URL("api/chat/feedback", window.location.href).pathname;
+
+    let lastUserText = "";
+    let lastAssistantText = "";
+    let pendingFeedbackDown = null;
+    const feedbackBar = document.getElementById("chat-feedback");
+    const btnUp = document.getElementById("btn-chat-up");
+    const btnDown = document.getElementById("btn-chat-down");
+
+    function setFeedbackEnabled(on) {
+      if (!feedbackBar) return;
+      feedbackBar.hidden = !on;
+      if (btnUp) btnUp.disabled = !on;
+      if (btnDown) btnDown.disabled = !on;
+    }
+    setFeedbackEnabled(false);
+
+    async function sendFeedback(vote) {
+      const day = currentDayNumber();
+      try {
+        await fetch(feedbackUrl, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vote,
+            day,
+            user_text: lastUserText,
+            assistant_text: lastAssistantText,
+          }),
+        });
+      } catch (err) {
+        console.warn("tripmap chat feedback failed:", err);
+      }
+      if (vote === "down") {
+        pendingFeedbackDown = {
+          user_text: lastUserText,
+          assistant_text: lastAssistantText,
+        };
+      }
+      setFeedbackEnabled(false);
+    }
+
+    if (btnUp) btnUp.addEventListener("click", () => sendFeedback("up"));
+    if (btnDown) btnDown.addEventListener("click", () => sendFeedback("down"));
 
     // Dock is left/right only; we size #detail-chat vertically and fill that
     // pane with a 100%-wide dock (empty content column + full chat panel).
@@ -234,14 +279,35 @@
             }
           }
           const day = currentDayNumber();
+          const msgs = Array.isArray(base.messages) ? base.messages : [];
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            const m = msgs[i];
+            if (String(m?.role || "").toLowerCase() !== "user") continue;
+            const text =
+              typeof m.content === "string"
+                ? m.content
+                : Array.isArray(m.content)
+                  ? m.content.map((p) => p?.text || "").join("\n")
+                  : m.content?.text || "";
+            lastUserText = String(text || "").trim();
+            break;
+          }
+          lastAssistantText = "";
+          setFeedbackEnabled(false);
+
+          const context = {
+            ...(base.context || {}),
+            day,
+            current_day: day,
+          };
+          if (pendingFeedbackDown) {
+            context.feedback_down = pendingFeedbackDown;
+            pendingFeedbackDown = null;
+          }
           const body = {
             ...base,
             day,
-            context: {
-              ...(base.context || {}),
-              day,
-              current_day: day,
-            },
+            context,
           };
           return fetch(url, {
             ...init,
@@ -266,12 +332,14 @@
             return { error: data.error || "Chat error" };
           }
           if (data.type === "done" || data.done) {
+            if (lastAssistantText) setFeedbackEnabled(true);
             return { done: true };
           }
           if (data.type === "status") {
             return {};
           }
           if (data.type === "text" && typeof data.text === "string" && data.text) {
+            lastAssistantText += data.text;
             return { text: data.text };
           }
           return {};

@@ -21,8 +21,8 @@ Let signed-in viewers nudge the open itinerary from the PWA without switching to
 - **Web research (v1.1):** OpenAI hosted `web_search` for opening times, trail conditions, logistics, etc. No separate Bing/Tavily secret unless we later add a fallback.
 - **Photos (v1.1):** still **URL-only** in YAML (`photo` / `photo_caption`) — tripmap does not host image bytes. Flow: `web_search` with `search_content_types: ["image","text"]` → optional vision review of candidate `image_url`s → `patch_trip` / `update_day` with the chosen HTTPS URL. Prefer stable sources (Wikimedia, official tourism); hotlink/license risk accepted; broken URLs may still happen.
 - **Page tools:** out of scope. Optional later for UI-only actions (jump to day) after `trip_updated`; never for SoT writes.
-- **Context (server-assembled each turn):** system prompt + compact trip card + last N messages + tool results. Prefer tools over stuffing full multi-week YAML every turn.
-- **History v1:** Persona/client-held thread (session); server mostly stateless per request.
+- **Context (server-assembled each turn):** system prompt + compact trip card + prefs/learnings + `trip_fragment` + curated thread (last 8 + summary) + tool results. See [plan-viewer-chat-quality.md](plan-viewer-chat-quality.md).
+- **History v1:** Persona/client-held thread (session); server curates before the model sees it.
 - **Out of scope:** Codex/MCP changes, Custom GPT Actions, billing UI, multi-model picker, WebMCP page tools, shared-comments tools, embedding/uploading photo files into S3.
 
 ```mermaid
@@ -71,7 +71,12 @@ Most logic lives in [`internal/viewerchat`](../internal/viewerchat); `httpserver
 3. [x] Config/secret wiring, docs/TODO; dark-ship without key.
 4. [x] **v1.1:** Responses API + `web_search` / `web_search_preview` (text + images); prompt for research + photo URL selection; itinerary function tools; tests; image `chat-web-20260809202725` deployed.
 
+## Docs / related
+
+Quality / memory layers: [plan-viewer-chat-quality.md](plan-viewer-chat-quality.md).
+
 ## Tests
 
 - Handler unit test: unauthenticated → 401; not on chat allowlist → 403; no API key → 503; mocked tool loop calls patch once for a fixture trip.
 - Smoke: Persona mounts; SSE parse; (v1.1) research turn returns citations / photo URL patch without crashing the loop.
+- Quality plan golden scenarios: overnight → `replaceDayRoutes`; undo → non-latest restore; prefs/learnings offers; thumbs down → learning offer on next turn.

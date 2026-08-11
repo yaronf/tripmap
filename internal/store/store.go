@@ -43,6 +43,8 @@ type Store interface {
 	PutNotes(ctx context.Context, id string, body []byte) error
 	GetPreferences(ctx context.Context, userSub string) (PreferencesDoc, error)
 	PutPreferences(ctx context.Context, userSub string, doc PreferencesDoc) error
+	GetLearnings(ctx context.Context, userSub string) (LearningsDoc, error)
+	PutLearnings(ctx context.Context, userSub string, doc LearningsDoc) error
 	Exists(ctx context.Context, id string) (bool, error)
 }
 

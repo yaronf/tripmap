@@ -37,7 +37,7 @@ type Agent struct {
 func NewAgent(cfg Config) *Agent {
 	model := strings.TrimSpace(cfg.Model)
 	if model == "" {
-		model = string(openai.ChatModelGPT4oMini)
+		model = string(openai.ChatModelGPT4o)
 	}
 	a := &Agent{
 		client: openai.NewClient(option.WithAPIKey(cfg.APIKey)),
@@ -55,9 +55,17 @@ func (a *Agent) openaiRespond(ctx context.Context, params responses.ResponseNewP
 // TurnInput is one chat request scoped to a trip and signed-in user.
 type TurnInput struct {
 	TripID   string
-	UserSub  string // Hellō subject; required for preference tools
+	UserSub  string // Hellō subject; required for preference/learning tools
 	Messages []ClientMessage
 	Day      int // 1-based current day from the viewer; 0 if unknown
+	// FeedbackDown is set when the client reports a prior thumbs-down to act on.
+	FeedbackDown *FeedbackDown
+}
+
+// FeedbackDown carries the last exchange the user disliked.
+type FeedbackDown struct {
+	UserText      string
+	AssistantText string
 }
 
 // ClientMessage is a Persona transcript message.
@@ -77,15 +85,35 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 	}
 
 	prefs := []Preference{}
+	learnings := []Learning{}
 	if strings.TrimSpace(in.UserSub) != "" {
 		if list, err := a.ops.ListPreferences(ctx, in.UserSub); err == nil {
 			prefs = list
 		}
+		if list, err := a.ops.ListLearnings(ctx, in.UserSub); err == nil {
+			learnings = list
+		}
 	}
 
-	inputItems, err := buildInputItems(in.Messages)
+	var fragment *TripFragment
+	if in.Day > 0 {
+		if body, err := a.ops.GetYAML(ctx, in.TripID); err == nil {
+			if frag, err := BuildTripFragment(body, in.Day); err == nil && len(frag.Days) > 0 {
+				fragment = &frag
+			}
+		}
+	}
+
+	curated := curateMessages(in.Messages)
+	inputItems, err := buildInputItems(curated.Messages)
 	if err != nil {
 		return turnResult{}, err
+	}
+	if curated.Summary != "" {
+		note := "Earlier turns in this chat (summary; recent messages follow):\n" + curated.Summary
+		inputItems = append([]responses.ResponseInputItemUnionParam{
+			responses.ResponseInputItemParamOfMessage(note, responses.EasyInputMessageRoleDeveloper),
+		}, inputItems...)
 	}
 	if in.Day > 0 {
 		title := dayTitle(card, in.Day)
@@ -107,7 +135,7 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 	tools := chatTools()
 	params := responses.ResponseNewParams{
 		Model:        a.model,
-		Instructions: openai.String(buildSystemPrompt(card, in.Day, prefs)),
+		Instructions: openai.String(buildSystemPrompt(card, in.Day, prefs, learnings, fragment, in.FeedbackDown)),
 		Tools:        tools,
 		Store:        openai.Bool(true),
 		Input: responses.ResponseNewParamsInputUnion{
@@ -202,19 +230,42 @@ func functionCalls(resp *responses.Response) []responses.ResponseFunctionToolCal
 	return out
 }
 
-func buildSystemPrompt(card TripCard, day int, prefs []Preference) string {
+func buildSystemPrompt(card TripCard, day int, prefs []Preference, learnings []Learning, fragment *TripFragment, down *FeedbackDown) string {
 	var b strings.Builder
 	b.WriteString(baseSystemPrompt())
 	b.WriteString("Trip context (JSON):\n")
 	raw, _ := json.Marshal(card)
 	b.Write(raw)
 	b.WriteByte('\n')
+	if fragment != nil && len(fragment.Days) > 0 {
+		b.WriteString("trip_fragment (JSON; day neighborhood orientation — not source of truth; call getTripYAML before mutate):\n")
+		fragJSON, _ := json.Marshal(fragment)
+		b.Write(fragJSON)
+		b.WriteByte('\n')
+	}
 	if len(prefs) == 0 {
 		b.WriteString("Standing preferences: none saved yet.\n")
 	} else {
 		b.WriteString("Standing preferences (JSON; apply when choosing venues/logistics):\n")
 		prefJSON, _ := json.Marshal(prefs)
 		b.Write(prefJSON)
+		b.WriteByte('\n')
+	}
+	if len(learnings) == 0 {
+		b.WriteString("Agent learnings: none saved yet.\n")
+	} else {
+		b.WriteString("Agent learnings (JSON; how to operate this app — follow these):\n")
+		learnJSON, _ := json.Marshal(learnings)
+		b.Write(learnJSON)
+		b.WriteByte('\n')
+	}
+	if down != nil && (strings.TrimSpace(down.UserText) != "" || strings.TrimSpace(down.AssistantText) != "") {
+		b.WriteString("The user thumbs-downed a prior reply. Offer once this turn to save an agent learning (saveLearning) if they say what to do differently; only call saveLearning after they agree. Prior exchange:\n")
+		b.WriteString("User: ")
+		b.WriteString(truncateRunes(down.UserText, 300))
+		b.WriteByte('\n')
+		b.WriteString("Assistant: ")
+		b.WriteString(truncateRunes(down.AssistantText, 300))
 		b.WriteByte('\n')
 	}
 	if day > 0 {

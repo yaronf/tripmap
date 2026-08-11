@@ -112,10 +112,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, tripID, user
 	log.Printf("viewerchat turn trip=%s day=%d msgs=%d sub=%s user=%q", tripID, day, len(msgs), userSub, truncateRunes(lastUser, 120))
 
 	res, err := h.Agent.run(r.Context(), TurnInput{
-		TripID:   tripID,
-		UserSub:  userSub,
-		Messages: msgs,
-		Day:      day,
+		TripID:       tripID,
+		UserSub:      userSub,
+		Messages:     msgs,
+		Day:          day,
+		FeedbackDown: feedbackDownFromContext(req.Context, req.Metadata),
 	}, sw.send)
 	if err != nil {
 		log.Printf("viewerchat trip=%s day=%d err=%v", tripID, day, err)
@@ -215,4 +216,36 @@ func dayFromContext(ctx map[string]any) int {
 		}
 	}
 	return 0
+}
+
+func feedbackDownFromContext(contexts ...map[string]any) *FeedbackDown {
+	for _, ctx := range contexts {
+		if ctx == nil {
+			continue
+		}
+		raw, ok := ctx["feedback_down"]
+		if !ok || raw == nil {
+			continue
+		}
+		switch v := raw.(type) {
+		case map[string]any:
+			fd := &FeedbackDown{
+				UserText:      stringFromAny(v["user_text"]),
+				AssistantText: stringFromAny(v["assistant_text"]),
+			}
+			if fd.UserText != "" || fd.AssistantText != "" {
+				return fd
+			}
+		case bool:
+			if v {
+				return &FeedbackDown{}
+			}
+		}
+	}
+	return nil
+}
+
+func stringFromAny(v any) string {
+	s, _ := v.(string)
+	return strings.TrimSpace(s)
 }

@@ -19,6 +19,12 @@ func TestEmbeddedPrompt(t *testing.T) {
 	if !strings.Contains(p, "savePreference") {
 		t.Fatal("prompt should mention savePreference")
 	}
+	if !strings.Contains(p, "saveLearning") {
+		t.Fatal("prompt should mention saveLearning")
+	}
+	if !strings.Contains(p, "Want me to remember") {
+		t.Fatal("prompt should include prefs offer example utterance")
+	}
 	if !strings.Contains(p, "Itinerary integrity") {
 		t.Fatal("prompt should mention itinerary integrity")
 	}
@@ -68,6 +74,7 @@ func TestChatToolsFromOpenAPI(t *testing.T) {
 		"getSchema", "getTrip", "getTripYAML", "setDayPhoto",
 		"listVersions", "getVersion", "restoreVersion", "patchTrip", "replaceDayRoutes",
 		"listPreferences", "savePreference", "forgetPreference",
+		"listLearnings", "saveLearning", "forgetLearning",
 	} {
 		if !names[want] {
 			t.Fatalf("missing tool %s in %#v", want, names)
@@ -80,6 +87,15 @@ func TestChatToolsFromOpenAPI(t *testing.T) {
 		props, _ := tool.OfFunction.Parameters["properties"].(map[string]any)
 		if _, ok := props["preference_id"]; !ok {
 			t.Fatalf("forgetPreference should expose preference_id: %#v", props)
+		}
+	}
+	for _, tool := range tools[1:] {
+		if tool.OfFunction.Name != "forgetLearning" {
+			continue
+		}
+		props, _ := tool.OfFunction.Parameters["properties"].(map[string]any)
+		if _, ok := props["learning_id"]; !ok {
+			t.Fatalf("forgetLearning should expose learning_id: %#v", props)
 		}
 	}
 	for _, ban := range []string{"listTrips", "createTrip", "putTripYAML", "get_day", "get_trip_summary"} {

@@ -57,6 +57,11 @@
     <section id="detail" class="detail">
       <div id="detail-body" class="detail-body" aria-live="polite"></div>
       <div id="detail-chat" class="detail-chat" aria-hidden="true">
+        <div id="chat-feedback" class="chat-feedback" hidden>
+          <span class="chat-feedback-label">Last reply</span>
+          <button type="button" id="btn-chat-up" class="chat-feedback-btn" title="Thumbs up" aria-label="Thumbs up">▲</button>
+          <button type="button" id="btn-chat-down" class="chat-feedback-btn" title="Thumbs down" aria-label="Thumbs down">▼</button>
+        </div>
         <div id="persona-dock-host" class="persona-dock-host"></div>
       </div>
     </section>

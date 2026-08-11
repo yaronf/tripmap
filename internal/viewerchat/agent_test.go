@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/yaronf/tripmap/internal/itinerary"
 )
@@ -19,6 +20,7 @@ type memOps struct {
 	patches   int
 	lastPatch json.RawMessage
 	prefs     []Preference
+	learnings []Learning
 }
 
 func (m *memOps) Summary(context.Context, string) (TripCard, error) { return m.card, nil }
@@ -98,6 +100,44 @@ func (m *memOps) ForgetPreference(_ context.Context, _, id string) error {
 	}
 	m.prefs = out
 	return nil
+}
+
+func (m *memOps) ListLearnings(context.Context, string) ([]Learning, error) {
+	return append([]Learning(nil), m.learnings...), nil
+}
+
+func (m *memOps) SaveLearning(_ context.Context, _, id, text string, tags []string) (Learning, error) {
+	if id == "" {
+		id = "learn_test"
+	}
+	p := Learning{ID: id, Text: text, Tags: tags}
+	for i := range m.learnings {
+		if m.learnings[i].ID == id {
+			m.learnings[i] = p
+			return p, nil
+		}
+	}
+	m.learnings = append(m.learnings, p)
+	return p, nil
+}
+
+func (m *memOps) ForgetLearning(_ context.Context, _, id string) error {
+	out := make([]Learning, 0, len(m.learnings))
+	for _, p := range m.learnings {
+		if p.ID == id {
+			continue
+		}
+		out = append(out, p)
+	}
+	m.learnings = out
+	return nil
+}
+
+func TestNewAgentDefaultModelIsGPT4o(t *testing.T) {
+	a := NewAgent(Config{APIKey: "sk-test", Ops: &memOps{}})
+	if a.model != string(openai.ChatModelGPT4o) {
+		t.Fatalf("model=%q", a.model)
+	}
 }
 
 func TestAgentToolLoopPatchesOnce(t *testing.T) {

@@ -289,12 +289,103 @@ func (o chatTripOps) ForgetPreference(ctx context.Context, userSub, id string) e
 	return o.s.store.PutPreferences(ctx, userSub, doc)
 }
 
+func (o chatTripOps) ListLearnings(ctx context.Context, userSub string) ([]viewerchat.Learning, error) {
+	doc, err := o.s.store.GetLearnings(ctx, userSub)
+	if err != nil {
+		return nil, err
+	}
+	return viewerchat.LearningsFromDoc(doc), nil
+}
+
+func (o chatTripOps) SaveLearning(ctx context.Context, userSub, id, text string, tags []string) (viewerchat.Learning, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return viewerchat.Learning{}, fmt.Errorf("text is required")
+	}
+	if len([]rune(text)) > store.MaxLearningText {
+		return viewerchat.Learning{}, fmt.Errorf("text exceeds %d characters", store.MaxLearningText)
+	}
+	doc, err := o.s.store.GetLearnings(ctx, userSub)
+	if err != nil {
+		return viewerchat.Learning{}, err
+	}
+	now := time.Now().UTC()
+	id = strings.TrimSpace(id)
+	if id == "" {
+		id, err = newLearningID()
+		if err != nil {
+			return viewerchat.Learning{}, err
+		}
+	}
+	cleanTags := normalizePrefTags(tags)
+	updated := false
+	for i := range doc.Items {
+		if doc.Items[i].ID == id {
+			doc.Items[i].Text = text
+			doc.Items[i].Tags = cleanTags
+			doc.Items[i].UpdatedAt = now
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		if len(doc.Items) >= store.MaxLearningItems {
+			return viewerchat.Learning{}, fmt.Errorf("at most %d learnings", store.MaxLearningItems)
+		}
+		doc.Items = append(doc.Items, store.LearningItem{
+			ID:        id,
+			Text:      text,
+			Tags:      cleanTags,
+			UpdatedAt: now,
+		})
+	}
+	doc.UpdatedAt = now
+	if err := o.s.store.PutLearnings(ctx, userSub, doc); err != nil {
+		return viewerchat.Learning{}, err
+	}
+	return viewerchat.Learning{ID: id, Text: text, Tags: cleanTags}, nil
+}
+
+func (o chatTripOps) ForgetLearning(ctx context.Context, userSub, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+	doc, err := o.s.store.GetLearnings(ctx, userSub)
+	if err != nil {
+		return err
+	}
+	out := make([]store.LearningItem, 0, len(doc.Items))
+	found := false
+	for _, it := range doc.Items {
+		if it.ID == id {
+			found = true
+			continue
+		}
+		out = append(out, it)
+	}
+	if !found {
+		return fmt.Errorf("learning %q not found", id)
+	}
+	doc.Items = out
+	doc.UpdatedAt = time.Now().UTC()
+	return o.s.store.PutLearnings(ctx, userSub, doc)
+}
+
 func newPreferenceID() (string, error) {
 	var b [6]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
 	}
 	return "pref_" + hex.EncodeToString(b[:]), nil
+}
+
+func newLearningID() (string, error) {
+	var b [6]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return "learn_" + hex.EncodeToString(b[:]), nil
 }
 
 func normalizePrefTags(tags []string) []string {

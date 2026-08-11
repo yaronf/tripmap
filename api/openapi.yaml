@@ -84,7 +84,11 @@ paths:
   /api/agent/trips/{id}:
     get:
       operationId: getTrip
-      summary: Trip summary
+      summary: Compact trip title card (not full routes)
+      description: |
+        Returns id, title, description, start, day count — not per-day routes.
+        For overnight/endpoint edits use getTripYAML (source of truth) then
+        replaceDayRoutes. Prefer getTripYAML over getTrip when you need stops.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -106,7 +110,7 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days, insert_day, delete_day. For overnight/endpoint or full route replacement, use replaceDayRoutes (not upsert_stop or swap_days). Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days (reorder whole days only — never overnight/endpoint), insert_day, delete_day. For overnight/endpoint or full route replacement, use replaceDayRoutes (not upsert_stop or swap_days). Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -137,7 +141,10 @@ paths:
   /api/agent/trips/{id}/yaml:
     get:
       operationId: getTripYAML
-      summary: Get raw YAML
+      summary: Get raw YAML (source of truth before edits)
+      description: |
+        Full itinerary YAML. Call before replaceDayRoutes / structural patchTrip.
+        Prefer this over getTrip when you need route endpoints or stop lists.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -366,7 +373,8 @@ paths:
       operationId: savePreference
       summary: Save or update a standing user preference
       description: |
-        Viewer-chat only. Ask the user before calling. Upsert by id when provided;
+        Viewer-chat only. Ask the user before calling. Preferences are user taste
+        (diet, pace, budget) — not how to operate tools. Upsert by id when provided;
         otherwise a new id is generated.
       x-audiences: [chat]
       security:
@@ -403,6 +411,68 @@ paths:
         - bearerAuth: []
       parameters:
         - name: preference_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+  /api/chat/learnings:
+    get:
+      operationId: listLearnings
+      summary: List agent learnings for viewer chat
+      description: |
+        Viewer-chat only. Agent learnings are per Hellō user (not per trip): durable
+        rules about how to operate the app (tools, types, undo). Distinct from
+        standing preferences (user taste). Also injected into the system prompt.
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Learning list
+    post:
+      operationId: saveLearning
+      summary: Save or update an agent learning
+      description: |
+        Viewer-chat only. Ask the user before calling. Use for procedural corrections
+        (how to edit), not taste. Upsert by learning_id when provided.
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                learning_id:
+                  type: string
+                  description: Optional existing learning id to update
+                text:
+                  type: string
+                  description: Short reusable operating rule
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional tags e.g. tools, types, undo
+      responses:
+        "200":
+          description: Saved learning
+  /api/chat/learnings/{learning_id}:
+    delete:
+      operationId: forgetLearning
+      summary: Delete an agent learning
+      description: Viewer-chat only. Ask the user before calling.
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: learning_id
           in: path
           required: true
           schema:

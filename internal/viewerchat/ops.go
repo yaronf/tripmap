@@ -60,6 +60,13 @@ type Preference struct {
 	Tags []string `json:"tags,omitempty"`
 }
 
+// Learning is one agent operating rule exposed to chat tools/prompt.
+type Learning struct {
+	ID   string   `json:"id"`
+	Text string   `json:"text"`
+	Tags []string `json:"tags,omitempty"`
+}
+
 // TripOps is the in-process trip surface chat tools call (scoped by trip ID).
 type TripOps interface {
 	Summary(ctx context.Context, tripID string) (TripCard, error)
@@ -73,6 +80,9 @@ type TripOps interface {
 	ListPreferences(ctx context.Context, userSub string) ([]Preference, error)
 	SavePreference(ctx context.Context, userSub, id, text string, tags []string) (Preference, error)
 	ForgetPreference(ctx context.Context, userSub, id string) error
+	ListLearnings(ctx context.Context, userSub string) ([]Learning, error)
+	SaveLearning(ctx context.Context, userSub, id, text string, tags []string) (Learning, error)
+	ForgetLearning(ctx context.Context, userSub, id string) error
 }
 
 // PreferencesFromDoc maps store doc items for prompt/tools.
@@ -80,6 +90,15 @@ func PreferencesFromDoc(doc store.PreferencesDoc) []Preference {
 	out := make([]Preference, 0, len(doc.Items))
 	for _, it := range doc.Items {
 		out = append(out, Preference{ID: it.ID, Text: it.Text, Tags: it.Tags})
+	}
+	return out
+}
+
+// LearningsFromDoc maps store doc items for prompt/tools.
+func LearningsFromDoc(doc store.LearningsDoc) []Learning {
+	out := make([]Learning, 0, len(doc.Items))
+	for _, it := range doc.Items {
+		out = append(out, Learning{ID: it.ID, Text: it.Text, Tags: it.Tags})
 	}
 	return out
 }
