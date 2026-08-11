@@ -185,43 +185,12 @@ func (s *Server) ListTrips(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetSchema(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"schema_version": itinerary.CurrentSchemaVersion,
-		"description":    "tripmap itinerary YAML schema with places catalog",
-		"fields": map[string]any{
-			"schema_version": "int (required on write; server injects 2 if omitted)",
-			"trip":           "string title",
-			"description":    "optional string",
-			"start":          "optional YYYY-MM-DD",
-			"places":         "map of place id -> {title, lat, lon, type?, notes?, photo?, photo_caption?, maps_url?, info?}",
-			"days":           "array of day objects; route/stops are {place, type?, notes?, maps_url?}",
-		},
-		"patch_ops":    []string{"swap_days", "update_day", "days", "places", "upsert_stop", "remove_stop", "insert_day", "delete_day"},
-		"notes_policy": "Day and stop notes are human-authored. Agents should not modify them unless the user explicitly asks. Put enrichment in places.*.info. Not enforced by the API.",
-		"update_day_example": map[string]any{
-			"update_day": map[string]any{
-				"day":   1,
-				"title": "Arrive Auckland",
-				"notes": "Recover from flight after arriving on UA917 from SFO at 09:10 NZDT.",
-			},
-		},
-		"days_patch_example": map[string]any{
-			"days": map[string]any{
-				"8": map[string]string{"title": "New title for day 8"},
-			},
-		},
-		"places_patch_example": map[string]any{
-			"places": map[string]any{
-				"tongariro-crossing": map[string]any{
-					"info": map[string]any{
-						"links": []map[string]string{
-							{"type": "alltrails", "title": "AllTrails", "url": "https://example.com"},
-						},
-					},
-				},
-			},
-		},
-	})
+	doc, err := api.AgentSchemaDocument()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, doc)
 }
 
 func (s *Server) GetTrip(w http.ResponseWriter, r *http.Request, id string) {

@@ -544,6 +544,7 @@ components:
           type: integer
     TripPatch:
       type: object
+      additionalProperties: false
       description: |
         One or more structured ops. Prefer update_day for day narrative and
         places.<id>.info for enrichment. Day calendar dates are derived from
@@ -560,233 +561,197 @@ components:
           minItems: 2
           maxItems: 2
         update_day:
-          type: object
-          description: Partial update of one existing day (omit fields to leave unchanged)
-          required:
-            - day
-          properties:
-            day:
-              type: integer
-            title:
-              type: string
-            notes:
-              type: string
-              description: Day narrative; set when the user asks to edit notes
-            hike:
-              type: boolean
-            ferry:
-              type: boolean
-            photo:
-              type: string
-            photo_caption:
-              type: string
+          $ref: "#/components/schemas/UpdateDay"
         places:
           type: object
           description: >
             Map of kebab-case place id to partial place fields. For a new place,
             title, lat, lon, and type are required at the top level of that object.
             Never put title under info — info is structured enrichment only
-            (highlights, links, stats, …) and is deep-merged.
+            (see PlaceInfo) and is deep-merged.
           additionalProperties:
-            type: object
-            properties:
-              title:
-                type: string
-                description: Display name; required on the place for new ids (not under info)
-              lat:
-                type: number
-              lon:
-                type: number
-              type:
-                type: string
-                description: e.g. overnight, restaurant, attraction, via
-              notes:
-                type: string
-              photo:
-                type: string
-              photo_caption:
-                type: string
-              maps_url:
-                type: string
-                description: Google Maps place URL for the viewer pin; when set, overrides lat/lon search
-              info:
-                $ref: "#/components/schemas/PlaceInfo"
+            $ref: "#/components/schemas/PlacePatch"
         days:
           type: object
           description: >
             Day-number string keys (e.g. "10") to partial day updates. Prefer
             update_day for title/notes alone. To change an overnight or reorder
             a route — especially when the next day's start must change too —
-            replace the full route arrays for both days here in one patch
-            (upsert_stop only appends and cannot set the next day's start).
-            Include title (and notes if the narrative should change) on those days.
+            prefer replaceDayRoutes. Include title (and notes if the narrative
+            should change) on those days.
           additionalProperties:
-            type: object
-            properties:
-              title:
-                type: string
-              notes:
-                type: string
-                description: Day narrative; set when the overnight or story changes
-              hike:
-                type: boolean
-              ferry:
-                type: boolean
-              route:
-                type: array
-                description: Full replacement of that day's route (ordered place refs)
-                items:
-                  type: object
-                  required: [place]
-                  properties:
-                    place:
-                      type: string
-                      description: Kebab-case place id
-                    type:
-                      type: string
-                    notes:
-                      type: string
-                    maps_url:
-                      type: string
-              stops:
-                type: array
-                description: Full replacement of that day's stops list
-                items:
-                  type: object
-                  required: [place]
-                  properties:
-                    place:
-                      type: string
-                    type:
-                      type: string
-                    notes:
-                      type: string
-                    maps_url:
-                      type: string
+            $ref: "#/components/schemas/DayPatch"
         upsert_stop:
-          type: object
-          description: >
-            Add or update a stop ref by place id on route or stops. If that place
-            id is not already on the list, it is appended. For overnight/endpoint
-            or full route replacement, use replaceDayRoutes instead. place must be
-            a kebab-case id that exists in places (not a display title).
-          properties:
-            day:
-              type: integer
-            list:
-              type: string
-              description: route or stops
-            place:
-              type: string
-              description: Kebab-case place id from places (e.g. greymouth), not a display title
-            type:
-              type: string
-            notes:
-              type: string
-            maps_url:
-              type: string
-              description: Optional Google Maps URL override on this stop ref
+          $ref: "#/components/schemas/UpsertStop"
         remove_stop:
-          type: object
-          description: >
-            Remove one or more place refs from route and/or stops. Use when
-            replacing a day's overnight — remove the old end before upserting the new one.
-          properties:
-            day:
-              type: integer
-            list:
-              type: string
-              description: route, stops, or empty for both
-            place:
-              type: string
-              description: Place id or exact title
-            places:
-              type: array
-              items:
-                type: string
-              description: Several place ids or exact titles
+          $ref: "#/components/schemas/RemoveStop"
         delete_day:
           type: integer
         insert_day:
+          $ref: "#/components/schemas/InsertDay"
+    UpdateDay:
+      type: object
+      additionalProperties: false
+      description: Partial update of one existing day (omit fields to leave unchanged)
+      required:
+        - day
+      properties:
+        day:
+          type: integer
+        title:
+          type: string
+        notes:
+          type: string
+          description: Day narrative; set when the user asks to edit notes
+        hike:
+          type: boolean
+        ferry:
+          type: boolean
+        photo:
+          type: string
+        photo_caption:
+          type: string
+    PlacePatch:
+      type: object
+      additionalProperties: false
+      description: Partial place catalog upsert (top-level identity fields + optional PlaceInfo)
+      properties:
+        title:
+          type: string
+          description: Display name; required on the place for new ids (not under info)
+        lat:
+          type: number
+        lon:
+          type: number
+        type:
+          type: string
+          description: e.g. overnight, restaurant, attraction, via
+        notes:
+          type: string
+        photo:
+          type: string
+        photo_caption:
+          type: string
+        maps_url:
+          type: string
+          description: Google Maps place URL for the viewer pin; when set, overrides lat/lon search
+        info:
+          $ref: "#/components/schemas/PlaceInfo"
+    DayPatch:
+      type: object
+      additionalProperties: false
+      description: Partial day body (prefer update_day for title/notes alone)
+      properties:
+        title:
+          type: string
+        notes:
+          type: string
+          description: Day narrative; set when the overnight or story changes
+        hike:
+          type: boolean
+        ferry:
+          type: boolean
+        route:
+          type: array
+          description: Full replacement of that day's route (ordered place refs)
+          items:
+            $ref: "#/components/schemas/StopRef"
+        stops:
+          type: array
+          description: Full replacement of that day's stops list
+          items:
+            $ref: "#/components/schemas/StopRef"
+    UpsertStop:
+      type: object
+      additionalProperties: false
+      description: >
+        Add or update a stop ref by place id on route or stops. If that place
+        id is not already on the list, it is appended. For overnight/endpoint
+        or full route replacement, use replaceDayRoutes instead. place must be
+        a kebab-case id that exists in places (not a display title).
+      properties:
+        day:
+          type: integer
+        list:
+          type: string
+          description: route or stops
+        place:
+          type: string
+          description: Kebab-case place id from places (e.g. greymouth), not a display title
+        type:
+          type: string
+        notes:
+          type: string
+        maps_url:
+          type: string
+          description: Optional Google Maps URL override on this stop ref
+    RemoveStop:
+      type: object
+      additionalProperties: false
+      description: >
+        Remove one or more place refs from route and/or stops. Use when
+        replacing a day's overnight — remove the old end before upserting the new one.
+      properties:
+        day:
+          type: integer
+        list:
+          type: string
+          description: route, stops, or empty for both
+        place:
+          type: string
+          description: Place id or exact title
+        places:
+          type: array
+          items:
+            type: string
+          description: Several place ids or exact titles
+    InsertDay:
+      type: object
+      additionalProperties: false
+      properties:
+        after:
+          type: integer
+        day:
           type: object
+          additionalProperties: false
           properties:
-            after:
-              type: integer
-            day:
-              type: object
-              properties:
-                title:
-                  type: string
-                notes:
-                  type: string
-                  description: Human-authored; agents should not set unless asked
-                hike:
-                  type: boolean
-                ferry:
-                  type: boolean
-                route:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/StopRef"
-                stops:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/StopRef"
+            title:
+              type: string
+            notes:
+              type: string
+              description: Human-authored; agents should not set unless asked
+            hike:
+              type: boolean
+            ferry:
+              type: boolean
+            route:
+              type: array
+              items:
+                $ref: "#/components/schemas/StopRef"
+            stops:
+              type: array
+              items:
+                $ref: "#/components/schemas/StopRef"
     PlaceInfo:
       type: object
+      additionalProperties: false
       description: >
         Structured enrichment for a place (optional throughout). Does not include
         title, lat, lon, or type — those belong on the place object itself.
+        Opening hours belong in logistics.opening_hours (not under stats).
       properties:
         source:
-          type: object
-          properties:
-            generated_by:
-              type: string
-            generated_at:
-              type: string
+          $ref: "#/components/schemas/PlaceSource"
         links:
           type: array
           items:
-            type: object
-            properties:
-              type:
-                type: string
-              title:
-                type: string
-              url:
-                type: string
-            required:
-              - type
-              - url
+            $ref: "#/components/schemas/PlaceLink"
         stats:
-          type: object
-          properties:
-            distance_km:
-              type: number
-            duration:
-              type: string
-            ascent_m:
-              type: number
-            difficulty:
-              type: string
+          $ref: "#/components/schemas/PlaceStats"
         logistics:
-          type: object
-          properties:
-            parking:
-              type: string
-            opening_hours:
-              type: string
-              description: Human-readable opening hours (e.g. Daily 10:00–22:30)
-            booking_required:
-              type: boolean
+          $ref: "#/components/schemas/PlaceLogistics"
         facilities:
-          type: object
-          properties:
-            toilets:
-              type: boolean
-            drinking_water:
-              type: boolean
+          $ref: "#/components/schemas/PlaceFacilities"
         warnings:
           type: array
           items:
@@ -795,8 +760,62 @@ components:
           type: array
           items:
             type: string
+    PlaceSource:
+      type: object
+      additionalProperties: false
+      properties:
+        generated_by:
+          type: string
+        generated_at:
+          type: string
+    PlaceLink:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - url
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        url:
+          type: string
+    PlaceStats:
+      type: object
+      additionalProperties: false
+      description: Trail/drive statistics only — not opening hours
+      properties:
+        distance_km:
+          type: number
+        duration:
+          type: string
+        ascent_m:
+          type: number
+        difficulty:
+          type: string
+    PlaceLogistics:
+      type: object
+      additionalProperties: false
+      properties:
+        parking:
+          type: string
+        opening_hours:
+          type: string
+          description: Human-readable opening hours (e.g. Daily 10:00–22:30)
+        booking_required:
+          type: boolean
+    PlaceFacilities:
+      type: object
+      additionalProperties: false
+      properties:
+        toilets:
+          type: boolean
+        drinking_water:
+          type: boolean
     StopRef:
       type: object
+      additionalProperties: false
       properties:
         place:
           type: string
@@ -856,6 +875,7 @@ components:
           type: string
     ReplaceDayRoutesRequest:
       type: object
+      additionalProperties: false
       required:
         - days
       properties:
@@ -865,22 +885,7 @@ components:
             Optional place catalog upserts (kebab-case ids). New places need
             top-level title, lat, lon, and type — not under info.
           additionalProperties:
-            type: object
-            properties:
-              title:
-                type: string
-              lat:
-                type: number
-              lon:
-                type: number
-              type:
-                type: string
-              notes:
-                type: string
-              maps_url:
-                type: string
-              info:
-                $ref: "#/components/schemas/PlaceInfo"
+            $ref: "#/components/schemas/PlacePatch"
         days:
           type: object
           description: >
@@ -891,6 +896,7 @@ components:
           minProperties: 1
           additionalProperties:
             type: object
+            additionalProperties: false
             required:
               - route
             properties:

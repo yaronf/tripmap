@@ -98,8 +98,11 @@ func TestApplyPatchRejectsUnknownPlaceInfoFields(t *testing.T) {
 			},
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), "opening_hours") {
-		t.Fatalf("expected unknown-field error for stats.opening_hours, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "opening_hours") || !strings.Contains(err.Error(), "PlaceStats") {
+		t.Fatalf("expected PlaceStats unknown-field error for stats.opening_hours, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "getSchema") {
+		t.Fatalf("error should point at getSchema: %v", err)
 	}
 	if trip.Places["venue"].Info != nil {
 		t.Fatalf("info should be unchanged, got %+v", trip.Places["venue"].Info)

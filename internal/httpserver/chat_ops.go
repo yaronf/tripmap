@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yaronf/tripmap/api"
 	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/store"
 	"github.com/yaronf/tripmap/internal/viewerchat"
@@ -44,37 +45,11 @@ func (o chatTripOps) Summary(ctx context.Context, tripID string) (viewerchat.Tri
 }
 
 func (o chatTripOps) SchemaJSON(context.Context) (json.RawMessage, error) {
-	payload := map[string]any{
-		"schema_version": itinerary.CurrentSchemaVersion,
-		"description":    "tripmap itinerary YAML schema with places catalog",
-		"patch_ops":      []string{"swap_days", "update_day", "days", "places", "upsert_stop", "remove_stop", "insert_day", "delete_day"},
-		"replace_day_routes": "Use replaceDayRoutes for overnight/endpoint or full route changes (not upsert_stop).",
-		"notes_policy":   "Day and stop notes are human-authored. Do not modify them unless the user explicitly asks. Put enrichment in places.*.info.",
-		"update_day_example": map[string]any{
-			"update_day": map[string]any{
-				"day":   1,
-				"title": "Arrive Auckland",
-			},
-		},
-		"add_venue_example": map[string]any{
-			"places": map[string]any{
-				"pacifica-kaimoana": map[string]any{
-					"title":    "Pacifica Kaimoana",
-					"lat":      -39.4902,
-					"lon":      176.9175,
-					"type":     "restaurant",
-					"maps_url": "https://www.google.com/maps/search/?api=1&query=Pacifica+Kaimoana+Napier",
-				},
-			},
-			"upsert_stop": map[string]any{
-				"day":   12,
-				"list":  "stops",
-				"place": "pacifica-kaimoana",
-				"notes": "Dinner",
-			},
-		},
+	doc, err := api.AgentSchemaDocument()
+	if err != nil {
+		return nil, err
 	}
-	return json.Marshal(payload)
+	return json.Marshal(doc)
 }
 
 func (o chatTripOps) GetYAML(ctx context.Context, tripID string) ([]byte, error) {

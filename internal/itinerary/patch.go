@@ -235,7 +235,7 @@ func mergePlace(cur Place, raw any) (Place, error) {
 		MapsURL      *string          `json:"maps_url"`
 		Info         *json.RawMessage `json:"info"`
 	}
-	if err := json.Unmarshal(b, &patch); err != nil {
+	if err := decodeJSONStrict(b, &patch, "PlacePatch", placePatchFields); err != nil {
 		return cur, err
 	}
 	if patch.Title != nil {
@@ -277,16 +277,16 @@ func mergePlaceInfo(cur *PlaceInfo, raw json.RawMessage) (*PlaceInfo, error) {
 		cur = &PlaceInfo{}
 	}
 	var patch struct {
-		Source     *PlaceSource     `json:"source"`
-		Links      []PlaceLink      `json:"links"`
-		Stats      *PlaceStats      `json:"stats"`
-		Logistics  *PlaceLogistics  `json:"logistics"`
-		Facilities *PlaceFacilities `json:"facilities"`
-		Warnings   []string         `json:"warnings"`
-		Highlights []string         `json:"highlights"`
+		Source     *PlaceSource    `json:"source"`
+		Links      []PlaceLink     `json:"links"`
+		Stats      json.RawMessage `json:"stats"`
+		Logistics  json.RawMessage `json:"logistics"`
+		Facilities json.RawMessage `json:"facilities"`
+		Warnings   []string        `json:"warnings"`
+		Highlights []string        `json:"highlights"`
 	}
-	if err := decodeJSONStrict(raw, &patch); err != nil {
-		return nil, fmt.Errorf("place info: %w", err)
+	if err := decodeJSONStrict(raw, &patch, "PlaceInfo", placeInfoFields); err != nil {
+		return nil, err
 	}
 	out := *cur
 	if patch.Source != nil {
@@ -295,14 +295,26 @@ func mergePlaceInfo(cur *PlaceInfo, raw json.RawMessage) (*PlaceInfo, error) {
 	if patch.Links != nil {
 		out.Links = patch.Links
 	}
-	if patch.Stats != nil {
-		out.Stats = mergeStats(out.Stats, patch.Stats)
+	if len(patch.Stats) > 0 && string(patch.Stats) != "null" {
+		var stats PlaceStats
+		if err := decodeJSONStrict(patch.Stats, &stats, "PlaceStats", placeStatsFields); err != nil {
+			return nil, err
+		}
+		out.Stats = mergeStats(out.Stats, &stats)
 	}
-	if patch.Logistics != nil {
-		out.Logistics = mergeLogistics(out.Logistics, patch.Logistics)
+	if len(patch.Logistics) > 0 && string(patch.Logistics) != "null" {
+		var logistics PlaceLogistics
+		if err := decodeJSONStrict(patch.Logistics, &logistics, "PlaceLogistics", placeLogisticsFields); err != nil {
+			return nil, err
+		}
+		out.Logistics = mergeLogistics(out.Logistics, &logistics)
 	}
-	if patch.Facilities != nil {
-		out.Facilities = mergeFacilities(out.Facilities, patch.Facilities)
+	if len(patch.Facilities) > 0 && string(patch.Facilities) != "null" {
+		var facilities PlaceFacilities
+		if err := decodeJSONStrict(patch.Facilities, &facilities, "PlaceFacilities", []string{"toilets", "drinking_water"}); err != nil {
+			return nil, err
+		}
+		out.Facilities = mergeFacilities(out.Facilities, &facilities)
 	}
 	if patch.Warnings != nil {
 		out.Warnings = patch.Warnings
@@ -313,11 +325,20 @@ func mergePlaceInfo(cur *PlaceInfo, raw json.RawMessage) (*PlaceInfo, error) {
 	return &out, nil
 }
 
-func decodeJSONStrict(raw json.RawMessage, dest any) error {
+var placeInfoFields = []string{"source", "links", "stats", "logistics", "facilities", "warnings", "highlights"}
+var placePatchFields = []string{"title", "lat", "lon", "type", "notes", "photo", "photo_caption", "maps_url", "info"}
+var placeStatsFields = []string{"distance_km", "duration", "ascent_m", "difficulty"}
+var placeLogisticsFields = []string{"parking", "opening_hours", "booking_required"}
+
+func decodeJSONStrict(raw json.RawMessage, dest any, schemaName string, allowed []string) error {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dest); err != nil {
-		return err
+		msg := err.Error()
+		if strings.Contains(msg, "unknown field") && len(allowed) > 0 {
+			return fmt.Errorf("%s: %w (allowed: %s; see getSchema schemas.%s)", schemaName, err, strings.Join(allowed, ", "), schemaName)
+		}
+		return fmt.Errorf("%s: %w", schemaName, err)
 	}
 	return nil
 }
