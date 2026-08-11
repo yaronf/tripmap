@@ -234,6 +234,7 @@
       el.tileBanner.hidden = false;
     });
     tiles.addTo(state.map);
+    L.control.scale({ metric: true, imperial: false, maxWidth: 200 }).addTo(state.map);
     state.layers.addTo(state.map);
     state.map.setView([52.1, 5.1], 7);
   }
