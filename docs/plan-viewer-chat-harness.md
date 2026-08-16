@@ -1,14 +1,15 @@
 # Plan: viewer chat agent harness
 
 **Status:** planned (not implemented).  
-**Rollback tag:** `pre-chat-harness` (annotated; create on `main` before any harness commits).  
-**Related:** [plan-viewer-chat-quality.md](plan-viewer-chat-quality.md) (context/memory work — freeze further investment).
+**Rollback tag:** `pre-chat-harness` → commit `3893e28` (already pushed).  
+**Related:** [plan-viewer-chat-quality.md](plan-viewer-chat-quality.md) (context/memory work). Dynamic learning (prefs/learnings) stays important; freeze *investment* during harness work and revisit once mutates are safe—especially as a post-repair harness step (see Meta below).
 
 ## Goal
 
 Make autonomous chat edits trustworthy by moving reliability from **prompt + prefs/learnings + transcript summary** into **domain tools + a server-enforced agent harness**. No human-in-the-loop Apply button.
 
-**Principle:** the model understands *what*; the application owns *safe how*.
+**Principle:** the model understands *what*; the application owns *safe how*.  
+**Cross-cutting:** every reject/error from the server must be **extensive and actionable** (allowed ops, why blocked, which tool to use next)—same spirit as unknown-field / `getSchema` errors today.
 
 ## Architecture target
 
@@ -31,14 +32,14 @@ Desired loop (enforced by the server, not `prompt.txt`):
 
 ## Phase 0 — Rollback tag
 
-1. On current `main`, before harness commits:
+Done:
 
-   ```bash
-   git tag -a pre-chat-harness -m "Baseline before viewer-chat harness work"
-   git push origin pre-chat-harness
-   ```
+```bash
+git tag -a pre-chat-harness -m "Baseline before viewer-chat harness work"
+git push origin pre-chat-harness
+```
 
-2. Undo if the harness fails: check out / redeploy from `pre-chat-harness` (or revert the harness commit range).
+Undo: check out / redeploy from `pre-chat-harness` (or revert the harness commit range).
 
 ## Phase 1 — Tool surface: intent ops + write classes
 
@@ -47,9 +48,13 @@ Desired loop (enforced by the server, not `prompt.txt`):
 | Class | Tools | Behavior |
 |-------|--------|----------|
 | Read | `getTrip`, `getTripYAML` (day default / `scope=full`), `getSchema`, `listVersions`, `getVersion` | Unchanged |
-| Enrichment | `patchTrip` limited to `places.*.info`, `update_day` notes/title **without** route endpoint changes, mid-day `upsert_stop` / `remove_stop` on `stops` (not overnight ends), `setDayPhoto` | Auto-apply; server rejects structural misuse |
-| Structural | New `changeOvernight`; keep `replaceDayRoutes` as escape hatch / MCP; `restoreVersion`; new `undoLastChange` | Transactional; one version; continuity in code |
-| Meta | prefs / learnings | **Freeze feature work**; leave as-is |
+| Enrichment | `patchTrip` limited to `places.*.info`, `update_day` notes/title **without** route endpoint changes, mid-day `upsert_stop` / `remove_stop` on `stops` (not overnight ends), `setDayPhoto` | Auto-apply; server rejects structural misuse with rich errors |
+| Structural | New `changeOvernight`; keep `replaceDayRoutes` as escape hatch / MCP; `restoreVersion` | Transactional; one version; continuity in code. **No separate `undoLastChange`**—improve `listVersions` / `restoreVersion` descriptions + errors so “undo = restore first non-latest” is obvious (see decision below) |
+| Meta | prefs / learnings | No new product surface during harness; **optional harness hook**: after a successful repair/correction turn, offer `saveLearning` (same ask-then-save gate). Revisit prefs UX later |
+
+**Decision — no `undoLastChange`:** Yes — a wrapper tool is mostly documentation by another name. Prefer sharper OpenAPI/tool descriptions and error text on `listVersions` + `restoreVersion` (e.g. “to undo the last edit, restore the first entry with `is_latest: false`”). Add `undoLastChange` only if eval shows the model still botches version pick after that.
+
+**Decision — learnings vs multi-round:** Multi-round repair is for *itinerary* correctness in one turn. Saving a learning is optional memory afterward—not a substitute for code invariants. Compatible: freeze new prefs/learnings *features*, but allow the harness to nudge `saveLearning` after a procedural repair once mutates are trustworthy.
 
 ### 1b. Server gates on `patchTrip` (chat path)
 
@@ -57,21 +62,19 @@ In viewer-chat tool execution (MCP agent API may stay broader), reject when:
 
 - `days.*.route` full replace, `swap_days`, `delete_day`, `insert_day` used to play overnight games
 - `upsert_stop` / `remove_stop` on `list=route` that would change first/last overnight of a travel day
-- Point errors at `changeOvernight` / `replaceDayRoutes`
+- Errors name the blocked fields and point at `changeOvernight` / `replaceDayRoutes`
 
-### 1c. New transactional tools
+### 1c. Transactional tools + tool/doc/error review
 
 OpenAPI `x-audiences: [chat]` (+ handlers in `internal/viewerchat`).
+
+**Pass over all chat tools:** descriptions, parameter docs, and error strings audited so the agent can self-correct (include in Phase 1 ship checklist—not a separate science project).
 
 **`changeOvernight`**
 
 - Args: `day`, `new_end` place id (or create place inline), optional `title`, optional `also_update_next_start` (default true).
 - Server: rewrite day N end + day N+1 start; preserve N+1 mid/end; normalize overnight types; one version; return semantic result (below).
 - Validate overnight→overnight distance (reject absurd legs unless an explicit escape such as `force` for ferry/flight days later).
-
-**`undoLastChange`**
-
-- Restores the first non-latest version. Removes “undo = pick version_id …” from model intelligence.
 
 Keep `replaceDayRoutes` for multi-stop route surgery / MCP; chat should prefer `changeOvernight` for the common overnight case.
 
@@ -95,9 +98,17 @@ Every mutate tool returns JSON like:
 
 Extend `handlePatchTrip` / `handleReplaceDayRoutes` the same way (diff summary + fragment + continuity). Stop returning bare `{"ok": true}` for mutates.
 
-## Phase 2 — Enforced agent loop
+## Phase 2 — Enforced agent loop (+ Persona / latency)
 
 Today: naïve Responses loop in [`internal/viewerchat/agent.go`](../internal/viewerchat/agent.go) (`maxToolIterations = 8`) with prompt text saying “verify.”
+
+**Persona fit:** Yes—without Persona changes for multi-round *logic*. The extra mutate→validate→repair iterations run **inside one** `POST /api/chat` Responses loop; Persona already streams SSE until that request finishes. It does not need to orchestrate the repair rounds.
+
+**Latency / UX (do budget this):** More OpenAI round-trips ⇒ longer wall time. Check and likely raise:
+
+- Server request / proxy idle timeouts (CloudFront, ALB/Express, Go server) so the SSE connection isn’t killed mid-repair
+- Persona/widget client expectations (loading state already; ensure no aggressive client abort)
+- Optional: stream a lightweight SSE status event (“checking itinerary…”) so the UI doesn’t look stuck—nice-to-have, not a harness blocker
 
 Change:
 
@@ -129,27 +140,28 @@ last_mutation: { op, version_id, ok }
 
 Add cases under `internal/viewerchat/eval/` (or `testdata/chat_eval/`) from real failures:
 
-- Day vs stop notes; `opening_hours` under logistics; coffee stop ≠ rewrite endpoints; NM = no mutate; overnight preserves next mid stops; `undoLastChange`; continuity.
+- Day vs stop notes; `opening_hours` under logistics; coffee stop ≠ rewrite endpoints; NM = no mutate; overnight preserves next mid stops; undo via `restoreVersion`; continuity.
 
 Each case: frozen YAML + turns + **final YAML assertions** (tool choice is diagnostic only). Scripted model double in CI; optional live smoke later.
 
 ## Phase 5 — Non-goals
 
 - No Apply button / HITL.
-- No further prefs/learnings investment.
+- No major prefs/learnings product work during harness (optional post-repair `saveLearning` nudge only).
 - No “more prompt bullets” as the primary strategy.
 - Disabling chat remains an ops escape hatch if the harness regresses.
 
 ## Ship order
 
-1. Tag `pre-chat-harness` + this doc  
-2. Semantic mutate returns + continuity on existing mutates  
-3. Chat gates on structural `patchTrip`  
-4. `changeOvernight` + `undoLastChange`  
-5. Enforced post-mutate validate/repair loop  
-6. Structured working state + cancel handling  
-7. Eval suite  
-8. Prompt trim + `./scripts/deploy-compute.sh`
+1. ~~Tag `pre-chat-harness` + this doc~~ (done)
+2. Semantic mutate returns + continuity on existing mutates + rich errors
+3. Chat gates on structural `patchTrip`
+4. `changeOvernight` + versioning tool doc/error pass (no `undoLastChange` unless eval demands it)
+5. Chat tool description/error audit
+6. Enforced post-mutate validate/repair loop + timeout/SSE sanity check
+7. Structured working state + cancel handling
+8. Eval suite
+9. Prompt trim + `./scripts/deploy-compute.sh` (and `--patch-viewer` only if status SSE needs UI)
 
 ## Success criteria
 
