@@ -71,9 +71,9 @@ aws cloudformation deploy \
 
 Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/callback` (exact path).
 
-`HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer. Signed-in ACL is `config/hello-allowlist.csv` (baked into the image).
+`HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer. Signed-in + chat ACL is `config/users.csv` (gitignored; baked into the image from the deploy machine). Start from `config/users.example.csv`. Rows with `chat=yes` may use Persona chat.
 
-In-viewer chat (Persona) uses Secrets Manager `tripmap/openai` (`{"api_key":"sk-…"}`). Empty/missing key dark-ships chat (503). Chat ACL is `config/chat-allowlist.csv` (subset of Hellō users).
+In-viewer chat (Persona) uses Secrets Manager `tripmap/openai` (`{"api_key":"sk-…"}`). Empty/missing key dark-ships chat (503).
 
 The secret is **not** created by CloudFormation (create/put as admin). `tripmap-data` only exports its ARN and grants the task execution role `GetSecretValue`. After changing the secret or the data export, redeploy compute so ECS re-injects `OPENAI_SECRET_JSON`:
 

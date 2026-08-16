@@ -67,27 +67,33 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("HELLO_SESSION_SECRET required when HELLO_CLIENT_ID is set")
 	}
 	if cfg.HelloClientID != "" {
-		path := resolveAllowlistPath()
-		emails, subs, err := loadHelloAllowlistFile(path)
+		path := resolveUsersPath()
+		users, err := loadUsersFile(path)
 		if err != nil {
-			return Config{}, fmt.Errorf("HELLO allowlist %s: %w", path, err)
+			return Config{}, fmt.Errorf("users file %s: %w", path, err)
 		}
-		cfg.HelloAllowedEmails = emails
-		cfg.HelloAllowedSubs = subs
+		cfg.HelloAllowedEmails = users.LoginEmails
+		cfg.HelloAllowedSubs = users.LoginSubs
 		if len(cfg.HelloAllowedEmails) == 0 && len(cfg.HelloAllowedSubs) == 0 {
-			return Config{}, fmt.Errorf("HELLO allowlist %s is empty", path)
+			return Config{}, fmt.Errorf("users file %s has no sign-in rows", path)
 		}
+		// Chat ACL is the chat=yes subset of the same file (even if OpenAI is unset yet).
+		cfg.ChatAllowedEmails = users.ChatEmails
+		cfg.ChatAllowedSubs = users.ChatSubs
 	}
 	if cfg.OpenAIAPIKey != "" {
-		path := resolveChatAllowlistPath()
-		emails, subs, err := loadHelloAllowlistFile(path)
-		if err != nil {
-			return Config{}, fmt.Errorf("CHAT allowlist %s: %w", path, err)
+		if cfg.HelloClientID == "" {
+			// Chat without Hellō: still need the users file for chat ACL.
+			path := resolveUsersPath()
+			users, err := loadUsersFile(path)
+			if err != nil {
+				return Config{}, fmt.Errorf("users file %s: %w", path, err)
+			}
+			cfg.ChatAllowedEmails = users.ChatEmails
+			cfg.ChatAllowedSubs = users.ChatSubs
 		}
-		cfg.ChatAllowedEmails = emails
-		cfg.ChatAllowedSubs = subs
 		if len(cfg.ChatAllowedEmails) == 0 && len(cfg.ChatAllowedSubs) == 0 {
-			return Config{}, fmt.Errorf("CHAT allowlist %s is empty", path)
+			return Config{}, fmt.Errorf("users file %s has no chat=yes rows (required when OpenAI is configured)", resolveUsersPath())
 		}
 	}
 	return cfg, nil

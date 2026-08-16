@@ -16,7 +16,7 @@ Let signed-in viewers nudge the open itinerary from the PWA without switching to
 - **Agent API (v1.1):** prefer **Responses API** with hosted `{ "type": "web_search" }` (text + **image** results) plus custom function tools for itinerary ops. Chat Completions alone cannot host `web_search` with image results.
 - **Backend shape:** put **all/most** of the chat agent loop in [`internal/viewerchat`](../internal/viewerchat); `httpserver` only authenticates and delegates.
 - **Auth:** viewer session cookie after Hellō login (same as comments) — not agent Bearer. Persona `customFetch` sends `credentials: "include"`.
-- **Security (chat):** separate allowlist (`config/chat-allowlist.csv`); 503 if OpenAI unset; cap message size / tool iterations.
+- **Security (chat):** `chat=yes` rows in `config/users.csv`; 503 if OpenAI unset; cap message size / tool iterations.
 - **Itinerary tools (server only):** in-process trip ops (summary / schema / YAML / patch), same semantics as MCP — S3 patches stay in `tripmapd`. **Not** Persona WebMCP page tools for mutating YAML.
 - **Web research (v1.1):** OpenAI hosted `web_search` for opening times, trail conditions, logistics, etc. No separate Bing/Tavily secret unless we later add a fallback.
 - **Photos (v1.1):** still **URL-only** in YAML (`photo` / `photo_caption`) — tripmap does not host image bytes. Flow: `web_search` with `search_content_types: ["image","text"]` → optional vision review of candidate `image_url`s → `patch_trip` / `update_day` with the chosen HTTPS URL. Prefer stable sources (Wikimedia, official tourism); hotlink/license risk accepted; broken URLs may still happen.

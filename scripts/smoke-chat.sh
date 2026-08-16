@@ -37,10 +37,10 @@ if [[ -z "${HELLO_SESSION_SECRET:-}" ]]; then
   exit 2
 fi
 if [[ -z "$EMAIL" ]]; then
-  EMAIL="$(awk -F, 'NR>1 && $1!=""{print $1; exit}' config/chat-allowlist.csv)"
+  EMAIL="$(awk -F, 'NR>1 && $1!="" && tolower($3) ~ /^(yes|true|1|y|chat)$/ {print $1; exit}' config/users.csv 2>/dev/null || true)"
 fi
 if [[ -z "$EMAIL" ]]; then
-  echo "set CHAT_EMAIL or add an email to config/chat-allowlist.csv" >&2
+  echo "set CHAT_EMAIL or add a chat=yes row to config/users.csv" >&2
   exit 2
 fi
 

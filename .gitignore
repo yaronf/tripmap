@@ -8,3 +8,5 @@
 !.env.example
 /tmp/
 /api/openapi.http.yaml
+# Real user emails — keep example only in git
+/config/users.csv

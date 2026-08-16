@@ -11,11 +11,10 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /tripmapd /tripmapd
-COPY config/hello-allowlist.csv /config/hello-allowlist.csv
-COPY config/chat-allowlist.csv /config/chat-allowlist.csv
+# Real ACL (gitignored locally; must exist in build context for deploy).
+COPY config/users.csv /config/users.csv
 USER nonroot:nonroot
 EXPOSE 8080
 ENV ADDR=:8080
-ENV HELLO_ALLOWLIST_FILE=/config/hello-allowlist.csv
-ENV CHAT_ALLOWLIST_FILE=/config/chat-allowlist.csv
+ENV USERS_FILE=/config/users.csv
 ENTRYPOINT ["/tripmapd"]

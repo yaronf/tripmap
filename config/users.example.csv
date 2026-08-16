@@ -1,0 +1,6 @@
+email,sub,chat
+# Sign-in ACL + optional viewer chat. Copy to users.csv and edit (users.csv is gitignored).
+# chat: yes|true|1 enables Persona chat; empty/no = Hellō sign-in only.
+alice@example.com,,yes
+bob@example.com,,
+,sub_example_only,yes

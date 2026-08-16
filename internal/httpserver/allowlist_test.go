@@ -6,21 +6,27 @@ import (
 	"testing"
 )
 
-func TestLoadHelloAllowlistFile(t *testing.T) {
+func TestLoadUsersFile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "allow.csv")
-	body := "email,sub\nyaronf@gmx.com,\n,sub_abc\n# comment row ignored via Comment\nOther@Example.COM,\n"
+	path := filepath.Join(dir, "users.csv")
+	body := "email,sub,chat\nyaronf@gmx.com,,yes\nofra@example.com,,\n,sub_abc,true\n# comment\nOther@Example.COM,,1\nnoop@x.y,,no\n"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	emails, subs, err := loadHelloAllowlistFile(path)
+	u, err := loadUsersFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(emails) != 2 || emails[0] != "yaronf@gmx.com" || emails[1] != "other@example.com" {
-		t.Fatalf("emails=%v", emails)
+	if len(u.LoginEmails) != 4 || u.LoginEmails[0] != "yaronf@gmx.com" || u.LoginEmails[3] != "noop@x.y" {
+		t.Fatalf("login emails=%v", u.LoginEmails)
 	}
-	if len(subs) != 1 || subs[0] != "sub_abc" {
-		t.Fatalf("subs=%v", subs)
+	if len(u.LoginSubs) != 1 || u.LoginSubs[0] != "sub_abc" {
+		t.Fatalf("login subs=%v", u.LoginSubs)
+	}
+	if len(u.ChatEmails) != 2 || u.ChatEmails[0] != "yaronf@gmx.com" || u.ChatEmails[1] != "other@example.com" {
+		t.Fatalf("chat emails=%v", u.ChatEmails)
+	}
+	if len(u.ChatSubs) != 1 || u.ChatSubs[0] != "sub_abc" {
+		t.Fatalf("chat subs=%v", u.ChatSubs)
 	}
 }

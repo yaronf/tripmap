@@ -8,10 +8,21 @@ import (
 	"strings"
 )
 
-func loadHelloAllowlistFile(path string) (emails, subs []string, err error) {
+// usersFile holds Hellō sign-in ACL and optional chat ACL from one CSV.
+type usersFile struct {
+	LoginEmails []string
+	LoginSubs   []string
+	ChatEmails  []string
+	ChatSubs    []string
+}
+
+// loadUsersFile reads config/users.csv (or path).
+// Columns: email, sub, chat (optional). Every row with email and/or sub may sign in.
+// chat=yes|true|1 grants viewer chat; empty/no/false = sign-in only.
+func loadUsersFile(path string) (usersFile, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return usersFile{}, err
 	}
 	defer f.Close()
 
@@ -20,63 +31,85 @@ func loadHelloAllowlistFile(path string) (emails, subs []string, err error) {
 	r.Comment = '#'
 	header, err := r.Read()
 	if err != nil {
-		return nil, nil, fmt.Errorf("allowlist header: %w", err)
+		return usersFile{}, fmt.Errorf("users header: %w", err)
 	}
-	colEmail, colSub := -1, -1
+	colEmail, colSub, colChat := -1, -1, -1
 	for i, h := range header {
 		switch strings.ToLower(strings.TrimSpace(h)) {
 		case "email":
 			colEmail = i
 		case "sub":
 			colSub = i
+		case "chat":
+			colChat = i
 		}
 	}
 	if colEmail < 0 && colSub < 0 {
-		return nil, nil, fmt.Errorf("allowlist %s: need email and/or sub column", path)
+		return usersFile{}, fmt.Errorf("users %s: need email and/or sub column", path)
 	}
 
+	var out usersFile
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("allowlist %s: %w", path, err)
+			return usersFile{}, fmt.Errorf("users %s: %w", path, err)
 		}
+		email, sub := "", ""
 		if colEmail >= 0 && colEmail < len(rec) {
-			if e := strings.ToLower(strings.TrimSpace(rec[colEmail])); e != "" {
-				emails = append(emails, e)
-			}
+			email = strings.ToLower(strings.TrimSpace(rec[colEmail]))
 		}
 		if colSub >= 0 && colSub < len(rec) {
-			if s := strings.TrimSpace(rec[colSub]); s != "" {
-				subs = append(subs, s)
+			sub = strings.TrimSpace(rec[colSub])
+		}
+		if email == "" && sub == "" {
+			continue
+		}
+		if email != "" {
+			out.LoginEmails = append(out.LoginEmails, email)
+		}
+		if sub != "" {
+			out.LoginSubs = append(out.LoginSubs, sub)
+		}
+		chat := false
+		if colChat >= 0 && colChat < len(rec) {
+			chat = truthyChat(rec[colChat])
+		}
+		if chat {
+			if email != "" {
+				out.ChatEmails = append(out.ChatEmails, email)
+			}
+			if sub != "" {
+				out.ChatSubs = append(out.ChatSubs, sub)
 			}
 		}
 	}
-	return emails, subs, nil
+	return out, nil
 }
 
-func resolveAllowlistPath() string {
+func truthyChat(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "y", "chat":
+		return true
+	default:
+		return false
+	}
+}
+
+func resolveUsersPath() string {
+	if p := strings.TrimSpace(os.Getenv("USERS_FILE")); p != "" {
+		return p
+	}
+	// Legacy env names still override path (same unified file).
 	if p := strings.TrimSpace(os.Getenv("HELLO_ALLOWLIST_FILE")); p != "" {
 		return p
 	}
-	for _, p := range []string{"config/hello-allowlist.csv", "/config/hello-allowlist.csv"} {
+	for _, p := range []string{"config/users.csv", "/config/users.csv"} {
 		if st, err := os.Stat(p); err == nil && !st.IsDir() {
 			return p
 		}
 	}
-	return "config/hello-allowlist.csv"
-}
-
-func resolveChatAllowlistPath() string {
-	if p := strings.TrimSpace(os.Getenv("CHAT_ALLOWLIST_FILE")); p != "" {
-		return p
-	}
-	for _, p := range []string{"config/chat-allowlist.csv", "/config/chat-allowlist.csv"} {
-		if st, err := os.Stat(p); err == nil && !st.IsDir() {
-			return p
-		}
-	}
-	return "config/chat-allowlist.csv"
+	return "config/users.csv"
 }

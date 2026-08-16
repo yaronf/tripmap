@@ -54,7 +54,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 
 ### AWS / hosting
 - [x] Durable public URL: `https://tripmap.sheffer.org` (CloudFront `tripmap-edge` → Express). See [docs/aws-deployment.md](docs/aws-deployment.md).
-- [x] Hellō sign-in for human viewers (`/auth/hello/*`, Client ID on compute). Signed-in home lists itineraries at `/me/trips/{id}/`. Allowlist: `config/hello-allowlist.csv`.
+- [x] Hellō sign-in for human viewers (`/auth/hello/*`, Client ID on compute). Signed-in home lists itineraries at `/me/trips/{id}/`. Allowlist: `config/users.csv` (see `users.example.csv`).
 - [x] Remove capability-token sharing (`/t/{id}/{token}/`); Hellō `/me/trips/{id}/` is the viewer path.
 - [x] Remove `itineraries/` from the git repo (live SoT is S3; no history rewrite). Local copies stay gitignored under `itineraries/` if needed.
 
