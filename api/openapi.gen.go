@@ -258,7 +258,7 @@ type TripPatch struct {
 	// UpdateDay Partial update of one existing day (omit fields to leave unchanged)
 	UpdateDay *UpdateDay `json:"update_day,omitempty"`
 
-	// UpsertStop Add or update a stop ref by place id on route or stops. If that place id is not already on the list, it is appended. For overnight/endpoint or full route replacement, use replaceDayRoutes instead. place must be a kebab-case id that exists in places (not a display title).
+	// UpsertStop Add or update a stop ref by place id. For restaurants, bars, rental desks, and other mid-day venues ALWAYS use list "stops" (with places.* in the same patch). list "route" is only for updating an existing mid-route via/sight already on the drive — never for new venues (chat rejects that and tells you to retry with list stops). For overnight/endpoint or full route replacement, use changeOvernight or replaceDayRoutes instead. place must be a kebab-case id that exists in places (not a display title).
 	UpsertStop *UpsertStop `json:"upsert_stop,omitempty"`
 }
 
@@ -286,11 +286,11 @@ type UpdateDay struct {
 	Title        *string `json:"title,omitempty"`
 }
 
-// UpsertStop Add or update a stop ref by place id on route or stops. If that place id is not already on the list, it is appended. For overnight/endpoint or full route replacement, use replaceDayRoutes instead. place must be a kebab-case id that exists in places (not a display title).
+// UpsertStop Add or update a stop ref by place id. For restaurants, bars, rental desks, and other mid-day venues ALWAYS use list "stops" (with places.* in the same patch). list "route" is only for updating an existing mid-route via/sight already on the drive — never for new venues (chat rejects that and tells you to retry with list stops). For overnight/endpoint or full route replacement, use changeOvernight or replaceDayRoutes instead. place must be a kebab-case id that exists in places (not a display title).
 type UpsertStop struct {
 	Day *int `json:"day,omitempty"`
 
-	// List route or stops
+	// List "stops" for mid-day venues/logistics (default choice). "route" only when updating an existing mid-drive via/sight already on that day's route.
 	List *string `json:"list,omitempty"`
 
 	// MapsUrl Optional Google Maps URL override on this stop ref

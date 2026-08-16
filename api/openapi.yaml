@@ -111,7 +111,7 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop on the stops list (mid-day). In viewer chat, overnight/endpoint and days.*.route / swap_days / delete_day / insert_day are rejected — use changeOvernight or replaceDayRoutes. Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop on the stops list (mid-day venues, rental desks, restaurants — list must be "stops", not "route"). In viewer chat, overnight/endpoint and days.*.route / swap_days / delete_day / insert_day are rejected — use changeOvernight or replaceDayRoutes for those only. Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -726,16 +726,21 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Add or update a stop ref by place id on route or stops. If that place
-        id is not already on the list, it is appended. For overnight/endpoint
-        or full route replacement, use replaceDayRoutes instead. place must be
-        a kebab-case id that exists in places (not a display title).
+        Add or update a stop ref by place id. For restaurants, bars, rental desks,
+        and other mid-day venues ALWAYS use list "stops" (with places.* in the same
+        patch). list "route" is only for updating an existing mid-route via/sight
+        already on the drive — never for new venues (chat rejects that and tells you
+        to retry with list stops). For overnight/endpoint or full route replacement,
+        use changeOvernight or replaceDayRoutes instead. place must be a kebab-case
+        id that exists in places (not a display title).
       properties:
         day:
           type: integer
         list:
           type: string
-          description: route or stops
+          description: >
+            "stops" for mid-day venues/logistics (default choice). "route" only when
+            updating an existing mid-drive via/sight already on that day's route.
         place:
           type: string
           description: Kebab-case place id from places (e.g. greymouth), not a display title

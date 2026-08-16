@@ -26,8 +26,19 @@ days:
 		t.Fatalf("err=%v", err)
 	}
 	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c"}}`), yaml)
-	if err == nil || !strings.Contains(err.Error(), "overnight") {
-		t.Fatalf("err=%v", err)
+	if err == nil || !strings.Contains(err.Error(), `list set to "stops"`) {
+		t.Fatalf("new place on route should steer to stops, err=%v", err)
+	}
+	if strings.Contains(err.Error(), "replaceDayRoutes") {
+		t.Fatalf("must not steer venue upsert to replaceDayRoutes: %v", err)
+	}
+	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"b"}}`), yaml)
+	if err == nil || !strings.Contains(err.Error(), "changeOvernight") {
+		t.Fatalf("endpoint upsert should steer to changeOvernight, err=%v", err)
+	}
+	err = rejectChatStructuralPatch([]byte(`{"insert_day":{"after":1,"day":{"title":"X"}}}`), yaml)
+	if err == nil || !strings.Contains(err.Error(), "stops") {
+		t.Fatalf("insert_day should steer to stops upsert, err=%v", err)
 	}
 	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"stops","place":"c"}}`), yaml)
 	if err != nil {

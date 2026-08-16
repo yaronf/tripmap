@@ -33,3 +33,5 @@ package viewerchat_test
 // Case: Avis Wellington replaceDayRoutes cascade (2026-08-17 logs)
 //   "as a stop" / vague Wellington follow-up must not call replaceDayRoutes;
 //   replaceDayRoutes cannot rewrite day 8 while viewer is on day 6.
+//   Follow-up: list=route reject must say retry list=stops — never steer to
+//   replaceDayRoutes (TestRejectChatStructuralPatch).
