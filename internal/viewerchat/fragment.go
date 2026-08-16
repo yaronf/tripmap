@@ -120,8 +120,13 @@ func BuildTripFragment(body []byte, day int) (TripFragment, error) {
 	return out, nil
 }
 
-// ContinuityWarnings returns soft warnings when consecutive day route ends/starts mismatch.
+// ContinuityWarnings returns soft warnings when consecutive day route ends/starts mismatch
+// for the given days (and each day's predecessor pair). Empty dayNums means no check —
+// callers must pass touched/viewer days; never use empty as "scan whole trip".
 func ContinuityWarnings(body []byte, dayNums []int) []string {
+	if len(dayNums) == 0 {
+		return nil
+	}
 	trip, err := itinerary.ParseYAML(body)
 	if err != nil {
 		return nil
@@ -152,12 +157,6 @@ func ContinuityWarnings(body []byte, dayNums []int) []string {
 			"day %d route end %q != day %d route start %q (informational; multi-step edits may be temporarily inconsistent)",
 			n, end, n+1, start,
 		))
-	}
-	if len(dayNums) == 0 {
-		for d := range byDay {
-			checkPair(d)
-		}
-		return out
 	}
 	for _, d := range dayNums {
 		checkPair(d)

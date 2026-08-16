@@ -341,7 +341,7 @@ func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON strin
 	after, _ := a.ops.GetYAML(ctx, in.TripID)
 	var p itinerary.Patch
 	_ = json.Unmarshal(rewritten, &p)
-	content, err := enrichAfterMutate(after, in.Day, nil, mutateResult{
+	content, err := enrichAfterMutate(after, in.Day, patchDayNums(p), mutateResult{
 		OK: true, Op: "patchTrip", ID: res.ID, VersionID: res.VersionID, BundleOK: res.BundleOK,
 		Changed: patchSummaryChanged(before, after, p),
 		Extra:   map[string]any{"ops": patchOpNames(rewritten)},

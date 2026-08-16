@@ -141,6 +141,7 @@ last_mutation: { op, version_id, ok }
 Add cases under `internal/viewerchat/eval/` (or `testdata/chat_eval/`) from real failures:
 
 - Day vs stop notes; `opening_hours` under logistics; coffee stop ≠ rewrite endpoints; NM = no mutate; overnight preserves next mid stops; undo via `restoreVersion`; continuity.
+- **Hayes Common lunch (2026-08-17):** enrichment stop on day N while distant days have continuity mismatches → must succeed without repair digression / truncated “other days…” answer. Locked in `TestEnrichScopedContinuity` + `TestInvariantsNeedRepairOnlyStructural`.
 
 Each case: frozen YAML + turns + **final YAML assertions** (tool choice is diagnostic only). Scripted model double in CI; optional live smoke later.
 
