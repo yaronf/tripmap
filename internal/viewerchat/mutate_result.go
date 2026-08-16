@@ -170,7 +170,8 @@ func repairDeveloperNote(mutateJSON string) string {
 	return fmt.Sprintf(
 		"HARNESS: mutation completed but itinerary invariants failed or need verification.\n"+
 			"Tool result:\n%s\n"+
-			"Repair with tools if needed. Do not claim success until invariants.continuity_ok is true "+
+			"Repair ONLY the days named in changed/invariants for this mutation — do not rewrite unrelated days "+
+			"(no ferry/other-day route surgery). Do not claim success until invariants.continuity_ok is true "+
 			"(or explain the failure if you cannot repair).",
 		mutateJSON,
 	)

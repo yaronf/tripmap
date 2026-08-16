@@ -18,7 +18,7 @@ type toolResult struct {
 	Mutated bool
 }
 
-type toolHandler func(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error)
+type toolHandler func(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error)
 
 func toolHandlers() map[string]toolHandler {
 	return map[string]toolHandler{
@@ -41,17 +41,22 @@ func toolHandlers() map[string]toolHandler {
 	}
 }
 
-func (a *Agent) execTool(ctx context.Context, in TurnInput, name, argsJSON string) (string, bool, error) {
+func (a *Agent) execTool(ctx context.Context, in TurnInput, name, argsJSON string, tc *turnToolContext) (string, bool, error) {
 	h, ok := toolHandlers()[name]
 	if !ok {
 		err := fmt.Errorf("unknown tool %q", name)
 		logToolCall(in.TripID, name, argsJSON, false, err)
 		return "", false, err
 	}
-	res, err := h(ctx, a, in, argsJSON)
+	res, err := h(ctx, a, in, argsJSON, tc)
 	if err != nil {
 		logToolCall(in.TripID, name, argsJSON, false, err)
 		return "", false, err
+	}
+	if name == "getTripYAML" && err == nil {
+		if tc != nil {
+			tc.SawGetTripYAML = true
+		}
 	}
 	logToolCall(in.TripID, name, argsJSON, res.Mutated, nil)
 	return res.Content, res.Mutated, nil
@@ -91,7 +96,7 @@ func requireUserSub(in TurnInput) error {
 	return nil
 }
 
-func handleGetTrip(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+func handleGetTrip(ctx context.Context, a *Agent, in TurnInput, _ string, tc *turnToolContext) (toolResult, error) {
 	card, err := a.ops.Summary(ctx, in.TripID)
 	if err != nil {
 		return toolResult{}, err
@@ -108,7 +113,7 @@ func handleGetTrip(ctx context.Context, a *Agent, in TurnInput, _ string) (toolR
 	return toolResult{Content: string(b)}, err
 }
 
-func handleGetSchema(ctx context.Context, a *Agent, _ TurnInput, _ string) (toolResult, error) {
+func handleGetSchema(ctx context.Context, a *Agent, _ TurnInput, _ string, tc *turnToolContext) (toolResult, error) {
 	raw, err := a.ops.SchemaJSON(ctx)
 	if err != nil {
 		return toolResult{}, err
@@ -116,7 +121,7 @@ func handleGetSchema(ctx context.Context, a *Agent, _ TurnInput, _ string) (tool
 	return toolResult{Content: string(raw)}, nil
 }
 
-func handleGetTripYAML(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleGetTripYAML(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	var args struct {
 		Day   int    `json:"day"`
 		Scope string `json:"scope"`
@@ -165,7 +170,7 @@ func handleGetTripYAML(ctx context.Context, a *Agent, in TurnInput, argsJSON str
 	return toolResult{Content: string(body)}, nil
 }
 
-func handleSetDayPhoto(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleSetDayPhoto(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	var args struct {
 		Day          int    `json:"day"`
 		Query        string `json:"query"`
@@ -235,7 +240,7 @@ func handleSetDayPhoto(ctx context.Context, a *Agent, in TurnInput, argsJSON str
 	return toolResult{Content: string(b), Mutated: true}, err
 }
 
-func handleListVersions(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+func handleListVersions(ctx context.Context, a *Agent, in TurnInput, _ string, tc *turnToolContext) (toolResult, error) {
 	vers, err := a.ops.ListVersions(ctx, in.TripID)
 	if err != nil {
 		return toolResult{}, err
@@ -260,7 +265,7 @@ func handleListVersions(ctx context.Context, a *Agent, in TurnInput, _ string) (
 	return toolResult{Content: string(b)}, err
 }
 
-func handleGetVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleGetVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	var args struct {
 		VersionID string `json:"version_id"`
 	}
@@ -280,7 +285,7 @@ func handleGetVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON stri
 	return toolResult{Content: string(body)}, nil
 }
 
-func handleRestoreVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleRestoreVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	var args struct {
 		VersionID string `json:"version_id"`
 	}
@@ -312,7 +317,7 @@ func handleRestoreVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON 
 	return toolResult{Content: content, Mutated: true}, err
 }
 
-func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	var wrap struct {
 		Patch json.RawMessage `json:"patch"`
 	}
@@ -322,6 +327,13 @@ func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON strin
 	patch := wrap.Patch
 	if len(patch) == 0 {
 		patch = json.RawMessage(argsJSON)
+	}
+	ask := latestUserAsk(in.Messages)
+	if err := rejectRemoveIntentMisuse(patch, ask); err != nil {
+		return toolResult{}, err
+	}
+	if err := rejectRemoveWithoutYAML(patch, tc); err != nil {
+		return toolResult{}, err
 	}
 	before, err := a.ops.GetYAML(ctx, in.TripID)
 	if err != nil {
@@ -349,7 +361,16 @@ func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON strin
 	return toolResult{Content: content, Mutated: true}, err
 }
 
-func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
+	_ = tc
+	ask := latestUserAsk(in.Messages)
+	if err := rejectReplaceUnlessRouteSurgery(ask); err != nil {
+		return toolResult{}, err
+	}
+	dayNums := dayNumsFromReplaceArgs(argsJSON)
+	if err := rejectReplaceOutsideAskScope(dayNums, in.Day, ask); err != nil {
+		return toolResult{}, err
+	}
 	p, err := itinerary.ParseReplaceDayRoutes([]byte(argsJSON))
 	if err != nil {
 		return toolResult{}, err
@@ -362,7 +383,6 @@ func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSO
 	if err != nil {
 		return toolResult{}, err
 	}
-	dayNums := dayNumsFromReplaceArgs(argsJSON)
 	after, _ := a.ops.GetYAML(ctx, in.TripID)
 	content, err := enrichAfterMutate(after, in.Day, dayNums, mutateResult{
 		OK: true, Op: "replaceDayRoutes", ID: res.ID, VersionID: res.VersionID, BundleOK: res.BundleOK,
@@ -371,7 +391,7 @@ func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSO
 	return toolResult{Content: content, Mutated: true}, err
 }
 
-func handleChangeOvernight(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleChangeOvernight(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	var args struct {
 		Day                   int            `json:"day"`
 		NewEnd                string         `json:"new_end"`
@@ -486,7 +506,7 @@ func firstDayOr(viewerDay int, nums []int) int {
 	return 1
 }
 
-func handleListPreferences(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+func handleListPreferences(ctx context.Context, a *Agent, in TurnInput, _ string, tc *turnToolContext) (toolResult, error) {
 	if err := requireUserSub(in); err != nil {
 		return toolResult{}, err
 	}
@@ -498,7 +518,7 @@ func handleListPreferences(ctx context.Context, a *Agent, in TurnInput, _ string
 	return toolResult{Content: string(b)}, err
 }
 
-func handleSavePreference(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleSavePreference(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	if err := requireUserSub(in); err != nil {
 		return toolResult{}, err
 	}
@@ -518,7 +538,7 @@ func handleSavePreference(ctx context.Context, a *Agent, in TurnInput, argsJSON 
 	return toolResult{Content: string(b)}, err
 }
 
-func handleForgetPreference(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleForgetPreference(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	if err := requireUserSub(in); err != nil {
 		return toolResult{}, err
 	}
@@ -535,7 +555,7 @@ func handleForgetPreference(ctx context.Context, a *Agent, in TurnInput, argsJSO
 	return toolResult{Content: string(b)}, err
 }
 
-func handleListLearnings(ctx context.Context, a *Agent, in TurnInput, _ string) (toolResult, error) {
+func handleListLearnings(ctx context.Context, a *Agent, in TurnInput, _ string, tc *turnToolContext) (toolResult, error) {
 	if err := requireUserSub(in); err != nil {
 		return toolResult{}, err
 	}
@@ -547,7 +567,7 @@ func handleListLearnings(ctx context.Context, a *Agent, in TurnInput, _ string) 
 	return toolResult{Content: string(b)}, err
 }
 
-func handleSaveLearning(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleSaveLearning(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	if err := requireUserSub(in); err != nil {
 		return toolResult{}, err
 	}
@@ -567,7 +587,7 @@ func handleSaveLearning(ctx context.Context, a *Agent, in TurnInput, argsJSON st
 	return toolResult{Content: string(b)}, err
 }
 
-func handleForgetLearning(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+func handleForgetLearning(ctx context.Context, a *Agent, in TurnInput, argsJSON string, tc *turnToolContext) (toolResult, error) {
 	if err := requireUserSub(in); err != nil {
 		return toolResult{}, err
 	}

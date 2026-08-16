@@ -163,6 +163,7 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 	var result turnResult
 	repairRounds := 0
 	pendingRepair := false
+	tc := &turnToolContext{}
 	for iter := 0; iter < maxToolIterations; iter++ {
 		resp, err := respond(ctx, params)
 		if err != nil {
@@ -174,7 +175,7 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 			if pendingRepair && repairRounds < maxRepairRounds {
 				repairRounds++
 				pendingRepair = false
-				note := "HARNESS: invariants still need attention. Repair with tools or explain failure; do not claim a successful itinerary edit."
+				note := "HARNESS: invariants still need attention. Repair ONLY the days already mutated this turn; do not rewrite unrelated days. Or explain failure; do not claim a successful itinerary edit."
 				params = responses.ResponseNewParams{
 					Model:              a.model,
 					PreviousResponseID: openai.String(resp.ID),
@@ -213,7 +214,7 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 				})
 				continue
 			}
-			out, patched, callErr := a.execTool(ctx, in, fc.Name, fc.Arguments)
+			out, patched, callErr := a.execTool(ctx, in, fc.Name, fc.Arguments, tc)
 			if patched {
 				result.TripUpdated = true
 				lastMutate = out

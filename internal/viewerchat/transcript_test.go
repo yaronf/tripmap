@@ -173,7 +173,7 @@ days:
 	a := &Agent{ops: ops}
 
 	// Default with viewer day → day scope.
-	res, err := handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1", Day: 1}, `{}`)
+	res, err := handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1", Day: 1}, `{}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ days:
 	}
 
 	// Explicit full.
-	res, err = handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1", Day: 1}, `{"scope":"full"}`)
+	res, err = handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1", Day: 1}, `{"scope":"full"}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ days:
 	}
 
 	// No viewer day and no args → full.
-	res, err = handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1"}, `{}`)
+	res, err = handleGetTripYAML(context.Background(), a, TurnInput{TripID: "t1"}, `{}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ func TestLearningToolsRoundTrip(t *testing.T) {
 	a := &Agent{ops: ops}
 	in := TurnInput{TripID: "t1", UserSub: "sub1"}
 
-	res, err := handleSaveLearning(context.Background(), a, in, `{"text":"Use replaceDayRoutes for overnight changes","tags":["tools"]}`)
+	res, err := handleSaveLearning(context.Background(), a, in, `{"text":"Use replaceDayRoutes for overnight changes","tags":["tools"]}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestLearningToolsRoundTrip(t *testing.T) {
 		t.Fatalf("%s err=%v", res.Content, err)
 	}
 
-	list, err := handleListLearnings(context.Background(), a, in, `{}`)
+	list, err := handleListLearnings(context.Background(), a, in, `{}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestLearningToolsRoundTrip(t *testing.T) {
 		t.Fatal(list.Content)
 	}
 
-	_, err = handleForgetLearning(context.Background(), a, in, `{"learning_id":"`+saved.Learning.ID+`"}`)
+	_, err = handleForgetLearning(context.Background(), a, in, `{"learning_id":"`+saved.Learning.ID+`"}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

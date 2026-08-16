@@ -11,7 +11,7 @@ func TestPreferenceToolsRoundTrip(t *testing.T) {
 	a := &Agent{ops: ops}
 	in := TurnInput{TripID: "t1", UserSub: "sub1"}
 
-	res, err := handleSavePreference(context.Background(), a, in, `{"text":"Prefer vegetarian options","tags":["food"]}`)
+	res, err := handleSavePreference(context.Background(), a, in, `{"text":"Prefer vegetarian options","tags":["food"]}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestPreferenceToolsRoundTrip(t *testing.T) {
 		t.Fatalf("%s err=%v", res.Content, err)
 	}
 
-	list, err := handleListPreferences(context.Background(), a, in, `{}`)
+	list, err := handleListPreferences(context.Background(), a, in, `{}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestPreferenceToolsRoundTrip(t *testing.T) {
 		t.Fatal(list.Content)
 	}
 
-	_, err = handleForgetPreference(context.Background(), a, in, `{"preference_id":"`+saved.Pref.ID+`"}`)
+	_, err = handleForgetPreference(context.Background(), a, in, `{"preference_id":"`+saved.Pref.ID+`"}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestPreferenceToolsRoundTrip(t *testing.T) {
 
 func TestPreferenceToolsRequireUser(t *testing.T) {
 	a := &Agent{ops: &memOps{}}
-	_, err := handleSavePreference(context.Background(), a, TurnInput{TripID: "t1"}, `{"text":"x"}`)
+	_, err := handleSavePreference(context.Background(), a, TurnInput{TripID: "t1"}, `{"text":"x"}`, nil)
 	if err == nil {
 		t.Fatal("expected error without UserSub")
 	}

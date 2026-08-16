@@ -24,3 +24,12 @@ package viewerchat_test
 //   Same thread: user asks to remove; model replied that it had just added it
 //   (sticky prior assistant claim). Assert: remove_stop (or restore); answer is
 //   about removal; curated prior assistant mutation claims are neutralized.
+//
+// Case: Hayes remove → wrong id → upsert (2026-08-17 logs)
+//   remove_stop with guessed id failed; model upserted a duplicate. Gates:
+//   remove intent rejects upsert; remove requires getTripYAML first; missing-id
+//   errors list place ids on the day.
+//
+// Case: Avis Wellington replaceDayRoutes cascade (2026-08-17 logs)
+//   "as a stop" / vague Wellington follow-up must not call replaceDayRoutes;
+//   replaceDayRoutes cannot rewrite day 8 while viewer is on day 6.

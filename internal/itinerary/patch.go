@@ -546,7 +546,19 @@ func resolveDayPlaceRef(t *Trip, dayIdx int, ref, list string) (string, error) {
 	case 1:
 		return matches[0], nil
 	case 0:
-		return "", fmt.Errorf("place %q not found on day %d (use place id from get_day)", ref, t.Days[dayIdx].Day)
+		ids := make([]string, 0, len(candidates))
+		seen := map[string]bool{}
+		for _, s := range candidates {
+			if s.Place == "" || seen[s.Place] {
+				continue
+			}
+			seen[s.Place] = true
+			ids = append(ids, s.Place)
+		}
+		if len(ids) == 0 {
+			return "", fmt.Errorf("place %q not found on day %d (that day has no stops/route places)", ref, t.Days[dayIdx].Day)
+		}
+		return "", fmt.Errorf("place %q not found on day %d; place ids on this day: %s", ref, t.Days[dayIdx].Day, strings.Join(ids, ", "))
 	default:
 		return "", fmt.Errorf("place title %q is ambiguous on day %d", ref, t.Days[dayIdx].Day)
 	}
