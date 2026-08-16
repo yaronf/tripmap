@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/yaronf/tripmap/internal/itinerary"
@@ -29,6 +31,7 @@ func toolHandlers() map[string]toolHandler {
 		"restoreVersion":   handleRestoreVersion,
 		"patchTrip":        handlePatchTrip,
 		"replaceDayRoutes": handleReplaceDayRoutes,
+		"changeOvernight":  handleChangeOvernight,
 		"listPreferences":  handleListPreferences,
 		"savePreference":   handleSavePreference,
 		"forgetPreference": handleForgetPreference,
@@ -237,11 +240,23 @@ func handleListVersions(ctx context.Context, a *Agent, in TurnInput, _ string) (
 	if err != nil {
 		return toolResult{}, err
 	}
-	b, err := json.Marshal(map[string]any{
+	undoHint := ""
+	for _, v := range vers {
+		if !v.IsLatest {
+			undoHint = v.VersionID
+			break
+		}
+	}
+	out := map[string]any{
 		"id":       in.TripID,
 		"versions": vers,
 		"count":    len(vers),
-	})
+		"undo_hint": "To undo the latest change, restoreVersion with the first is_latest=false entry (undo_version_id if set).",
+	}
+	if undoHint != "" {
+		out["undo_version_id"] = undoHint
+	}
+	b, err := json.Marshal(out)
 	return toolResult{Content: string(b)}, err
 }
 
@@ -273,21 +288,28 @@ func handleRestoreVersion(ctx context.Context, a *Agent, in TurnInput, argsJSON 
 		return toolResult{}, fmt.Errorf("invalid restoreVersion args: %w", err)
 	}
 	if strings.TrimSpace(args.VersionID) == "" {
-		return toolResult{}, fmt.Errorf("version_id is required")
+		return toolResult{}, fmt.Errorf("version_id is required — call listVersions first; to undo latest, use undo_version_id (first is_latest=false)")
+	}
+	vers, _ := a.ops.ListVersions(ctx, in.TripID)
+	for _, v := range vers {
+		if v.IsLatest && v.VersionID == strings.TrimSpace(args.VersionID) {
+			return toolResult{}, fmt.Errorf(
+				"refusing to restore is_latest version_id %q (that rewrites the same tip). "+
+					"To undo the latest change, restore the first entry with is_latest=false from listVersions",
+				args.VersionID,
+			)
+		}
 	}
 	res, err := a.ops.RestoreVersion(ctx, in.TripID, args.VersionID)
 	if err != nil {
 		return toolResult{}, err
 	}
-	out := map[string]any{
-		"ok":            true,
-		"id":            res.ID,
-		"version_id":    res.VersionID,
-		"bundle_ok":     res.BundleOK,
-		"restored_from": strings.TrimSpace(args.VersionID),
-	}
-	b, err := json.Marshal(out)
-	return toolResult{Content: string(b), Mutated: true}, err
+	body, _ := a.ops.GetYAML(ctx, in.TripID)
+	content, err := enrichAfterMutate(body, in.Day, nil, mutateResult{
+		OK: true, Op: "restoreVersion", ID: res.ID, VersionID: res.VersionID, BundleOK: res.BundleOK,
+		Changed: map[string]any{"restored_from": strings.TrimSpace(args.VersionID)},
+	})
+	return toolResult{Content: content, Mutated: true}, err
 }
 
 func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
@@ -301,6 +323,13 @@ func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON strin
 	if len(patch) == 0 {
 		patch = json.RawMessage(argsJSON)
 	}
+	before, err := a.ops.GetYAML(ctx, in.TripID)
+	if err != nil {
+		return toolResult{}, err
+	}
+	if err := rejectChatStructuralPatch(patch, before); err != nil {
+		return toolResult{}, err
+	}
 	rewritten, err := rewritePhotoURLsInPatch(ctx, patch)
 	if err != nil {
 		return toolResult{}, err
@@ -309,15 +338,15 @@ func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON strin
 	if err != nil {
 		return toolResult{}, err
 	}
-	out := map[string]any{
-		"ok":         true,
-		"id":         res.ID,
-		"version_id": res.VersionID,
-		"bundle_ok":  res.BundleOK,
-		"ops":        patchOpNames(rewritten),
-	}
-	b, err := json.Marshal(out)
-	return toolResult{Content: string(b), Mutated: true}, err
+	after, _ := a.ops.GetYAML(ctx, in.TripID)
+	var p itinerary.Patch
+	_ = json.Unmarshal(rewritten, &p)
+	content, err := enrichAfterMutate(after, in.Day, nil, mutateResult{
+		OK: true, Op: "patchTrip", ID: res.ID, VersionID: res.VersionID, BundleOK: res.BundleOK,
+		Changed: patchSummaryChanged(before, after, p),
+		Extra:   map[string]any{"ops": patchOpNames(rewritten)},
+	})
+	return toolResult{Content: content, Mutated: true}, err
 }
 
 func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
@@ -333,24 +362,112 @@ func handleReplaceDayRoutes(ctx context.Context, a *Agent, in TurnInput, argsJSO
 	if err != nil {
 		return toolResult{}, err
 	}
-	out := map[string]any{
-		"ok":         true,
-		"id":         res.ID,
-		"version_id": res.VersionID,
-		"bundle_ok":  res.BundleOK,
-		"op":         "replaceDayRoutes",
+	dayNums := dayNumsFromReplaceArgs(argsJSON)
+	after, _ := a.ops.GetYAML(ctx, in.TripID)
+	content, err := enrichAfterMutate(after, in.Day, dayNums, mutateResult{
+		OK: true, Op: "replaceDayRoutes", ID: res.ID, VersionID: res.VersionID, BundleOK: res.BundleOK,
+		Changed: map[string]any{"days": dayNums},
+	})
+	return toolResult{Content: content, Mutated: true}, err
+}
+
+func handleChangeOvernight(ctx context.Context, a *Agent, in TurnInput, argsJSON string) (toolResult, error) {
+	var args struct {
+		Day                   int            `json:"day"`
+		NewEnd                string         `json:"new_end"`
+		Title                 string         `json:"title"`
+		AlsoUpdateNextStart   *bool          `json:"also_update_next_start"`
+		Force                 bool           `json:"force"`
+		Places                map[string]any `json:"places"`
 	}
-	if body, err := a.ops.GetYAML(ctx, in.TripID); err == nil {
-		if warns := ContinuityWarnings(body, dayNumsFromReplaceArgs(argsJSON)); len(warns) > 0 {
-			out["warnings"] = warns
-		}
-		// Echo applied routes for the days touched so the model can self-check types.
-		if frag, err := BuildTripFragment(body, firstDayOr(in.Day, dayNumsFromReplaceArgs(argsJSON))); err == nil && len(frag.Days) > 0 {
-			out["trip_fragment"] = frag
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return toolResult{}, fmt.Errorf("invalid changeOvernight args: %w", err)
+	}
+	body, err := a.ops.GetYAML(ctx, in.TripID)
+	if err != nil {
+		return toolResult{}, err
+	}
+	trip, err := itinerary.ParseYAML(body)
+	if err != nil {
+		return toolResult{}, err
+	}
+	coa := itinerary.ChangeOvernightArgs{
+		Day:    args.Day,
+		NewEnd: args.NewEnd,
+		Title:  args.Title,
+		Force:  args.Force,
+	}
+	if args.AlsoUpdateNextStart != nil {
+		coa.AlsoUpdateNextStart = *args.AlsoUpdateNextStart
+		coa.AlsoUpdateNextStartSet = true
+	}
+	if args.Places != nil {
+		if raw, ok := args.Places[strings.TrimSpace(args.NewEnd)]; ok {
+			b, _ := json.Marshal(raw)
+			var pl itinerary.Place
+			if err := json.Unmarshal(b, &pl); err != nil {
+				return toolResult{}, fmt.Errorf("changeOvernight: places.%s: %w", args.NewEnd, err)
+			}
+			coa.NewPlace = &pl
+		} else {
+			// Allow creating any places in the map keyed by new_end only for now.
+			for id, raw := range args.Places {
+				if id != strings.TrimSpace(args.NewEnd) {
+					continue
+				}
+				b, _ := json.Marshal(raw)
+				var pl itinerary.Place
+				if err := json.Unmarshal(b, &pl); err != nil {
+					return toolResult{}, fmt.Errorf("changeOvernight: places.%s: %w", id, err)
+				}
+				coa.NewPlace = &pl
+			}
 		}
 	}
-	b, err := json.Marshal(out)
-	return toolResult{Content: string(b), Mutated: true}, err
+	domainRes, err := itinerary.ApplyChangeOvernight(&trip, coa)
+	if err != nil {
+		return toolResult{}, err
+	}
+	if err := itinerary.EnsureSchemaVersion(&trip); err != nil {
+		return toolResult{}, err
+	}
+	outYAML, err := itinerary.MarshalYAML(trip)
+	if err != nil {
+		return toolResult{}, err
+	}
+	res, err := a.ops.CommitYAML(ctx, in.TripID, outYAML)
+	if err != nil {
+		return toolResult{}, err
+	}
+	changed := map[string]any{
+		"day":     domainRes.Day,
+		"old_end": domainRes.OldEnd,
+		"new_end": domainRes.NewEnd,
+	}
+	if domainRes.DistanceKM > 0 {
+		changed["distance_km"] = math.Round(domainRes.DistanceKM)
+	}
+	derived := map[string]any{}
+	preserved := []string{}
+	if domainRes.NextDay > 0 {
+		derived["day_"+strconv.Itoa(domainRes.NextDay)+"_start"] = map[string]any{
+			"old": domainRes.OldNextStart,
+			"new": domainRes.NewNextStart,
+		}
+		if domainRes.PreservedNextMid {
+			preserved = append(preserved, fmt.Sprintf("day_%d.route.mid_and_end", domainRes.NextDay))
+		}
+	}
+	dayNums := []int{domainRes.Day}
+	if domainRes.NextDay > 0 {
+		dayNums = append(dayNums, domainRes.NextDay)
+	}
+	after, _ := a.ops.GetYAML(ctx, in.TripID)
+	content, err := enrichAfterMutate(after, in.Day, dayNums, mutateResult{
+		OK: true, Op: "changeOvernight", ID: res.ID, VersionID: res.VersionID, BundleOK: res.BundleOK,
+		Changed: changed, DerivedChanges: derived, Preserved: preserved,
+	})
+	return toolResult{Content: content, Mutated: true}, err
 }
 
 func firstDayOr(viewerDay int, nums []int) int {

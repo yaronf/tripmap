@@ -1,7 +1,7 @@
 # Plan: viewer chat agent harness
 
-**Status:** planned (not implemented).  
-**Rollback tag:** `pre-chat-harness` → commit `3893e28` (already pushed).  
+**Status:** implemented (harness shipped).  
+**Rollback tag:** `pre-chat-harness` → current baseline before harness code (force-moved with ACL privacy).  
 **Related:** [plan-viewer-chat-quality.md](plan-viewer-chat-quality.md) (context/memory work). Dynamic learning (prefs/learnings) stays important; freeze *investment* during harness work and revisit once mutates are safe—especially as a post-repair harness step (see Meta below).
 
 ## Goal

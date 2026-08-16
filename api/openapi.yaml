@@ -111,7 +111,7 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days (reorder whole days only — never overnight/endpoint), insert_day, delete_day. For overnight/endpoint or full route replacement, use replaceDayRoutes (not upsert_stop or swap_days). Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop on the stops list (mid-day). In viewer chat, overnight/endpoint and days.*.route / swap_days / delete_day / insert_day are rejected — use changeOvernight or replaceDayRoutes. Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -216,6 +216,11 @@ paths:
     get:
       operationId: listVersions
       summary: List YAML versions
+      description: |
+        Newest first. Each entry has version_id, last_modified, and is_latest.
+        To undo only the latest change, call restoreVersion with the first entry
+        where is_latest is false (usually the second row) — never restore the
+        is_latest tip (that rewrites the same broken tip).
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -268,8 +273,10 @@ paths:
       summary: Restore a prior YAML version
       description: |
         Restores TO the given version_id (makes that revision current). To undo
-        only the latest change, pass the previous version_id from listVersions
-        (first entry with is_latest false) — not the current/latest id.
+        only the latest change: call listVersions, then restoreVersion with the
+        first entry where is_latest is false (usually the second row) — never
+        the current/latest id. Prefer changeOvernight for overnight edits rather
+        than restore unless the user asked to undo.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -377,6 +384,39 @@ paths:
       responses:
         "200":
           description: ok with day photo fields
+  /api/chat/trips/{id}/change-overnight:
+    post:
+      operationId: changeOvernight
+      summary: Change a day's overnight endpoint (transactional)
+      description: |
+        Viewer-chat preferred tool for overnight/endpoint changes. Rewrites day N's
+        route end to new_end (type overnight) and, by default, day N+1's route start
+        to the same place while preserving day N+1 mid/end stops. Creates one version.
+        Rejects absurd single-day distances unless force=true (ferry/flight). For
+        multi-stop route surgery use replaceDayRoutes instead. Do not use patchTrip
+        upsert_stop/swap_days for overnight changes.
+      x-audiences: [chat]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeOvernightRequest"
+      responses:
+        "200":
+          description: Updated with semantic mutate result
+          content:
+            application/json:
+              schema:
+                type: object
   /api/chat/preferences:
     get:
       operationId: listPreferences
@@ -894,6 +934,34 @@ components:
       properties:
         version_id:
           type: string
+    ChangeOvernightRequest:
+      type: object
+      required:
+        - day
+        - new_end
+      additionalProperties: false
+      properties:
+        day:
+          type: integer
+          minimum: 1
+          description: Travel day whose overnight end changes
+        new_end:
+          type: string
+          description: Place id for the new overnight end (kebab-case)
+        title:
+          type: string
+          description: Optional new title for day N
+        also_update_next_start:
+          type: boolean
+          description: If true (default), set day N+1 route start to new_end and keep its mid/end stops
+        force:
+          type: boolean
+          description: Bypass max overnight distance check (ferry/flight days only)
+        places:
+          type: object
+          additionalProperties:
+            type: object
+          description: Optional catalog create/update; include new_end with title/lat/lon/type when creating
     ReplaceDayRoutesRequest:
       type: object
       additionalProperties: false

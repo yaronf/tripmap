@@ -25,11 +25,11 @@ func TestEmbeddedPrompt(t *testing.T) {
 	if !strings.Contains(p, "getSchema") || !strings.Contains(p, "OpenAPI component") {
 		t.Fatal("prompt should tell the agent to use getSchema for OpenAPI component schemas")
 	}
-	if !strings.Contains(p, "scope=full") {
-		t.Fatal("prompt should mention getTripYAML scope=full for structural edits")
+	if !strings.Contains(p, "changeOvernight") {
+		t.Fatal("prompt should prefer changeOvernight for overnight edits")
 	}
-	if !strings.Contains(p, "follow-up getTripYAML confirms") {
-		t.Fatal("prompt should require verify-after for note/pin claims")
+	if !strings.Contains(p, "follow-up getTripYAML confirms") && !strings.Contains(p, "invariants.continuity_ok") {
+		t.Fatal("prompt should require verify via harness/invariants")
 	}
 	if !strings.Contains(p, "Itinerary integrity") {
 		t.Fatal("prompt should mention itinerary integrity")
@@ -78,7 +78,7 @@ func TestChatToolsFromOpenAPI(t *testing.T) {
 	}
 	for _, want := range []string{
 		"getSchema", "getTrip", "getTripYAML", "setDayPhoto",
-		"listVersions", "getVersion", "restoreVersion", "patchTrip", "replaceDayRoutes",
+		"listVersions", "getVersion", "restoreVersion", "patchTrip", "replaceDayRoutes", "changeOvernight",
 		"listPreferences", "savePreference", "forgetPreference",
 		"listLearnings", "saveLearning", "forgetLearning",
 	} {

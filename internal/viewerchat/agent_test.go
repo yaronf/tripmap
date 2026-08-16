@@ -61,6 +61,20 @@ func (m *memOps) Patch(_ context.Context, _ string, patchJSON []byte) (PatchResu
 	return PatchResult{ID: "t1", VersionID: "v1", BundleOK: true}, nil
 }
 
+func (m *memOps) CommitYAML(_ context.Context, _ string, yamlBody []byte) (PatchResult, error) {
+	m.patches++
+	trip, err := itinerary.ParseYAML(yamlBody)
+	if err != nil {
+		return PatchResult{}, err
+	}
+	out, err := itinerary.MarshalYAML(trip)
+	if err != nil {
+		return PatchResult{}, err
+	}
+	m.yaml = out
+	return PatchResult{ID: "t1", VersionID: "v1", BundleOK: true}, nil
+}
+
 func (m *memOps) ListVersions(context.Context, string) ([]VersionEntry, error) {
 	return []VersionEntry{
 		{VersionID: "v1", LastModified: "2026-08-10T12:00:00Z", IsLatest: true},

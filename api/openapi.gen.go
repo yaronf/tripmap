@@ -31,6 +31,27 @@ func (e GetTripYAMLParamsScope) Valid() bool {
 	}
 }
 
+// ChangeOvernightRequest defines model for ChangeOvernightRequest.
+type ChangeOvernightRequest struct {
+	// AlsoUpdateNextStart If true (default), set day N+1 route start to new_end and keep its mid/end stops
+	AlsoUpdateNextStart *bool `json:"also_update_next_start,omitempty"`
+
+	// Day Travel day whose overnight end changes
+	Day int `json:"day"`
+
+	// Force Bypass max overnight distance check (ferry/flight days only)
+	Force *bool `json:"force,omitempty"`
+
+	// NewEnd Place id for the new overnight end (kebab-case)
+	NewEnd string `json:"new_end"`
+
+	// Places Optional catalog create/update; include new_end with title/lat/lon/type when creating
+	Places *map[string]map[string]interface{} `json:"places,omitempty"`
+
+	// Title Optional new title for day N
+	Title *string `json:"title,omitempty"`
+}
+
 // CreateTripRequest defines model for CreateTripRequest.
 type CreateTripRequest struct {
 	Id   string `json:"id"`

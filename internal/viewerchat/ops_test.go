@@ -31,7 +31,7 @@ func TestToolHandlersCoverOpenAPI(t *testing.T) {
 	h := toolHandlers()
 	for _, name := range []string{
 		"getSchema", "getTrip", "getTripYAML", "setDayPhoto",
-		"listVersions", "getVersion", "restoreVersion", "patchTrip", "replaceDayRoutes",
+		"listVersions", "getVersion", "restoreVersion", "patchTrip", "replaceDayRoutes", "changeOvernight",
 		"listPreferences", "savePreference", "forgetPreference",
 		"listLearnings", "saveLearning", "forgetLearning",
 	} {

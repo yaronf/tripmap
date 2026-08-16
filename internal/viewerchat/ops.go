@@ -75,6 +75,8 @@ type TripOps interface {
 	GetYAMLVersion(ctx context.Context, tripID, versionID string) ([]byte, error)
 	GetDay(ctx context.Context, tripID string, day int) (DayDetail, error)
 	Patch(ctx context.Context, tripID string, patchJSON []byte) (PatchResult, error)
+	// CommitYAML writes a full itinerary YAML document (one new version).
+	CommitYAML(ctx context.Context, tripID string, yamlBody []byte) (PatchResult, error)
 	ListVersions(ctx context.Context, tripID string) ([]VersionEntry, error)
 	RestoreVersion(ctx context.Context, tripID, versionID string) (PatchResult, error)
 	ListPreferences(ctx context.Context, userSub string) ([]Preference, error)

@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	maxToolIterations = 8
-	maxYAMLToolBytes  = 48 * 1024
+	maxToolIterations  = 10
+	maxRepairRounds    = 2
+	maxYAMLToolBytes   = 48 * 1024
 )
 
 // Config configures the chat agent.
@@ -105,12 +106,20 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 	}
 
 	curated := curateMessages(in.Messages)
+	ws := buildWorkingState(curated.Messages, "")
 	inputItems, err := buildInputItems(curated.Messages)
 	if err != nil {
 		return turnResult{}, err
 	}
+	// Structured working state is authoritative for cancel/constraints; prose summary is gloss only.
+	if wsJSON, err := json.Marshal(ws); err == nil {
+		note := "Working state (JSON; honor cancel_this_turn and constraints; do not mutate when cancel_this_turn is true):\n" + string(wsJSON)
+		inputItems = append([]responses.ResponseInputItemUnionParam{
+			responses.ResponseInputItemParamOfMessage(note, responses.EasyInputMessageRoleDeveloper),
+		}, inputItems...)
+	}
 	if curated.Summary != "" {
-		note := "Earlier turns in this chat (summary; recent messages follow):\n" + curated.Summary
+		note := "Earlier turns in this chat (lossy summary — prefer working state for constraints):\n" + curated.Summary
 		inputItems = append([]responses.ResponseInputItemUnionParam{
 			responses.ResponseInputItemParamOfMessage(note, responses.EasyInputMessageRoleDeveloper),
 		}, inputItems...)
@@ -144,6 +153,8 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 	}
 
 	var result turnResult
+	repairRounds := 0
+	pendingRepair := false
 	for iter := 0; iter < maxToolIterations; iter++ {
 		resp, err := respond(ctx, params)
 		if err != nil {
@@ -152,6 +163,23 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 
 		fnCalls := functionCalls(resp)
 		if len(fnCalls) == 0 {
+			if pendingRepair && repairRounds < maxRepairRounds {
+				repairRounds++
+				pendingRepair = false
+				note := "HARNESS: invariants still need attention. Repair with tools or explain failure; do not claim a successful itinerary edit."
+				params = responses.ResponseNewParams{
+					Model:              a.model,
+					PreviousResponseID: openai.String(resp.ID),
+					Tools:              tools,
+					Store:              openai.Bool(true),
+					Input: responses.ResponseNewParamsInputUnion{
+						OfInputItemList: []responses.ResponseInputItemUnionParam{
+							responses.ResponseInputItemParamOfMessage(note, responses.EasyInputMessageRoleDeveloper),
+						},
+					},
+				}
+				continue
+			}
 			text := cleanAssistantText(resp.OutputText())
 			if text != "" {
 				if err := emit(Event{Type: "text", Text: text}); err != nil {
@@ -161,11 +189,29 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 			return result, nil
 		}
 
-		outputs := make([]responses.ResponseInputItemUnionParam, 0, len(fnCalls))
+		outputs := make([]responses.ResponseInputItemUnionParam, 0, len(fnCalls)+1)
+		needRepair := false
+		var lastMutate string
 		for _, fc := range fnCalls {
+			if ws.CancelThisTurn && isMutateTool(fc.Name) {
+				content := `{"error":"user cancelled this turn (e.g. NM / never mind / stop) — do not mutate; acknowledge and wait for a new clear ask"}`
+				outputs = append(outputs, responses.ResponseInputItemUnionParam{
+					OfFunctionCallOutput: &responses.ResponseInputItemFunctionCallOutputParam{
+						CallID: fc.CallID,
+						Output: responses.ResponseInputItemFunctionCallOutputOutputUnionParam{
+							OfString: openai.String(content),
+						},
+					},
+				})
+				continue
+			}
 			out, patched, callErr := a.execTool(ctx, in, fc.Name, fc.Arguments)
 			if patched {
 				result.TripUpdated = true
+				lastMutate = out
+				if callErr == nil && invariantsNeedRepair(out) {
+					needRepair = true
+				}
 			}
 			content := out
 			if callErr != nil {
@@ -179,6 +225,14 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 					},
 				},
 			})
+		}
+		if needRepair && lastMutate != "" && repairRounds < maxRepairRounds {
+			pendingRepair = true
+			outputs = append(outputs, responses.ResponseInputItemParamOfMessage(
+				repairDeveloperNote(lastMutate),
+				responses.EasyInputMessageRoleDeveloper,
+			))
+			repairRounds++
 		}
 
 		params = responses.ResponseNewParams{

@@ -123,6 +123,32 @@ func (o chatTripOps) Patch(ctx context.Context, tripID string, patchJSON []byte)
 	}, nil
 }
 
+func (o chatTripOps) CommitYAML(ctx context.Context, tripID string, yamlBody []byte) (viewerchat.PatchResult, error) {
+	trip, err := prepareTripYAML(yamlBody)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	outYAML, err := itinerary.MarshalYAML(trip)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	meta, err := o.s.store.GetMeta(ctx, tripID)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	meta.SchemaVersion = trip.SchemaVersion
+	meta.UpdatedAt = time.Now().UTC()
+	res, _, err := o.s.commitMutate(ctx, tripID, outYAML, &meta)
+	if err != nil {
+		return viewerchat.PatchResult{}, err
+	}
+	return viewerchat.PatchResult{
+		ID:        res.ID,
+		VersionID: res.VersionID,
+		BundleOK:  res.BundleOK,
+	}, nil
+}
+
 const maxChatVersions = 25
 
 func (o chatTripOps) ListVersions(ctx context.Context, tripID string) ([]viewerchat.VersionEntry, error) {
