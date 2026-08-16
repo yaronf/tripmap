@@ -30,6 +30,7 @@ func curateMessages(msgs []ClientMessage) curatedTranscript {
 			usable = append(usable, ClientMessage{Role: role, Content: content})
 		}
 	}
+	usable = neutralizePriorAssistantClaims(usable)
 	if len(usable) <= verbatimMessageCap {
 		return curatedTranscript{Messages: usable}
 	}
@@ -41,6 +42,39 @@ func curateMessages(msgs []ClientMessage) curatedTranscript {
 	}
 }
 
+// neutralizePriorAssistantClaims replaces earlier assistant "I added/updated…" prose with a
+// short history stub so the model does not reenact the previous turn when the user asks
+// to remove or change something (Hayes Common remove-after-add failure mode).
+func neutralizePriorAssistantClaims(msgs []ClientMessage) []ClientMessage {
+	lastUser := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if strings.ToLower(msgs[i].Role) == "user" {
+			lastUser = i
+			break
+		}
+	}
+	if lastUser <= 0 {
+		return msgs
+	}
+	out := make([]ClientMessage, len(msgs))
+	copy(out, msgs)
+	for i := 0; i < lastUser; i++ {
+		if strings.ToLower(out[i].Role) != "assistant" {
+			continue
+		}
+		if !looksLikeMutationClaim(out[i].Content) {
+			continue
+		}
+		snippet := truncateRunes(out[i].Content, 80)
+		out[i].Content = fmt.Sprintf(
+			"[Prior turn — history only] Assistant reported an itinerary change (%s). "+
+				"Do not re-announce or re-do that change. Obey the latest user message only.",
+			snippet,
+		)
+	}
+	return out
+}
+
 func heuristicThreadSummary(msgs []ClientMessage) string {
 	var b strings.Builder
 	for _, m := range msgs {
@@ -50,8 +84,8 @@ func heuristicThreadSummary(msgs []ClientMessage) string {
 			fmt.Fprintf(&b, "- User asked: %s\n", truncateRunes(m.Content, 160))
 		case "assistant":
 			line := truncateRunes(m.Content, 120)
-			if looksLikeMutationClaim(m.Content) {
-				fmt.Fprintf(&b, "- Assistant replied (claimed itinerary change): %s\n", line)
+			if looksLikeMutationClaim(m.Content) || strings.HasPrefix(m.Content, "[Prior turn") {
+				fmt.Fprintf(&b, "- Assistant previously reported an itinerary change: %s\n", line)
 			} else {
 				fmt.Fprintf(&b, "- Assistant replied: %s\n", line)
 			}

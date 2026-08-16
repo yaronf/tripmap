@@ -10,6 +10,7 @@ package viewerchat_test
 //   - Day-scoped YAML: TestBuildDayScopedYAML / TestHandleGetTripYAMLScope
 //   - Enrichment must not trip on distant continuity: TestEnrichScopedContinuity /
 //     TestInvariantsNeedRepairOnlyStructural
+//   - Remove after add must not reenact add: TestNeutralizePriorAddBeforeRemove
 //
 // Case: "Hayes Common lunch" (2026-08-17)
 //   User: add lunch stop on Day 3 (enrichment upsert_stop). Patch succeeds.
@@ -18,3 +19,8 @@ package viewerchat_test
 //   "informational issues with other days…" and truncated mid-sentence.
 //   Assert (when scripted): final YAML has the stop; answer mentions Day 3 only;
 //   no repair round; no offer to fix unrelated continuity.
+//
+// Case: "Remove the restaurant" after add (2026-08-17)
+//   Same thread: user asks to remove; model replied that it had just added it
+//   (sticky prior assistant claim). Assert: remove_stop (or restore); answer is
+//   about removal; curated prior assistant mutation claims are neutralized.

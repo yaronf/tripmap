@@ -39,6 +39,13 @@ func buildWorkingState(msgs []ClientMessage, lastMutateJSON string) WorkingState
 			return ws
 		}
 		ws.ActiveIntent = map[string]any{"user_ask": truncateRunes(text, 160)}
+		if looksLikeRemoveAsk(lower) {
+			ws.ActiveIntent["kind"] = "remove"
+			ws.Constraints = map[string]any{
+				"must":    []string{"remove or undo via tools (remove_stop / restoreVersion); do not claim you just added the place"},
+				"do_not":  []string{"reenact_prior_add", "announce_prior_mutation_as_current"},
+			}
+		}
 		break
 	}
 	// Soft corrections from recent user turns.
@@ -72,6 +79,23 @@ func looksLikeCancel(lower string) bool {
 	// "… but NM" / "not exactly what I asked for, but NM"
 	if strings.Contains(trimmed, ", but nm") || strings.HasSuffix(trimmed, " nm") ||
 		strings.Contains(trimmed, " but nm") {
+		return true
+	}
+	return false
+}
+
+func looksLikeRemoveAsk(lower string) bool {
+	for _, needle := range []string{
+		"remove ", "remove the", "delete ", "take off", "take it off",
+		"get rid of", "drop the", "drop it", "undo the add", "undo adding",
+	} {
+		if strings.Contains(lower, needle) {
+			return true
+		}
+	}
+	trimmed := strings.TrimSpace(strings.Trim(lower, ".!,"))
+	switch trimmed {
+	case "remove", "delete", "remove it", "delete it", "remove that", "delete that":
 		return true
 	}
 	return false

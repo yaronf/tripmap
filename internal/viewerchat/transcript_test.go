@@ -19,6 +19,30 @@ func TestCurateMessagesShort(t *testing.T) {
 	}
 }
 
+func TestNeutralizePriorAddBeforeRemove(t *testing.T) {
+	// Hayes Common: user asks to remove after assistant claimed an add — do not keep
+	// the raw "I added…" prose in the model window.
+	msgs := []ClientMessage{
+		{Role: "user", Content: "Add Hayes Common for lunch on day 3"},
+		{Role: "assistant", Content: "I've added Hayes Common as a lunch stop on Day 3."},
+		{Role: "user", Content: "Remove the restaurant"},
+	}
+	c := curateMessages(msgs)
+	if len(c.Messages) != 3 {
+		t.Fatalf("%+v", c)
+	}
+	if !strings.HasPrefix(c.Messages[1].Content, "[Prior turn") {
+		t.Fatalf("want neutralized prior add, got %q", c.Messages[1].Content)
+	}
+	if c.Messages[2].Content != "Remove the restaurant" {
+		t.Fatalf("user ask must stay intact: %q", c.Messages[2].Content)
+	}
+	ws := buildWorkingState(c.Messages, "")
+	if ws.ActiveIntent["kind"] != "remove" {
+		t.Fatalf("want remove kind, got %+v", ws.ActiveIntent)
+	}
+}
+
 func TestCurateMessagesSummarizesOlder(t *testing.T) {
 	msgs := make([]ClientMessage, 0, 20)
 	for i := 0; i < 10; i++ {

@@ -118,6 +118,14 @@ func (a *Agent) run(ctx context.Context, in TurnInput, emit func(Event) error) (
 			responses.ResponseInputItemParamOfMessage(note, responses.EasyInputMessageRoleDeveloper),
 		}, inputItems...)
 	}
+	inputItems = append([]responses.ResponseInputItemUnionParam{
+		responses.ResponseInputItemParamOfMessage(
+			"Turn fence: the latest user message is the only task this turn. "+
+				"Prior assistant messages are historical — never reply as if you just performed those actions again. "+
+				"If the user asks to remove/undo something, call the remove/undo tools; do not narrate a prior add as the current result.",
+			responses.EasyInputMessageRoleDeveloper,
+		),
+	}, inputItems...)
 	if curated.Summary != "" {
 		note := "Earlier turns in this chat (lossy summary — prefer working state for constraints):\n" + curated.Summary
 		inputItems = append([]responses.ResponseInputItemUnionParam{
