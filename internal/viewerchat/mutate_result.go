@@ -10,18 +10,18 @@ import (
 
 // mutateResult is the enriched JSON shape returned by chat mutate tools.
 type mutateResult struct {
-	OK             bool              `json:"ok"`
-	Op             string            `json:"op"`
-	ID             string            `json:"id,omitempty"`
-	VersionID      string            `json:"version_id,omitempty"`
-	BundleOK       bool              `json:"bundle_ok"`
-	Changed        map[string]any    `json:"changed,omitempty"`
-	DerivedChanges map[string]any    `json:"derived_changes,omitempty"`
-	Preserved      []string          `json:"preserved,omitempty"`
-	Warnings       []string          `json:"warnings,omitempty"`
-	TripFragment   *TripFragment     `json:"trip_fragment,omitempty"`
-	Invariants     invariantsReport  `json:"invariants"`
-	Extra          map[string]any    `json:"-"` // merged at marshal time
+	OK             bool             `json:"ok"`
+	Op             string           `json:"op"`
+	ID             string           `json:"id,omitempty"`
+	VersionID      string           `json:"version_id,omitempty"`
+	BundleOK       bool             `json:"bundle_ok"`
+	Changed        map[string]any   `json:"changed,omitempty"`
+	DerivedChanges map[string]any   `json:"derived_changes,omitempty"`
+	Preserved      []string         `json:"preserved,omitempty"`
+	Warnings       []string         `json:"warnings,omitempty"`
+	TripFragment   *TripFragment    `json:"trip_fragment,omitempty"`
+	Invariants     invariantsReport `json:"invariants"`
+	Extra          map[string]any   `json:"-"` // merged at marshal time
 }
 
 type invariantsReport struct {
@@ -97,7 +97,14 @@ func patchSummaryChanged(before, after []byte, p itinerary.Patch) map[string]any
 		out["update_day"] = p.UpdateDay.Day
 	}
 	if p.UpsertStop != nil {
-		out["upsert_stop"] = map[string]any{"day": p.UpsertStop.Day, "place": p.UpsertStop.Place, "list": p.UpsertStop.List}
+		m := map[string]any{"day": p.UpsertStop.Day, "place": p.UpsertStop.Place, "list": p.UpsertStop.List}
+		if p.UpsertStop.After != "" {
+			m["after"] = p.UpsertStop.After
+		}
+		if p.UpsertStop.Before != "" {
+			m["before"] = p.UpsertStop.Before
+		}
+		out["upsert_stop"] = m
 	}
 	if p.RemoveStop != nil {
 		out["remove_stop"] = map[string]any{"day": p.RemoveStop.Day, "list": p.RemoveStop.List}

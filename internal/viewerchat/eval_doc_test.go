@@ -36,8 +36,8 @@ package viewerchat_test
 // Case: Avis Wellington replaceDayRoutes cascade (2026-08-17 logs)
 //   "as a stop" / vague Wellington follow-up must not call replaceDayRoutes;
 //   replaceDayRoutes cannot rewrite day 8 while viewer is on day 6.
-//   Follow-up: list=route reject must say retry list=stops — never steer to
-//   replaceDayRoutes (TestRejectChatStructuralPatch).
+//   Follow-up: list=route append reject must say before/after (or list=stops
+//   for a side venue) — never steer to replaceDayRoutes (TestRejectChatStructuralPatch).
 //
 // Case: Avis pick-up/return quality (2026-08-17 logs)
 //   User: day 3 pick up Avis CBD; day 6 return Avis Wellington.
@@ -45,12 +45,12 @@ package viewerchat_test
 //   pick-up on stops: (timeline after mid-route sights); days.6.stops full
 //   replace risk to pubs. Assert:
 //     - new places: correct-city lat/lon + Google maps_url (TestRejectWeakNewPlacesWrongCity)
-//     - morning pick-up → mid-route via replaceDayRoutes (keep endpoints)
+//     - sequenced drive insert → upsert_stop list route + before/after (not replaceDayRoutes)
 //     - evening return → upsert_stop list stops (not full stops array)
 //     - final ViewerDayStops order: Depart → Avis → … → overnight (day 3)
 //
 // Case: Avis before ferry misplaced (2026-08-17 logs)
-//   Drop-off moved to day 7 on stops:; user "misplaced / before the ferry".
-//   replaceDayRoutes was blocked; stops upsert cannot fix timeline order.
-//   Assert: placement/before-ferry asks allow replaceDayRoutes; stops upsert
-//   for those asks is rejected (TestRejectStopsWhenNeedsMidRoute).
+//   Drop-off on day 7 stops: cannot appear before a route ferry terminal.
+//   Assert: no English needle gates; positional upsert_stop (list route +
+//   before/after existing route id) is the insert API; append-to-route is
+//   rejected; replaceDayRoutes stays blocked for a single-stop ask.

@@ -341,6 +341,45 @@ func TestApplyPatchUpsertRemoveStop(t *testing.T) {
 	}
 }
 
+func TestApplyPatchUpsertStopBeforeAfter(t *testing.T) {
+	trip := Trip{
+		Trip: "T",
+		Places: map[string]Place{
+			"start": {Title: "Start", Lat: 1, Lon: 1, Type: "overnight"},
+			"end":   {Title: "End", Lat: 2, Lon: 2, Type: "overnight"},
+			"avis":  {Title: "Avis", Lat: 1.5, Lon: 1.5, Type: "rental"},
+		},
+		Days: []Day{{
+			Day:   1,
+			Title: "D",
+			Route: []Stop{{Place: "start"}, {Place: "end"}},
+		}},
+	}
+	if err := ApplyPatch(&trip, Patch{
+		UpsertStop: &UpsertStop{Day: 1, List: "route", Place: "avis", After: "start"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := []string{trip.Days[0].Route[0].Place, trip.Days[0].Route[1].Place, trip.Days[0].Route[2].Place}
+	want := []string{"start", "avis", "end"}
+	if got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("route = %v want %v", got, want)
+	}
+	if err := ApplyPatch(&trip, Patch{
+		UpsertStop: &UpsertStop{Day: 1, List: "route", Place: "avis", Before: "end", Notes: "moved"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if trip.Days[0].Route[1].Place != "avis" || trip.Days[0].Route[1].Notes != "moved" {
+		t.Fatalf("reposition = %+v", trip.Days[0].Route)
+	}
+	if err := ApplyPatch(&trip, Patch{
+		UpsertStop: &UpsertStop{Day: 1, List: "route", Place: "avis", After: "missing"},
+	}); err == nil {
+		t.Fatal("expected missing-anchor error")
+	}
+}
+
 func TestApplyPatchRemoveStopsByTitleAndIDs(t *testing.T) {
 	trip := Trip{
 		Trip: "T",

@@ -39,6 +39,10 @@ type UpsertStop struct {
 	Type    string `json:"type,omitempty"`
 	Notes   string `json:"notes,omitempty"`
 	MapsURL string `json:"maps_url,omitempty"`
+	// After / Before place ids on that list: insert next to an existing ref.
+	// Omit both to append (or update in place if the place is already listed).
+	After  string `json:"after,omitempty"`
+	Before string `json:"before,omitempty"`
 }
 
 // RemoveStop removes route/stop refs from a day.
@@ -436,25 +440,68 @@ func applyUpsertStop(t *Trip, u UpsertStop) error {
 		return fmt.Errorf("upsert_stop: unknown place %q — create it in the same patch under places with a kebab-case id and top-level title/lat/lon/type", u.Place)
 	}
 	ref := Stop{Place: u.Place, Type: u.Type, Notes: u.Notes, MapsURL: u.MapsURL}
+	after := strings.TrimSpace(u.After)
+	before := strings.TrimSpace(u.Before)
+	if after != "" && before != "" {
+		return fmt.Errorf("upsert_stop: set only one of after or before (place id already on that list)")
+	}
 	switch u.List {
 	case "route":
-		t.Days[i].Route = upsertInList(t.Days[i].Route, ref)
+		next, err := upsertInList(t.Days[i].Route, ref, after, before)
+		if err != nil {
+			return fmt.Errorf("upsert_stop: %w", err)
+		}
+		t.Days[i].Route = next
 	case "stops":
-		t.Days[i].Stops = upsertInList(t.Days[i].Stops, ref)
+		next, err := upsertInList(t.Days[i].Stops, ref, after, before)
+		if err != nil {
+			return fmt.Errorf("upsert_stop: %w", err)
+		}
+		t.Days[i].Stops = next
 	default:
 		return fmt.Errorf("upsert_stop: list must be \"route\" or \"stops\"")
 	}
 	return nil
 }
 
-func upsertInList(list []Stop, ref Stop) []Stop {
-	for i := range list {
-		if list[i].Place == ref.Place {
-			list[i] = ref
-			return list
+func upsertInList(list []Stop, ref Stop, after, before string) ([]Stop, error) {
+	if after == "" && before == "" {
+		for i := range list {
+			if list[i].Place == ref.Place {
+				list[i] = ref
+				return list, nil
+			}
+		}
+		return append(list, ref), nil
+	}
+	list = filterPlace(list, ref.Place)
+	anchor := after
+	if before != "" {
+		anchor = before
+	}
+	idx := -1
+	for i, s := range list {
+		if s.Place == anchor {
+			idx = i
+			break
 		}
 	}
-	return append(list, ref)
+	if idx < 0 {
+		ids := make([]string, 0, len(list))
+		for _, s := range list {
+			ids = append(ids, s.Place)
+		}
+		return nil, fmt.Errorf("anchor %q not found; place ids on this list: %s", anchor, strings.Join(ids, ", "))
+	}
+	insertAt := idx + 1
+	if before != "" {
+		insertAt = idx
+	}
+	out := make([]Stop, 0, len(list)+1)
+	out = append(out, list[:insertAt]...)
+	out = append(out, ref)
+	out = append(out, list[insertAt:]...)
+	return out, nil
 }
 
 func applyRemoveStop(t *Trip, r RemoveStop) error {

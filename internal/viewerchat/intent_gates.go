@@ -35,7 +35,7 @@ func rejectRemoveIntentMisuse(patchJSON []byte, userAsk string) error {
 	}
 	if p.UpsertStop != nil {
 		return fmt.Errorf(
-			"remove intent: do not upsert_stop. Call getTripYAML, then patchTrip remove_stop "+
+			"remove intent: do not upsert_stop. Call getTripYAML, then patchTrip remove_stop " +
 				"with the exact place id(s) from that day's stops/route (list usually \"stops\")",
 		)
 	}
@@ -64,69 +64,35 @@ func rejectRemoveWithoutYAML(patchJSON []byte, tc *turnToolContext) error {
 	)
 }
 
-// rejectReplaceUnlessRouteSurgery keeps replaceDayRoutes for explicit route work only.
-// Venue/stop asks (and vague follow-ups like "we're talking Wellington") must use
-// patchTrip upsert_stop on list "stops" — not rewrite whole day routes.
-// Exception: morning pick-up / before-ferry / timeline placement need mid-route insert.
+// rejectReplaceUnlessRouteSurgery keeps replaceDayRoutes for explicit overnight/drive
+// rewrite only. Venue asks and vague follow-ups use patchTrip upsert_stop (list stops,
+// or list route with before/after) — not a full route rewrite.
 func rejectReplaceUnlessRouteSurgery(userAsk string) error {
 	lower := strings.ToLower(strings.TrimSpace(userAsk))
 	if lower == "" {
 		return nil
 	}
-	if looksLikeRouteSurgeryAsk(lower) || looksLikeOnDriveLogisticsAsk(lower) {
+	if looksLikeRouteSurgeryAsk(lower) {
 		return nil
 	}
 	if looksLikeEnrichmentStopAsk(lower) {
 		return fmt.Errorf(
-			"this ask is an enrichment/side stop, not route surgery. "+
-				"Evening returns (not before ferry), restaurants, bars: patchTrip with places + upsert_stop (list:\"stops\"). "+
-				"Morning pick-up or drop-off before ferry/boarding: replaceDayRoutes mid-route insert "+
-				"(keep start/end; insert logistics in timeline order). "+
-				"Do not call replaceDayRoutes to dump a venue onto an unrelated day's ferry/route",
+			"this ask is a single stop, not route surgery. " +
+				"patchTrip with places + upsert_stop: list:\"stops\" for a side/evening venue, " +
+				"or list:\"route\" with before/after an existing route place id from getTripYAML " +
+				"when the stop belongs in drive order (first/last of the day stay unchanged). " +
+				"Do not call replaceDayRoutes to insert one place",
 		)
 	}
 	return fmt.Errorf(
-		"replaceDayRoutes requires an explicit route/overnight ask or on-the-drive logistics "+
-			"(e.g. change overnight, pick up after morning depart, drop off before the ferry, fix misplaced stop on the drive). "+
-			"For evening/side venues use patchTrip places + upsert_stop with list:\"stops\". "+
+		"replaceDayRoutes requires an explicit overnight or full-route rewrite. " +
+			"For a stop use patchTrip places + upsert_stop (list:\"stops\", or list:\"route\" with before/after). " +
 			"Do not rewrite neighboring days while answering a stop request",
 	)
 }
 
-// rejectStopsWhenNeedsMidRoute blocks putting pick-up / before-ferry logistics on
-// the stops list (viewer shows all stops: after mid-route sights — so "before ferry"
-// is impossible via stops).
-func rejectStopsWhenNeedsMidRoute(patchJSON []byte, userAsk string) error {
-	lower := strings.ToLower(userAsk)
-	var p itinerary.Patch
-	if err := json.Unmarshal(patchJSON, &p); err != nil || p.UpsertStop == nil {
-		return nil
-	}
-	if !strings.EqualFold(strings.TrimSpace(p.UpsertStop.List), "stops") {
-		return nil
-	}
-	notes := strings.ToLower(p.UpsertStop.Notes)
-	if looksLikeTimelinePlacementAsk(lower) {
-		return fmt.Errorf(
-			"timeline placement (before ferry / misplaced on the drive) cannot use list:\"stops\" — "+
-				"the viewer always shows stops after mid-route sights. "+
-				"Use replaceDayRoutes for that day only: keep existing endpoints, insert the place on route "+
-				"in the correct order (e.g. Avis before wellington-ferry-terminal), remove it from stops",
-		)
-	}
-	if looksLikePickUpAsk(lower) && (strings.Contains(notes, "pick") || strings.Contains(notes, "collect") ||
-		strings.Contains(notes, "hire")) {
-		return fmt.Errorf(
-			"morning pick-up must not use list:\"stops\" (it would appear after mid-route sights). "+
-				"Use replaceDayRoutes for that day: keep start/end overnights, insert the rental mid-route "+
-				"right after morning depart (correct-city lat/lon + Google maps_url)",
-		)
-	}
-	return nil
-}
-
 func looksLikeEnrichmentStopAsk(lower string) bool {
-	if looksLikeRouteSurgeryAsk(lower) || looksLikeOnDriveLogisticsAsk(lower) {
+	if looksLikeRouteSurgeryAsk(lower) {
 		return false
 	}
 	for _, needle := range []string{
@@ -143,43 +109,13 @@ func looksLikeEnrichmentStopAsk(lower string) bool {
 	return false
 }
 
-// looksLikeOnDriveLogisticsAsk: logistics that must sit on route for correct timeline order.
-func looksLikeOnDriveLogisticsAsk(lower string) bool {
-	return looksLikePickUpAsk(lower) || looksLikeTimelinePlacementAsk(lower)
-}
-
-func looksLikePickUpAsk(lower string) bool {
-	for _, needle := range []string{
-		"pick up", "pickup", "pick-up", "collect the rental", "collect rental",
-		"get the rental", "hire the car", "hire car",
-	} {
-		if strings.Contains(lower, needle) {
-			return true
-		}
-	}
-	return false
-}
-
-// looksLikeTimelinePlacementAsk: user wants a stop earlier on the day/drive (before ferry, etc.).
-func looksLikeTimelinePlacementAsk(lower string) bool {
-	for _, needle := range []string{
-		"before the ferry", "before ferry", "before the terminal", "before boarding",
-		"near the ferry", "near ferry", "misplaced", "should be before", "put it before",
-		"move it before", "on the route before", "before picton", "before wellington-ferry",
-		"drop off before", "drop-off before", "return before",
-	} {
-		if strings.Contains(lower, needle) {
-			return true
-		}
-	}
-	return false
-}
-
+// looksLikeRouteSurgeryAsk: explicit overnight or full drive rewrite, not phrase-matching
+// "before the ferry" / "pick up".
 func looksLikeRouteSurgeryAsk(lower string) bool {
 	for _, needle := range []string{
-		"overnight", "change the route", "rewrite the route", "via ",
+		"overnight", "change the route", "rewrite the route",
 		"reorder", "swap day", "endpoint", "replace day", "driving route",
-		"change overnight", "new overnight", "mid-route", "on the drive",
+		"change overnight", "new overnight",
 	} {
 		if strings.Contains(lower, needle) {
 			return true

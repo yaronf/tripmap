@@ -26,15 +26,26 @@ days:
 		t.Fatalf("err=%v", err)
 	}
 	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c"}}`), yaml, "add a cafe")
-	if err == nil || !strings.Contains(err.Error(), `list set to "stops"`) {
-		t.Fatalf("new place on route should steer to stops, err=%v", err)
+	if err == nil || !strings.Contains(err.Error(), "before or after") {
+		t.Fatalf("new place appended to route should steer to before/after, err=%v", err)
 	}
-	if strings.Contains(err.Error(), "replaceDayRoutes") {
-		t.Fatalf("must not steer venue upsert to replaceDayRoutes: %v", err)
+	if strings.Contains(err.Error(), "use changeOvernight") || strings.Contains(err.Error(), "use replaceDayRoutes") {
+		t.Fatalf("must not steer single insert to overnight/route rewrite tools: %v", err)
 	}
 	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c"}}`), yaml, "pick up rental car from Avis CBD")
-	if err == nil || !strings.Contains(err.Error(), "replaceDayRoutes") || !strings.Contains(err.Error(), "mid-route") {
-		t.Fatalf("morning pick-up should steer to replaceDayRoutes mid-route, err=%v", err)
+	if err == nil || !strings.Contains(err.Error(), "before or after") {
+		t.Fatalf("append on route should still require before/after, err=%v", err)
+	}
+	if strings.Contains(err.Error(), "use changeOvernight") || strings.Contains(err.Error(), "use replaceDayRoutes") {
+		t.Fatalf("pick-up must not steer to overnight/route rewrite tools: %v", err)
+	}
+	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c","after":"a"}}`), yaml, "pick up rental")
+	if err != nil {
+		t.Fatalf("positional mid-route insert should be allowed: %v", err)
+	}
+	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c","after":"b"}}`), yaml, "")
+	if err == nil || !strings.Contains(err.Error(), "changeOvernight") {
+		t.Fatalf("after last endpoint should steer to changeOvernight, err=%v", err)
 	}
 	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"b"}}`), yaml, "")
 	if err == nil || !strings.Contains(err.Error(), "changeOvernight") {

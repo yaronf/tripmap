@@ -258,7 +258,7 @@ type TripPatch struct {
 	// UpdateDay Partial update of one existing day (omit fields to leave unchanged)
 	UpdateDay *UpdateDay `json:"update_day,omitempty"`
 
-	// UpsertStop Add or update a stop ref by place id. For restaurants, bars, rental desks, and other mid-day venues ALWAYS use list "stops" (with places.* in the same patch). list "route" is only for updating an existing mid-route via/sight already on the drive — never for new venues (chat rejects that and tells you to retry with list stops). For overnight/endpoint or full route replacement, use changeOvernight or replaceDayRoutes instead. place must be a kebab-case id that exists in places (not a display title).
+	// UpsertStop Add or update a stop ref by place id. For restaurants, bars, evening venues, and other stops with no drive sequence, use list "stops" (with places.* in the same patch). For a place that must appear in drive order, use list "route" with before or after set to an existing route place id from getTripYAML — first and last of the day stay unchanged. Do not append a new place to list "route" (that changes the overnight). For overnight/endpoint or full route replacement, use changeOvernight or replaceDayRoutes. place must be a kebab-case id that exists in places (not a display title).
 	UpsertStop *UpsertStop `json:"upsert_stop,omitempty"`
 }
 
@@ -286,11 +286,16 @@ type UpdateDay struct {
 	Title        *string `json:"title,omitempty"`
 }
 
-// UpsertStop Add or update a stop ref by place id. For restaurants, bars, rental desks, and other mid-day venues ALWAYS use list "stops" (with places.* in the same patch). list "route" is only for updating an existing mid-route via/sight already on the drive — never for new venues (chat rejects that and tells you to retry with list stops). For overnight/endpoint or full route replacement, use changeOvernight or replaceDayRoutes instead. place must be a kebab-case id that exists in places (not a display title).
+// UpsertStop Add or update a stop ref by place id. For restaurants, bars, evening venues, and other stops with no drive sequence, use list "stops" (with places.* in the same patch). For a place that must appear in drive order, use list "route" with before or after set to an existing route place id from getTripYAML — first and last of the day stay unchanged. Do not append a new place to list "route" (that changes the overnight). For overnight/endpoint or full route replacement, use changeOvernight or replaceDayRoutes. place must be a kebab-case id that exists in places (not a display title).
 type UpsertStop struct {
-	Day *int `json:"day,omitempty"`
+	// After Insert immediately after this existing place id on the chosen list
+	After *string `json:"after,omitempty"`
 
-	// List "stops" for mid-day venues/logistics (default choice). "route" only when updating an existing mid-drive via/sight already on that day's route.
+	// Before Insert immediately before this existing place id on the chosen list
+	Before *string `json:"before,omitempty"`
+	Day    *int    `json:"day,omitempty"`
+
+	// List "stops" for side/evening venues. "route" with before or after for a sequenced insert on the existing drive.
 	List *string `json:"list,omitempty"`
 
 	// MapsUrl Optional Google Maps URL override on this stop ref

@@ -20,11 +20,11 @@ func rejectChatStructuralPatch(patchJSON []byte, beforeYAML []byte, userAsk stri
 	}
 
 	var (
-		routeListVenue  bool // upsert on route for a new/endpoint-touching place → use stops
-		overnightTouch  bool // true overnight/endpoint surgery
-		insertDay       bool
+		routeListVenue   bool // upsert on route for a new/endpoint-touching place → use stops
+		overnightTouch   bool // true overnight/endpoint surgery
+		insertDay        bool
 		stopsFullReplace bool
-		otherStructural []string
+		otherStructural  []string
 	)
 
 	if p.SwapDays != nil {
@@ -50,9 +50,16 @@ func rejectChatStructuralPatch(patchJSON []byte, beforeYAML []byte, userAsk stri
 		}
 	}
 	if p.UpsertStop != nil && strings.EqualFold(strings.TrimSpace(p.UpsertStop.List), "route") {
-		if wouldTouchOvernightEnd(beforeYAML, p.UpsertStop.Day, p.UpsertStop.Place) {
-			// New place on list=route is almost always a venue/logistics mistake.
-			// Only steer to changeOvernight when the place id is already the day's start/end.
+		after := strings.TrimSpace(p.UpsertStop.After)
+		before := strings.TrimSpace(p.UpsertStop.Before)
+		if after != "" || before != "" {
+			if routePositionalWouldChangeEndpoints(beforeYAML, p.UpsertStop.Day, after, before) {
+				overnightTouch = true
+				otherStructural = append(otherStructural,
+					fmt.Sprintf("upsert_stop list=route before/after would change day %d start or end", p.UpsertStop.Day))
+			}
+			// Mid-route insert next to an existing place is allowed (no keyword heuristics).
+		} else if wouldTouchOvernightEnd(beforeYAML, p.UpsertStop.Day, p.UpsertStop.Place) {
 			if routeUpsertIsExistingEndpoint(beforeYAML, p.UpsertStop.Day, p.UpsertStop.Place) {
 				overnightTouch = true
 				otherStructural = append(otherStructural,
@@ -89,29 +96,23 @@ func rejectChatStructuralPatch(patchJSON []byte, beforeYAML []byte, userAsk stri
 	b.WriteString(strings.Join(parts, "; "))
 	b.WriteString(". ")
 
-	askLower := strings.ToLower(userAsk)
+	_ = userAsk
 	switch {
 	case stopsFullReplace && !overnightTouch && !insertDay && !routeListVenue && len(otherStructural) == countStopsOnly(otherStructural):
 		b.WriteString(
-			"Do not replace the whole days.N.stops array (that can drop existing pubs/stops). "+
-				"Add or update one venue with places + upsert_stop (list:\"stops\"). "+
+			"Do not replace the whole days.N.stops array (that can drop existing pubs/stops). " +
+				"Add or update one venue with places + upsert_stop (list:\"stops\"). " +
 				"To remove one stop use remove_stop with exact place ids from getTripYAML",
 		)
 	case routeListVenue && !overnightTouch && !insertDay && onlyRouteVenue(otherStructural, stopsFullReplace):
-		if looksLikeOnDriveLogisticsAsk(askLower) {
-			b.WriteString(
-				"On-the-drive logistics (pick-up / before ferry) must appear on route in the day timeline. "+
-					"Use replaceDayRoutes for that day only: keep existing start/end, insert the place in order "+
-					"(e.g. after morning depart, or before wellington-ferry-terminal) with correct-city lat/lon + Google maps_url. "+
-					"Do not use the stops list — viewer shows all stops after mid-route sights",
-			)
-		} else {
-			b.WriteString(
-				"RETRY the same patchTrip with upsert_stop.list set to \"stops\" (keep places + upsert_stop). "+
-					"Evening returns (not before ferry), restaurants, bars, and side venues belong on the stops list — "+
-					"not on route, and not by rewriting the day's drive or inserting a day",
-			)
-		}
+		b.WriteString(
+			"Appending a new place to list=route changes the overnight. " +
+				"If the place belongs in drive order, retry the same patchTrip with list:\"route\" and " +
+				"before or after set to an existing route place id from getTripYAML " +
+				"(first and last of the day stay unchanged). " +
+				"If it is a side/evening venue with no sequence, use list:\"stops\" instead. " +
+				"Do not rewrite the day's route or call replaceDayRoutes for a single insert",
+		)
 	case insertDay && !overnightTouch && len(otherStructural) == 0 && !routeListVenue:
 		b.WriteString(
 			"insert_day is blocked in viewer chat. To add a venue/stop use patchTrip with places + " +
@@ -124,8 +125,8 @@ func rejectChatStructuralPatch(patchJSON []byte, beforeYAML []byte, userAsk stri
 		}
 		if routeListVenue {
 			b.WriteString(
-				"For the venue/stop: retry patchTrip with upsert_stop.list=\"stops\" (not route), "+
-					"unless this is a morning pick-up on the drive — then replaceDayRoutes mid-route insert. ",
+				"For a sequenced drive insert: list:\"route\" plus before/after an existing route place id. " +
+					"For a side venue: list:\"stops\". ",
 			)
 		}
 		if insertDay {
@@ -180,6 +181,26 @@ func routeUpsertIsExistingEndpoint(yaml []byte, day int, place string) bool {
 	first := strings.TrimSpace(d.Route[0].Place)
 	last := strings.TrimSpace(d.Route[len(d.Route)-1].Place)
 	return place == first || place == last
+}
+
+func routePositionalWouldChangeEndpoints(yaml []byte, day int, after, before string) bool {
+	trip, err := itinerary.ParseYAML(yaml)
+	if err != nil {
+		return true
+	}
+	d := findDay(trip, day)
+	if d == nil || len(d.Route) == 0 {
+		return true
+	}
+	first := strings.TrimSpace(d.Route[0].Place)
+	last := strings.TrimSpace(d.Route[len(d.Route)-1].Place)
+	if a := strings.TrimSpace(after); a != "" && a == last {
+		return true
+	}
+	if b := strings.TrimSpace(before); b != "" && b == first {
+		return true
+	}
+	return false
 }
 
 func wouldTouchOvernightEnd(yaml []byte, day int, place string) bool {

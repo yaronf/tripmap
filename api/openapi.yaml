@@ -111,7 +111,7 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop on the stops list (mid-day venues, rental desks, restaurants — list must be "stops", not "route"). In viewer chat, overnight/endpoint and days.*.route / swap_days / delete_day / insert_day are rejected — use changeOvernight or replaceDayRoutes for those only. Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop / remove_stop — list "stops" for side/evening venues; list "route" with before/after for a sequenced insert on the drive (first/last of the day stay unchanged). In viewer chat, overnight/endpoint and days.*.route / swap_days / delete_day / insert_day are rejected — use changeOvernight or replaceDayRoutes for those only. Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
       x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
@@ -726,21 +726,22 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Add or update a stop ref by place id. For restaurants, bars, rental desks,
-        and other mid-day venues ALWAYS use list "stops" (with places.* in the same
-        patch). list "route" is only for updating an existing mid-route via/sight
-        already on the drive — never for new venues (chat rejects that and tells you
-        to retry with list stops). For overnight/endpoint or full route replacement,
-        use changeOvernight or replaceDayRoutes instead. place must be a kebab-case
-        id that exists in places (not a display title).
+        Add or update a stop ref by place id. For restaurants, bars, evening venues,
+        and other stops with no drive sequence, use list "stops" (with places.* in
+        the same patch). For a place that must appear in drive order, use list
+        "route" with before or after set to an existing route place id from
+        getTripYAML — first and last of the day stay unchanged. Do not append a new
+        place to list "route" (that changes the overnight). For overnight/endpoint
+        or full route replacement, use changeOvernight or replaceDayRoutes. place
+        must be a kebab-case id that exists in places (not a display title).
       properties:
         day:
           type: integer
         list:
           type: string
           description: >
-            "stops" for mid-day venues/logistics (default choice). "route" only when
-            updating an existing mid-drive via/sight already on that day's route.
+            "stops" for side/evening venues. "route" with before or after for a
+            sequenced insert on the existing drive.
         place:
           type: string
           description: Kebab-case place id from places (e.g. greymouth), not a display title
@@ -751,6 +752,12 @@ components:
         maps_url:
           type: string
           description: Optional Google Maps URL override on this stop ref
+        after:
+          type: string
+          description: Insert immediately after this existing place id on the chosen list
+        before:
+          type: string
+          description: Insert immediately before this existing place id on the chosen list
     RemoveStop:
       type: object
       additionalProperties: false
