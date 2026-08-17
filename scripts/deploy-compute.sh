@@ -3,8 +3,8 @@
 #
 # Run this in your own shell (tripmap-deploy identity) — no agent approval loop:
 #   ./scripts/deploy-compute.sh
-#   ./scripts/deploy-compute.sh --prefix chat-remove
-#   ./scripts/deploy-compute.sh --skip-build --tag chat-ux-20260810001535
+#   ./scripts/deploy-compute.sh --prefix rebuild
+#   ./scripts/deploy-compute.sh --skip-build --tag existing-tag
 #   ./scripts/deploy-compute.sh --patch-viewer          # also sync index.html/app.js/style.css
 #   ./scripts/deploy-compute.sh --patch-viewer holland nz-4weeks
 #

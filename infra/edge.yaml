@@ -43,7 +43,7 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
-              # Chat SSE + OpenAI web_search routinely exceeds the 30s default.
+              # Keep above the 30s default for slow origin / long MCP calls.
               OriginReadTimeout: 60
               OriginKeepaliveTimeout: 60
         DefaultCacheBehavior:

@@ -21,7 +21,7 @@ As `tripmap-deploy`, from the repo root:
 
 ```bash
 ./scripts/deploy-compute.sh
-# or: ./scripts/deploy-compute.sh --prefix chat-remove
+# or: ./scripts/deploy-compute.sh --prefix rebuild
 # or: ./scripts/deploy-compute.sh --patch-viewer   # also sync app.js/style.css to trip bundles
 ```
 

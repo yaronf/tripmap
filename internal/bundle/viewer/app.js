@@ -136,7 +136,7 @@
 
   function mapsPinURL(stop) {
     const override = typeof stop?.maps_url === "string" ? stop.maps_url.trim() : "";
-    // Chat sometimes stores a venue website in maps_url — only trust Google Maps links.
+    // Ignore maps_url unless it is a Google Maps link (Leaflet still uses lat/lon).
     if (override && isGoogleMapsURL(override)) return override;
     return mapsSearchURL(Number(stop?.lat), Number(stop?.lon));
   }

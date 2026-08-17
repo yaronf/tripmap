@@ -1,7 +1,7 @@
 //go:build ignore
 
-// filter_codegen drops chat-only operations (x-audiences present but without
-// "mcp") so oapi-codegen does not invent HTTP ServerInterface methods for them.
+// filter_codegen drops operations whose x-audiences omit "mcp" so oapi-codegen
+// does not invent HTTP ServerInterface methods for non-MCP ops.
 package main
 
 import (

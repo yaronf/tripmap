@@ -88,7 +88,7 @@ paths:
         Returns id, title, description, start, day count — not per-day routes.
         For overnight/endpoint edits use getTripYAML with scope=full (source of
         truth) then replaceDayRoutes. Prefer getTripYAML over getTrip when you
-        need stops; chat defaults to day-neighborhood scope.
+        need stops; pass getTripYAML scope=day for the current-day neighborhood.
       x-audiences: [mcp]
       security:
         - bearerAuth: []

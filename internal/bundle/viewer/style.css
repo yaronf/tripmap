@@ -38,8 +38,6 @@ body {
   min-height: 100%;
 }
 
-/* Persona docks inside the detail column (split below day body). */
-
 .chrome {
   display: flex;
   align-items: center;

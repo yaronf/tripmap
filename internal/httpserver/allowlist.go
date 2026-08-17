@@ -15,7 +15,7 @@ type usersFile struct {
 }
 
 // loadUsersFile reads config/users.csv (or path).
-// Columns: email, sub (optional extras such as a leftover chat column are ignored).
+// Columns: email, sub (extra columns are ignored).
 // Every row with email and/or sub may sign in.
 func loadUsersFile(path string) (usersFile, error) {
 	f, err := os.Open(path)
