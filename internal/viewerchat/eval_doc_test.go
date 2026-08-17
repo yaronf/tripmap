@@ -48,3 +48,9 @@ package viewerchat_test
 //     - morning pick-up → mid-route via replaceDayRoutes (keep endpoints)
 //     - evening return → upsert_stop list stops (not full stops array)
 //     - final ViewerDayStops order: Depart → Avis → … → overnight (day 3)
+//
+// Case: Avis before ferry misplaced (2026-08-17 logs)
+//   Drop-off moved to day 7 on stops:; user "misplaced / before the ferry".
+//   replaceDayRoutes was blocked; stops upsert cannot fix timeline order.
+//   Assert: placement/before-ferry asks allow replaceDayRoutes; stops upsert
+//   for those asks is rejected (TestRejectStopsWhenNeedsMidRoute).

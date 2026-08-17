@@ -335,6 +335,9 @@ func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON strin
 	if err := rejectRemoveWithoutYAML(patch, tc); err != nil {
 		return toolResult{}, err
 	}
+	if err := rejectStopsWhenNeedsMidRoute(patch, ask); err != nil {
+		return toolResult{}, err
+	}
 	before, err := a.ops.GetYAML(ctx, in.TripID)
 	if err != nil {
 		return toolResult{}, err

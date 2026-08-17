@@ -67,7 +67,7 @@ func rejectRemoveWithoutYAML(patchJSON []byte, tc *turnToolContext) error {
 // rejectReplaceUnlessRouteSurgery keeps replaceDayRoutes for explicit route work only.
 // Venue/stop asks (and vague follow-ups like "we're talking Wellington") must use
 // patchTrip upsert_stop on list "stops" — not rewrite whole day routes.
-// Exception: morning pick-up / on-the-drive logistics need a mid-route insert.
+// Exception: morning pick-up / before-ferry / timeline placement need mid-route insert.
 func rejectReplaceUnlessRouteSurgery(userAsk string) error {
 	lower := strings.ToLower(strings.TrimSpace(userAsk))
 	if lower == "" {
@@ -79,17 +79,50 @@ func rejectReplaceUnlessRouteSurgery(userAsk string) error {
 	if looksLikeEnrichmentStopAsk(lower) {
 		return fmt.Errorf(
 			"this ask is an enrichment/side stop, not route surgery. "+
-				"Evening returns, restaurants, bars: patchTrip with places + upsert_stop (list:\"stops\"). "+
-				"Morning pick-up on the drive: replaceDayRoutes mid-route insert (keep start/end overnights). "+
+				"Evening returns (not before ferry), restaurants, bars: patchTrip with places + upsert_stop (list:\"stops\"). "+
+				"Morning pick-up or drop-off before ferry/boarding: replaceDayRoutes mid-route insert "+
+				"(keep start/end; insert logistics in timeline order). "+
 				"Do not call replaceDayRoutes to dump a venue onto an unrelated day's ferry/route",
 		)
 	}
 	return fmt.Errorf(
 		"replaceDayRoutes requires an explicit route/overnight ask or on-the-drive logistics "+
-			"(e.g. change overnight, add a via town, pick up rental after morning depart). "+
+			"(e.g. change overnight, pick up after morning depart, drop off before the ferry, fix misplaced stop on the drive). "+
 			"For evening/side venues use patchTrip places + upsert_stop with list:\"stops\". "+
 			"Do not rewrite neighboring days while answering a stop request",
 	)
+}
+
+// rejectStopsWhenNeedsMidRoute blocks putting pick-up / before-ferry logistics on
+// the stops list (viewer shows all stops: after mid-route sights — so "before ferry"
+// is impossible via stops).
+func rejectStopsWhenNeedsMidRoute(patchJSON []byte, userAsk string) error {
+	lower := strings.ToLower(userAsk)
+	var p itinerary.Patch
+	if err := json.Unmarshal(patchJSON, &p); err != nil || p.UpsertStop == nil {
+		return nil
+	}
+	if !strings.EqualFold(strings.TrimSpace(p.UpsertStop.List), "stops") {
+		return nil
+	}
+	notes := strings.ToLower(p.UpsertStop.Notes)
+	if looksLikeTimelinePlacementAsk(lower) {
+		return fmt.Errorf(
+			"timeline placement (before ferry / misplaced on the drive) cannot use list:\"stops\" — "+
+				"the viewer always shows stops after mid-route sights. "+
+				"Use replaceDayRoutes for that day only: keep existing endpoints, insert the place on route "+
+				"in the correct order (e.g. Avis before wellington-ferry-terminal), remove it from stops",
+		)
+	}
+	if looksLikePickUpAsk(lower) && (strings.Contains(notes, "pick") || strings.Contains(notes, "collect") ||
+		strings.Contains(notes, "hire")) {
+		return fmt.Errorf(
+			"morning pick-up must not use list:\"stops\" (it would appear after mid-route sights). "+
+				"Use replaceDayRoutes for that day: keep start/end overnights, insert the rental mid-route "+
+				"right after morning depart (correct-city lat/lon + Google maps_url)",
+		)
+	}
+	return nil
 }
 
 func looksLikeEnrichmentStopAsk(lower string) bool {
@@ -101,6 +134,7 @@ func looksLikeEnrichmentStopAsk(lower string) bool {
 		"restaurant", "wine bar", "wine ", "cafe", "coffee", "pub", "bar",
 		"avis", "rental car", "rental desk", "return the rental", "return rental",
 		"return car", "recommend", "recommendation", "add a ", "add the ",
+		"drop off", "drop-off", "dropoff",
 	} {
 		if strings.Contains(lower, needle) {
 			return true
@@ -109,12 +143,30 @@ func looksLikeEnrichmentStopAsk(lower string) bool {
 	return false
 }
 
-// looksLikeOnDriveLogisticsAsk: morning pick-up / start-of-day logistics that must
-// sit mid-route (viewer timeline puts all stops: after mid-route sights).
+// looksLikeOnDriveLogisticsAsk: logistics that must sit on route for correct timeline order.
 func looksLikeOnDriveLogisticsAsk(lower string) bool {
+	return looksLikePickUpAsk(lower) || looksLikeTimelinePlacementAsk(lower)
+}
+
+func looksLikePickUpAsk(lower string) bool {
 	for _, needle := range []string{
 		"pick up", "pickup", "pick-up", "collect the rental", "collect rental",
 		"get the rental", "hire the car", "hire car",
+	} {
+		if strings.Contains(lower, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeTimelinePlacementAsk: user wants a stop earlier on the day/drive (before ferry, etc.).
+func looksLikeTimelinePlacementAsk(lower string) bool {
+	for _, needle := range []string{
+		"before the ferry", "before ferry", "before the terminal", "before boarding",
+		"near the ferry", "near ferry", "misplaced", "should be before", "put it before",
+		"move it before", "on the route before", "before picton", "before wellington-ferry",
+		"drop off before", "drop-off before", "return before",
 	} {
 		if strings.Contains(lower, needle) {
 			return true

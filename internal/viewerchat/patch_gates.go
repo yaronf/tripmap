@@ -100,15 +100,15 @@ func rejectChatStructuralPatch(patchJSON []byte, beforeYAML []byte, userAsk stri
 	case routeListVenue && !overnightTouch && !insertDay && onlyRouteVenue(otherStructural, stopsFullReplace):
 		if looksLikeOnDriveLogisticsAsk(askLower) {
 			b.WriteString(
-				"Morning pick-up / on-the-drive logistics must appear mid-route in the day timeline. "+
-					"Use replaceDayRoutes for that day only: keep existing start/end overnights, insert the rental "+
-					"as a mid-route point after the morning depart (with correct city lat/lon + Google maps_url). "+
-					"Do not put morning pick-up on the stops list (viewer shows all stops after mid-route sights)",
+				"On-the-drive logistics (pick-up / before ferry) must appear on route in the day timeline. "+
+					"Use replaceDayRoutes for that day only: keep existing start/end, insert the place in order "+
+					"(e.g. after morning depart, or before wellington-ferry-terminal) with correct-city lat/lon + Google maps_url. "+
+					"Do not use the stops list — viewer shows all stops after mid-route sights",
 			)
 		} else {
 			b.WriteString(
 				"RETRY the same patchTrip with upsert_stop.list set to \"stops\" (keep places + upsert_stop). "+
-					"Evening returns, restaurants, bars, and side venues belong on the stops list — "+
+					"Evening returns (not before ferry), restaurants, bars, and side venues belong on the stops list — "+
 					"not on route, and not by rewriting the day's drive or inserting a day",
 			)
 		}

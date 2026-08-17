@@ -144,6 +144,7 @@ Add cases under `internal/viewerchat/eval/` (or `testdata/chat_eval/`) from real
 - **Hayes Common lunch (2026-08-17):** enrichment stop on day N while distant days have continuity mismatches → must succeed without repair digression / truncated “other days…” answer. Locked in `TestEnrichScopedContinuity` + `TestInvariantsNeedRepairOnlyStructural`.
 - **Remove / Avis cascade (2026-08-17 logs):** remove intent must not upsert; remove requires `getTripYAML` first; `replaceDayRoutes` blocked unless explicit route surgery and within viewer/ask day neighborhood. Locked in `intent_gates_test.go`.
 - **Avis pick-up/return quality (2026-08-17):** wrong-city coords rejected; `maps_url` required on new places; no `days.N.stops` full replace; morning pick-up → mid-route `replaceDayRoutes`; evening return → `upsert_stop` on stops. Locked in `place_quality_test.go` + `TestRejectChatStructuralPatch`.
+- **Avis before ferry (2026-08-17):** “misplaced / before the ferry / near the ferry” allows `replaceDayRoutes`; `stops` upsert rejected for those asks (`TestRejectStopsWhenNeedsMidRoute`).
 
 Each case: frozen YAML + turns + **final YAML assertions** (tool choice is diagnostic only). Scripted model double in CI; optional live smoke later.
 
