@@ -339,7 +339,10 @@ func handlePatchTrip(ctx context.Context, a *Agent, in TurnInput, argsJSON strin
 	if err != nil {
 		return toolResult{}, err
 	}
-	if err := rejectChatStructuralPatch(patch, before); err != nil {
+	if err := rejectChatStructuralPatch(patch, before, ask); err != nil {
+		return toolResult{}, err
+	}
+	if err := rejectWeakNewPlaces(patch, before); err != nil {
 		return toolResult{}, err
 	}
 	rewritten, err := rewritePhotoURLsInPatch(ctx, patch)

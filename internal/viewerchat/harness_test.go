@@ -21,30 +21,38 @@ days:
     title: One
     route: [{place: a, type: overnight}, {place: b, type: overnight}]
 `)
-	err := rejectChatStructuralPatch([]byte(`{"days":{"1":{"route":[{"place":"a"},{"place":"c"}]}}}`), yaml)
+	err := rejectChatStructuralPatch([]byte(`{"days":{"1":{"route":[{"place":"a"},{"place":"c"}]}}}`), yaml, "")
 	if err == nil || !strings.Contains(err.Error(), "changeOvernight") {
 		t.Fatalf("err=%v", err)
 	}
-	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c"}}`), yaml)
+	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c"}}`), yaml, "add a cafe")
 	if err == nil || !strings.Contains(err.Error(), `list set to "stops"`) {
 		t.Fatalf("new place on route should steer to stops, err=%v", err)
 	}
 	if strings.Contains(err.Error(), "replaceDayRoutes") {
 		t.Fatalf("must not steer venue upsert to replaceDayRoutes: %v", err)
 	}
-	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"b"}}`), yaml)
+	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"c"}}`), yaml, "pick up rental car from Avis CBD")
+	if err == nil || !strings.Contains(err.Error(), "replaceDayRoutes") || !strings.Contains(err.Error(), "mid-route") {
+		t.Fatalf("morning pick-up should steer to replaceDayRoutes mid-route, err=%v", err)
+	}
+	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"route","place":"b"}}`), yaml, "")
 	if err == nil || !strings.Contains(err.Error(), "changeOvernight") {
 		t.Fatalf("endpoint upsert should steer to changeOvernight, err=%v", err)
 	}
-	err = rejectChatStructuralPatch([]byte(`{"insert_day":{"after":1,"day":{"title":"X"}}}`), yaml)
+	err = rejectChatStructuralPatch([]byte(`{"insert_day":{"after":1,"day":{"title":"X"}}}`), yaml, "")
 	if err == nil || !strings.Contains(err.Error(), "stops") {
 		t.Fatalf("insert_day should steer to stops upsert, err=%v", err)
 	}
-	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"stops","place":"c"}}`), yaml)
+	err = rejectChatStructuralPatch([]byte(`{"days":{"1":{"stops":[{"place":"c"}]}}}`), yaml, "add avis")
+	if err == nil || !strings.Contains(err.Error(), "upsert_stop") {
+		t.Fatalf("full stops replace should be blocked, err=%v", err)
+	}
+	err = rejectChatStructuralPatch([]byte(`{"upsert_stop":{"day":1,"list":"stops","place":"c"}}`), yaml, "")
 	if err != nil {
 		t.Fatalf("stops upsert should be allowed: %v", err)
 	}
-	err = rejectChatStructuralPatch([]byte(`{"update_day":{"day":1,"notes":"hi"}}`), yaml)
+	err = rejectChatStructuralPatch([]byte(`{"update_day":{"day":1,"notes":"hi"}}`), yaml, "")
 	if err != nil {
 		t.Fatalf("update_day notes should be allowed: %v", err)
 	}

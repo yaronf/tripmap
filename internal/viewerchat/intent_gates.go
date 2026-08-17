@@ -67,38 +67,54 @@ func rejectRemoveWithoutYAML(patchJSON []byte, tc *turnToolContext) error {
 // rejectReplaceUnlessRouteSurgery keeps replaceDayRoutes for explicit route work only.
 // Venue/stop asks (and vague follow-ups like "we're talking Wellington") must use
 // patchTrip upsert_stop on list "stops" — not rewrite whole day routes.
+// Exception: morning pick-up / on-the-drive logistics need a mid-route insert.
 func rejectReplaceUnlessRouteSurgery(userAsk string) error {
 	lower := strings.ToLower(strings.TrimSpace(userAsk))
 	if lower == "" {
 		return nil
 	}
-	if looksLikeRouteSurgeryAsk(lower) {
+	if looksLikeRouteSurgeryAsk(lower) || looksLikeOnDriveLogisticsAsk(lower) {
 		return nil
 	}
 	if looksLikeEnrichmentStopAsk(lower) {
 		return fmt.Errorf(
-			"this ask is an enrichment stop, not route surgery. "+
-				"Use patchTrip with places + upsert_stop (list:\"stops\") on the viewer day. "+
-				"Do not call replaceDayRoutes to add restaurants, bars, rental desks, or similar venues",
+			"this ask is an enrichment/side stop, not route surgery. "+
+				"Evening returns, restaurants, bars: patchTrip with places + upsert_stop (list:\"stops\"). "+
+				"Morning pick-up on the drive: replaceDayRoutes mid-route insert (keep start/end overnights). "+
+				"Do not call replaceDayRoutes to dump a venue onto an unrelated day's ferry/route",
 		)
 	}
 	return fmt.Errorf(
-		"replaceDayRoutes requires an explicit route/overnight ask "+
-			"(e.g. change overnight, add a via town, rewrite the drive). "+
-			"For a venue or logistics stop, use patchTrip places + upsert_stop with list:\"stops\". "+
+		"replaceDayRoutes requires an explicit route/overnight ask or on-the-drive logistics "+
+			"(e.g. change overnight, add a via town, pick up rental after morning depart). "+
+			"For evening/side venues use patchTrip places + upsert_stop with list:\"stops\". "+
 			"Do not rewrite neighboring days while answering a stop request",
 	)
 }
 
 func looksLikeEnrichmentStopAsk(lower string) bool {
-	if looksLikeRouteSurgeryAsk(lower) {
+	if looksLikeRouteSurgeryAsk(lower) || looksLikeOnDriveLogisticsAsk(lower) {
 		return false
 	}
 	for _, needle := range []string{
 		"as a stop", "as stop", "lunch", "dinner", "breakfast", "brunch",
 		"restaurant", "wine bar", "wine ", "cafe", "coffee", "pub", "bar",
 		"avis", "rental car", "rental desk", "return the rental", "return rental",
-		"recommend", "recommendation", "add a ", "add the ",
+		"return car", "recommend", "recommendation", "add a ", "add the ",
+	} {
+		if strings.Contains(lower, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeOnDriveLogisticsAsk: morning pick-up / start-of-day logistics that must
+// sit mid-route (viewer timeline puts all stops: after mid-route sights).
+func looksLikeOnDriveLogisticsAsk(lower string) bool {
+	for _, needle := range []string{
+		"pick up", "pickup", "pick-up", "collect the rental", "collect rental",
+		"get the rental", "hire the car", "hire car",
 	} {
 		if strings.Contains(lower, needle) {
 			return true
@@ -111,7 +127,7 @@ func looksLikeRouteSurgeryAsk(lower string) bool {
 	for _, needle := range []string{
 		"overnight", "change the route", "rewrite the route", "via ",
 		"reorder", "swap day", "endpoint", "replace day", "driving route",
-		"change overnight", "new overnight",
+		"change overnight", "new overnight", "mid-route", "on the drive",
 	} {
 		if strings.Contains(lower, needle) {
 			return true

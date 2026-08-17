@@ -11,6 +11,9 @@ package viewerchat_test
 //   - Enrichment must not trip on distant continuity: TestEnrichScopedContinuity /
 //     TestInvariantsNeedRepairOnlyStructural
 //   - Remove after add must not reenact add: TestNeutralizePriorAddBeforeRemove
+//   - Wrong-city place coords / missing maps_url: TestRejectWeakNewPlacesWrongCity
+//   - Full days.N.stops replace blocked: TestRejectChatStructuralPatch
+//   - Morning pick-up allows replaceDayRoutes: TestRejectReplaceUnlessRouteSurgery
 //
 // Case: "Hayes Common lunch" (2026-08-17)
 //   User: add lunch stop on Day 3 (enrichment upsert_stop). Patch succeeds.
@@ -35,3 +38,13 @@ package viewerchat_test
 //   replaceDayRoutes cannot rewrite day 8 while viewer is on day 6.
 //   Follow-up: list=route reject must say retry list=stops — never steer to
 //   replaceDayRoutes (TestRejectChatStructuralPatch).
+//
+// Case: Avis pick-up/return quality (2026-08-17 logs)
+//   User: day 3 pick up Avis CBD; day 6 return Avis Wellington.
+//   Failures: Wellington lat/lon on Auckland place; missing maps_url; morning
+//   pick-up on stops: (timeline after mid-route sights); days.6.stops full
+//   replace risk to pubs. Assert:
+//     - new places: correct-city lat/lon + Google maps_url (TestRejectWeakNewPlacesWrongCity)
+//     - morning pick-up → mid-route via replaceDayRoutes (keep endpoints)
+//     - evening return → upsert_stop list stops (not full stops array)
+//     - final ViewerDayStops order: Depart → Avis → … → overnight (day 3)

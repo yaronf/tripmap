@@ -31,15 +31,18 @@ func TestRejectRemoveWithoutYAML(t *testing.T) {
 
 func TestRejectReplaceUnlessRouteSurgery(t *testing.T) {
 	err := rejectReplaceUnlessRouteSurgery("Day 6: can't we have it as a stop? Assume this is Avis.")
-	if err == nil || !strings.Contains(err.Error(), "enrichment stop") {
+	if err == nil || !strings.Contains(err.Error(), "enrichment") {
 		t.Fatalf("err=%v", err)
 	}
 	err = rejectReplaceUnlessRouteSurgery("you're confused, we're talking Wellington here.")
-	if err == nil || !strings.Contains(err.Error(), "explicit route") {
-		t.Fatalf("err=%v", err)
+	if err == nil {
+		t.Fatal("vague follow-up should still block bare replaceDayRoutes")
 	}
 	if err := rejectReplaceUnlessRouteSurgery("Change day 10 overnight to Greymouth"); err != nil {
 		t.Fatal(err)
+	}
+	if err := rejectReplaceUnlessRouteSurgery("day 3: pick up rental car from Avis CBD"); err != nil {
+		t.Fatalf("pick-up should allow replaceDayRoutes: %v", err)
 	}
 }
 
