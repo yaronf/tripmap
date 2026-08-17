@@ -22,9 +22,7 @@ type Mem struct {
 	meta  map[string]Meta
 	idem  map[string][]byte
 	bund  map[string]map[string][]byte // id -> relpath -> bytes
-	notes     map[string][]byte
-	prefs     map[string]PreferencesDoc // userSub -> doc
-	learnings map[string]LearningsDoc   // userSub -> doc
+	notes map[string][]byte
 }
 
 type yamlVer struct {
@@ -40,9 +38,7 @@ func NewMem() *Mem {
 		meta:  map[string]Meta{},
 		idem:  map[string][]byte{},
 		bund:  map[string]map[string][]byte{},
-		notes:     map[string][]byte{},
-		prefs:     map[string]PreferencesDoc{},
-		learnings: map[string]LearningsDoc{},
+		notes: map[string][]byte{},
 	}
 }
 
@@ -215,72 +211,6 @@ func (m *Mem) PutNotes(ctx context.Context, id string, body []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.notes[id] = append([]byte(nil), body...)
-	return nil
-}
-
-func (m *Mem) GetPreferences(_ context.Context, userSub string) (PreferencesDoc, error) {
-	if _, err := preferencesKey(userSub); err != nil {
-		return PreferencesDoc{}, err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	doc, ok := m.prefs[strings.TrimSpace(userSub)]
-	if !ok {
-		return EmptyPreferences(), nil
-	}
-	out := PreferencesDoc{
-		UpdatedAt: doc.UpdatedAt,
-		Items:     append([]PreferenceItem(nil), doc.Items...),
-	}
-	return out, nil
-}
-
-func (m *Mem) PutPreferences(_ context.Context, userSub string, doc PreferencesDoc) error {
-	if _, err := preferencesKey(userSub); err != nil {
-		return err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if doc.Items == nil {
-		doc.Items = []PreferenceItem{}
-	}
-	cp := PreferencesDoc{
-		UpdatedAt: doc.UpdatedAt,
-		Items:     append([]PreferenceItem(nil), doc.Items...),
-	}
-	m.prefs[strings.TrimSpace(userSub)] = cp
-	return nil
-}
-
-func (m *Mem) GetLearnings(_ context.Context, userSub string) (LearningsDoc, error) {
-	if _, err := learningsKey(userSub); err != nil {
-		return LearningsDoc{}, err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	doc, ok := m.learnings[strings.TrimSpace(userSub)]
-	if !ok {
-		return EmptyLearnings(), nil
-	}
-	return LearningsDoc{
-		UpdatedAt: doc.UpdatedAt,
-		Items:     append([]LearningItem(nil), doc.Items...),
-	}, nil
-}
-
-func (m *Mem) PutLearnings(_ context.Context, userSub string, doc LearningsDoc) error {
-	if _, err := learningsKey(userSub); err != nil {
-		return err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if doc.Items == nil {
-		doc.Items = []LearningItem{}
-	}
-	m.learnings[strings.TrimSpace(userSub)] = LearningsDoc{
-		UpdatedAt: doc.UpdatedAt,
-		Items:     append([]LearningItem(nil), doc.Items...),
-	}
 	return nil
 }
 

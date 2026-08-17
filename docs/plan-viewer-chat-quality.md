@@ -1,6 +1,6 @@
 # Plan: viewer chat quality (catch up to ChatGPT)
 
-**Status:** implemented (transcript curation, prefs nudge, agent learnings, trip_fragment + tool hygiene, thumbs feedback).  
+**Status (2026-08-17):** in-viewer chat was removed. Implementation is on `archive/viewer-chat-harness`. This document is historical.  
 **Overview:** Close the quality gap vs ChatGPT by context engineering and chat-owned memory—not a second static lessons file.
 
 ## Taxonomy (do not conflate)

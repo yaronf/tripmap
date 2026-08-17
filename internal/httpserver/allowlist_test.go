@@ -23,10 +23,4 @@ func TestLoadUsersFile(t *testing.T) {
 	if len(u.LoginSubs) != 1 || u.LoginSubs[0] != "sub_abc" {
 		t.Fatalf("login subs=%v", u.LoginSubs)
 	}
-	if len(u.ChatEmails) != 2 || u.ChatEmails[0] != "yaronf@gmx.com" || u.ChatEmails[1] != "other@example.com" {
-		t.Fatalf("chat emails=%v", u.ChatEmails)
-	}
-	if len(u.ChatSubs) != 1 || u.ChatSubs[0] != "sub_abc" {
-		t.Fatalf("chat subs=%v", u.ChatSubs)
-	}
 }

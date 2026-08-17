@@ -188,137 +188,11 @@ body {
   background: rgba(255, 255, 255, 0.45);
 }
 
-.chat-toggle {
-  display: none;
-  align-items: center;
-  gap: 0.3rem;
-  margin: 0;
-  padding: 0.28rem 0.55rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  background: rgba(243, 239, 230, 0.9);
-  color: var(--accent);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-body.chat-enabled .chat-toggle {
-  display: inline-flex;
-}
-
-.chat-toggle:hover,
-.chat-toggle:focus-visible {
-  border-color: rgba(15, 92, 92, 0.35);
-  outline: none;
-}
-
-.chat-toggle[aria-pressed="true"] {
-  background: var(--accent);
-  color: #f3efe6;
-  border-color: var(--accent);
-}
-
-.chat-toggle-icon {
-  display: block;
-  flex-shrink: 0;
-}
-
-.chat-toggle-label {
-  line-height: 1;
-}
-
 .detail-body {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 0.65rem 1.1rem calc(1.25rem + var(--safe-bottom));
-}
-
-body.chat-open .detail-body {
-  padding-bottom: 1rem;
-}
-
-/* Lower pane for Persona (collapsed until body.chat-open). */
-.detail-chat {
-  flex: 0 0 0;
-  min-height: 0;
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  border-top: 1px solid transparent;
-  background: rgba(243, 239, 230, 0.65);
-  display: flex;
-  flex-direction: column;
-}
-
-body.chat-open .detail-chat {
-  flex: 0 0 50%;
-  min-height: 11rem;
-  max-height: none;
-  opacity: 1;
-  pointer-events: auto;
-  border-top-color: var(--rule);
-}
-
-.detail-chat,
-.detail-chat > [data-persona-host-layout],
-.persona-dock-host {
-  min-height: 0;
-}
-
-.chat-feedback {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.55rem;
-  border-bottom: 1px solid var(--rule);
-  background: #e6dfd0;
-  font-size: 0.75rem;
-  color: var(--muted, #5c635c);
-}
-
-.chat-feedback[hidden] {
-  display: none !important;
-}
-
-.chat-feedback-label {
-  margin-right: 0.25rem;
-}
-
-.chat-feedback-btn {
-  appearance: none;
-  border: 1px solid rgba(26, 31, 28, 0.18);
-  background: #f3efe6;
-  color: #1a1f1c;
-  border-radius: 0.25rem;
-  width: 1.6rem;
-  height: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-
-.chat-feedback-btn:hover {
-  border-color: #0f5c5c;
-  color: #0f5c5c;
-}
-
-.chat-feedback-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.persona-dock-host {
-  flex: 1 1 auto;
-  height: 100%;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
 }
 
 .detail-micro {
@@ -762,15 +636,6 @@ body.chat-open .detail-chat {
     display: inline-flex;
   }
 
-  /* Keep Ask compact next to Days / List|Map. */
-  .chat-toggle-label {
-    display: none;
-  }
-
-  .chat-toggle {
-    padding: 0.28rem;
-  }
-
   .detail-micro {
     display: none;
   }
@@ -872,21 +737,8 @@ body.chat-open .detail-chat {
     box-shadow: 0 -8px 24px rgba(26, 31, 28, 0.08);
   }
 
-  body.chat-open.mode-map .detail {
-    max-height: 72%;
-  }
-
   body.mode-map .detail-body {
     padding-bottom: calc(1rem + var(--safe-bottom));
-  }
-
-  body.chat-open.mode-map .detail-body {
-    padding-bottom: 0.75rem;
-  }
-
-  body.chat-open.mode-map .detail-chat {
-    flex-basis: 50%;
-    min-height: 9.5rem;
   }
 
   body.mode-map .app {

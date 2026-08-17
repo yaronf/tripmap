@@ -1,7 +1,6 @@
 # Plan: viewer chat agent harness
 
-**Status:** planned (not implemented).  
-**Rollback tag:** `pre-chat-harness` → commit `3893e28` (already pushed).  
+**Status (2026-08-17):** in-viewer chat was removed. Harness work lives on `archive/viewer-chat-harness`. This document is historical.  
 **Related:** [plan-viewer-chat-quality.md](plan-viewer-chat-quality.md) (context/memory work). Dynamic learning (prefs/learnings) stays important; freeze *investment* during harness work and revisit once mutates are safe—especially as a post-repair harness step (see Meta below).
 
 ## Goal

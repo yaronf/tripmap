@@ -5,7 +5,7 @@
 #   ./scripts/deploy-compute.sh
 #   ./scripts/deploy-compute.sh --prefix chat-remove
 #   ./scripts/deploy-compute.sh --skip-build --tag chat-ux-20260810001535
-#   ./scripts/deploy-compute.sh --patch-viewer          # also sync index.html/app.js/chat.js/style.css
+#   ./scripts/deploy-compute.sh --patch-viewer          # also sync index.html/app.js/style.css
 #   ./scripts/deploy-compute.sh --patch-viewer holland nz-4weeks
 #
 # Optional env:
@@ -104,7 +104,7 @@ aws cloudformation deploy \
 if [[ "$PATCH_VIEWER" -eq 1 ]]; then
   echo "== patch viewer assets → s3://$ITINERARIES_BUCKET =="
   for id in "${TRIPS[@]}"; do
-    for f in index.html app.js chat.js style.css; do
+    for f in index.html app.js style.css; do
       src="internal/bundle/viewer/$f"
       [[ -f "$src" ]] || { echo "missing $src" >&2; exit 1; }
       ct="text/javascript; charset=utf-8"

@@ -1,4 +1,4 @@
-// Mint a tripmap_session cookie for local chat smoke (same HMAC as tripmapd).
+// Mint a tripmap_session cookie for local viewer smoke (same HMAC as tripmapd).
 //
 //	HELLO_SESSION_SECRET=… go run ./scripts/mint-session-cookie -email yaronf@gmx.com
 package main
@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	email := flag.String("email", "", "session email (must be on hello + chat allowlists)")
+	email := flag.String("email", "", "session email (must be on the Hellō allowlist)")
 	sub := flag.String("sub", "local-smoke", "session subject")
 	name := flag.String("name", "Local Smoke", "display name")
 	ttl := flag.Duration("ttl", time.Hour, "cookie TTL")

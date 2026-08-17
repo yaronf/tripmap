@@ -1,6 +1,6 @@
 # Plan: in-viewer OpenAI chat (Persona)
 
-**Status:** implemented (v1 chat + itinerary tools); **v1.1 deployed** (`chat-sse-20260809234123`) — Responses API + `web_search`; SSE flush/heartbeats; CF origin read timeout 60s.  
+**Status (2026-08-17):** removed from the product. Implementation is kept on branch `archive/viewer-chat-harness`. This document is historical.  
 **Overview:** Persona (vanilla JS) chat in the signed-in tripmap viewer, backed by a streaming `tripmapd` endpoint that tool-calls itinerary ops and (v1.1) OpenAI hosted web/image search — no React, no Vercel, no browser API keys.
 
 ## Goal

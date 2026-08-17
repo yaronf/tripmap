@@ -32,7 +32,6 @@
     dayIndex: document.getElementById("day-index"),
     detail: document.getElementById("detail"),
     detailBody: document.getElementById("detail-body"),
-    detailChat: document.getElementById("detail-chat"),
     map: document.getElementById("map"),
     offline: document.getElementById("offline-dot"),
     tileBanner: document.getElementById("tile-banner"),
@@ -629,10 +628,6 @@
     if (target.closest("textarea, input, button, a, .shared-notes-editor, .chrome")) {
       return null;
     }
-    // Chat pane owns its gestures; don't start a day turn from Persona.
-    if (target.closest("#detail-chat, #persona-dock-host, [data-persona-host-layout]")) {
-      return null;
-    }
     if (state.mode === "list") {
       return el.app;
     }
@@ -964,21 +959,10 @@
   window.addEventListener("online", updateOnline);
   window.addEventListener("offline", updateOnline);
 
-  // Shadow DOM (Persona) retargets e.target to the host; day-nav must ignore
-  // keys that originate inside the widget.
   function eventFromEditable(e) {
     const path = typeof e.composedPath === "function" ? e.composedPath() : [];
     for (const node of path) {
       if (!node || node.nodeType !== 1) continue;
-      if (
-        node.id === "persona-dock-host" ||
-        node.id === "detail-chat" ||
-        node.hasAttribute?.("data-persona-root") ||
-        node.hasAttribute?.("data-persona") ||
-        node.hasAttribute?.("data-persona-host-layout")
-      ) {
-        return true;
-      }
       const tag = node.tagName;
       if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return true;
       if (node.isContentEditable) return true;
@@ -987,18 +971,9 @@
     }
     const t = e.target;
     if (t instanceof Element) {
-      if (
-        t.closest(
-          "#detail-chat, #persona-dock-host, [data-persona-root], [data-persona], [data-persona-host-layout]"
-        )
-      ) {
-        return true;
-      }
       if (t.matches("textarea, input, select, [contenteditable=''], [contenteditable=true], [role=textbox]")) {
         return true;
       }
-      // Persona mounts a shadow root on its host element.
-      if (t.shadowRoot) return true;
     }
     return false;
   }

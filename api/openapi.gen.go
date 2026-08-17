@@ -314,10 +314,10 @@ type RestoreVersionParams struct {
 // GetTripYAMLParams defines parameters for GetTripYAML.
 type GetTripYAMLParams struct {
 	// Scope day = neighborhood YAML (days N±1 + referenced places).
-	// full = entire itinerary. Chat tools default to day when a viewer day is known.
+	// full = entire itinerary.
 	Scope *GetTripYAMLParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// Day Center day for scope=day (chat defaults to the viewer day).
+	// Day Center day for scope=day.
 	Day *int `form:"day,omitempty" json:"day,omitempty"`
 }
 
@@ -376,7 +376,7 @@ type ServerInterface interface {
 	// GetVersion Get YAML for a prior version
 	// (GET /api/agent/trips/{id}/versions/{version_id})
 	GetVersion(w http.ResponseWriter, r *http.Request, id string, versionId string)
-	// GetTripYAML Get itinerary YAML (day neighborhood by default in chat)
+	// GetTripYAML Get itinerary YAML
 	// (GET /api/agent/trips/{id}/yaml)
 	GetTripYAML(w http.ResponseWriter, r *http.Request, id string, params GetTripYAMLParams)
 	// PutTripYAML Replace YAML (raw text body)

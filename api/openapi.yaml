@@ -8,7 +8,6 @@ info:
     put enrichment in places.id.info, not notes (usage rule, not enforced).
     Use update_day to change a day's title/notes/hike/ferry when the user asks.
     Human viewers sign in with Hellō, then use /me/trips/{id}/ (no capability tokens).
-    Operations may set x-audiences (mcp and/or chat); viewer chat loads audience=chat only.
 servers:
   - url: "{{BASE_URL}}"
 paths:
@@ -28,7 +27,7 @@ paths:
     get:
       operationId: getSchema
       summary: Itinerary schema and version
-      x-audiences: [mcp, chat]
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       responses:
@@ -90,7 +89,7 @@ paths:
         For overnight/endpoint edits use getTripYAML with scope=full (source of
         truth) then replaceDayRoutes. Prefer getTripYAML over getTrip when you
         need stops; chat defaults to day-neighborhood scope.
-      x-audiences: [mcp, chat]
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       parameters:
@@ -111,8 +110,8 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days (reorder whole days only — never overnight/endpoint), insert_day, delete_day. For overnight/endpoint or full route replacement, use replaceDayRoutes (not upsert_stop or swap_days). Do not put enrichment in notes. For day hero photos from Commons search, use setDayPhoto in viewer chat.
-      x-audiences: [mcp, chat]
+      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days (reorder whole days only — never overnight/endpoint), insert_day, delete_day. For overnight/endpoint or full route replacement, use replaceDayRoutes (not upsert_stop or swap_days). Do not put enrichment in notes.
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       parameters:
@@ -142,15 +141,13 @@ paths:
   /api/agent/trips/{id}/yaml:
     get:
       operationId: getTripYAML
-      summary: Get itinerary YAML (day neighborhood by default in chat)
+      summary: Get itinerary YAML
       description: |
         Source of truth for routes/stops before edits.
-        In viewer chat, omit scope (or pass scope=day) to get days day-1..day+1
-        plus only places referenced by those days — enough for stop/notes/hours
-        edits on the current day. Pass scope=full for the entire itinerary
-        (overnight/endpoint changes, cross-day lookup, or structural work).
-        HTTP GET with no query params still returns the full YAML (compat).
-      x-audiences: [mcp, chat]
+        Pass scope=day to get days day-1..day+1 plus only places referenced by
+        those days. Pass scope=full (or omit scope on HTTP GET) for the entire
+        itinerary.
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       parameters:
@@ -164,14 +161,14 @@ paths:
           required: false
           description: |
             day = neighborhood YAML (days N±1 + referenced places).
-            full = entire itinerary. Chat tools default to day when a viewer day is known.
+            full = entire itinerary.
           schema:
             type: string
             enum: [day, full]
         - name: day
           in: query
           required: false
-          description: Center day for scope=day (chat defaults to the viewer day).
+          description: Center day for scope=day.
           schema:
             type: integer
             minimum: 1
@@ -216,7 +213,7 @@ paths:
     get:
       operationId: listVersions
       summary: List YAML versions
-      x-audiences: [mcp, chat]
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       parameters:
@@ -239,7 +236,7 @@ paths:
       description: |
         Read-only fetch of a historical revision. Call listVersions first.
         Prefer this over restoreVersion when inspecting history.
-      x-audiences: [mcp, chat]
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       parameters:
@@ -270,7 +267,7 @@ paths:
         Restores TO the given version_id (makes that revision current). To undo
         only the latest change, pass the previous version_id from listVersions
         (first entry with is_latest false) — not the current/latest id.
-      x-audiences: [mcp, chat]
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       parameters:
@@ -310,7 +307,7 @@ paths:
         lodging ends overnight (not via/depart), road waypoints via, sights
         attraction/etc. Optional places creates/updates the catalog in the same
         request. Do not use upsert_stop or swap_days for this.
-      x-audiences: [mcp, chat]
+      x-audiences: [mcp]
       security:
         - bearerAuth: []
       parameters:
@@ -337,170 +334,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MutateResult"
-  /api/chat/trips/{id}/day/photo:
-    post:
-      operationId: setDayPhoto
-      summary: Set a day's hero photo via Commons query or photo URL
-      description: |
-        Viewer-chat only. Prefer query (Commons search). When replacing a photo,
-        pass query again — the server skips the day's current image. Returns the
-        new photo URL in tool JSON only (do not paste it into chat).
-      x-audiences: [chat]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [day]
-              properties:
-                day:
-                  type: integer
-                  description: 1-based day number
-                query:
-                  type: string
-                  description: Commons search query when you do not have a URL yet
-                photo:
-                  type: string
-                  description: Optional direct https image URL or Commons File URL
-                photo_caption:
-                  type: string
-                  description: Short caption for the photo
-      responses:
-        "200":
-          description: ok with day photo fields
-  /api/chat/preferences:
-    get:
-      operationId: listPreferences
-      summary: List standing user preferences for viewer chat
-      description: |
-        Viewer-chat only. Preferences are per Hellō user (not per trip) and are
-        also injected into the system prompt each turn.
-      x-audiences: [chat]
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Preference list
-    post:
-      operationId: savePreference
-      summary: Save or update a standing user preference
-      description: |
-        Viewer-chat only. Ask the user before calling. Preferences are user taste
-        (diet, pace, budget) — not how to operate tools. Upsert by id when provided;
-        otherwise a new id is generated.
-      x-audiences: [chat]
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties:
-                preference_id:
-                  type: string
-                  description: Optional existing preference id to update
-                text:
-                  type: string
-                  description: Short standing preference statement
-                tags:
-                  type: array
-                  items:
-                    type: string
-                  description: Optional tags e.g. food, pace
-      responses:
-        "200":
-          description: Saved preference
-  /api/chat/preferences/{preference_id}:
-    delete:
-      operationId: forgetPreference
-      summary: Delete a standing user preference
-      description: Viewer-chat only. Ask the user before calling.
-      x-audiences: [chat]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: preference_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Deleted
-  /api/chat/learnings:
-    get:
-      operationId: listLearnings
-      summary: List agent learnings for viewer chat
-      description: |
-        Viewer-chat only. Agent learnings are per Hellō user (not per trip): durable
-        rules about how to operate the app (tools, types, undo). Distinct from
-        standing preferences (user taste). Also injected into the system prompt.
-      x-audiences: [chat]
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Learning list
-    post:
-      operationId: saveLearning
-      summary: Save or update an agent learning
-      description: |
-        Viewer-chat only. Ask the user before calling. Use for procedural corrections
-        (how to edit), not taste. Upsert by learning_id when provided.
-      x-audiences: [chat]
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties:
-                learning_id:
-                  type: string
-                  description: Optional existing learning id to update
-                text:
-                  type: string
-                  description: Short reusable operating rule
-                tags:
-                  type: array
-                  items:
-                    type: string
-                  description: Optional tags e.g. tools, types, undo
-      responses:
-        "200":
-          description: Saved learning
-  /api/chat/learnings/{learning_id}:
-    delete:
-      operationId: forgetLearning
-      summary: Delete an agent learning
-      description: Viewer-chat only. Ask the user before calling.
-      x-audiences: [chat]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: learning_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Deleted
+
 components:
   schemas:
     Health:

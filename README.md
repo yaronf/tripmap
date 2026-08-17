@@ -16,7 +16,6 @@ Paths relative to your public base URL (`PUBLIC_BASE_URL`):
 |---------|----------------|
 | Home / Hellō login | `/` |
 | Trip viewer (signed in) | `/me/trips/{id}/` — notes + shared comments |
-| Viewer chat (allowlisted) | Persona floating widget → `POST /me/trips/{id}/api/chat` (SSE; needs `OPENAI_API_KEY`) |
 | Agent MCP (Codex) | `POST /mcp` — same Bearer as the agent API |
 | OpenAPI | `GET /openapi.yaml` (from [`api/openapi.yaml`](api/openapi.yaml); `go generate ./api` regenerates routes) |
 | Agent REST | `/api/agent/*` (scripts / smoke; MCP wraps the same handlers) |
