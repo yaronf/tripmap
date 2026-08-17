@@ -31,17 +31,7 @@ type Document struct {
 
 type Style struct {
 	ID        string     `xml:"id,attr"`
-	IconStyle *IconStyle `xml:"IconStyle,omitempty"`
 	LineStyle *LineStyle `xml:"LineStyle,omitempty"`
-}
-
-type IconStyle struct {
-	Color string `xml:"color,omitempty"`
-	Icon  Icon   `xml:"Icon"`
-}
-
-type Icon struct {
-	Href string `xml:"href"`
 }
 
 type LineStyle struct {
@@ -73,21 +63,8 @@ type Line struct {
 	Coordinates  string `xml:"coordinates"`
 }
 
-// iconStyles defines the marker style for each placemark type, in output order.
+// lineStyles defines styles for route lines, in output order.
 // KML colors are aabbggrr hex.
-var iconStyles = []struct {
-	Type, Color, Href string
-}{
-	{"overnight", "ff0000ff", "http://maps.google.com/mapfiles/kml/shapes/lodging.png"},
-	{"hut", "ff008800", "http://maps.google.com/mapfiles/kml/shapes/campfire.png"},
-	{"attraction", "ff00aaff", "http://maps.google.com/mapfiles/kml/shapes/star.png"},
-	{"viewpoint", "ffff8800", "http://maps.google.com/mapfiles/kml/shapes/camera.png"},
-	{"trailhead", "ff00aa00", "http://maps.google.com/mapfiles/kml/shapes/hiker.png"},
-	{"ferry_terminal", "ffaa5500", "http://maps.google.com/mapfiles/kml/shapes/ferry.png"},
-	{"airport", "ff3333cc", "http://maps.google.com/mapfiles/kml/shapes/airports.png"},
-}
-
-// lineStyles defines styles for non-driving route lines, in output order.
 var lineStyles = []struct {
 	ID, Color string
 	Width     float64
@@ -95,21 +72,12 @@ var lineStyles = []struct {
 	{"driveLine", "ffff0000", 4}, // blue in KML aabbggrr
 	{"ferryLine", "ffff8000", 4},
 	{"hikeLine", "ff00aa00", 4},
+	{"fallbackLine", "ff5c635c", 3},
 }
 
-func styleForType(t string) string {
-	for _, s := range iconStyles {
-		if s.Type == t {
-			return t
-		}
-	}
-	return ""
-}
-
-
-func stopKey(s Stop) string { return routebuild.StopKey(s) }
-func mapPoints(d Day) []Stop { return routebuild.MapPoints(d) }
-func viewerDayStops(d Day) []Stop { return routebuild.ViewerDayStops(d) }
+func stopKey(s Stop) string             { return routebuild.StopKey(s) }
+func mapPoints(d Day) []Stop            { return routebuild.MapPoints(d) }
+func viewerDayStops(d Day) []Stop       { return routebuild.ViewerDayStops(d) }
 func effectiveRoutePoints(d Day) []Stop { return routebuild.EffectiveRoutePoints(d) }
 
 func buildRouteLines(ctx context.Context, d Day, pts []Stop, opts RouteOptions) ([]Placemark, error) {
@@ -150,15 +118,11 @@ func buildFolder(ctx context.Context, d Day, opts RouteOptions, seen map[string]
 			continue
 		}
 		seen[key] = true
-		pm := Placemark{
+		f.Placemarks = append(f.Placemarks, Placemark{
 			Name:        s.Name,
 			Description: s.Notes,
 			Point:       &Point{Coordinates: formatCoords(s.Lon, s.Lat, opts.CoordPrecision)},
-		}
-		if id := styleForType(s.Type); id != "" {
-			pm.StyleURL = "#" + id
-		}
-		f.Placemarks = append(f.Placemarks, pm)
+		})
 	}
 
 	rp := effectiveRoutePoints(d)
@@ -202,14 +166,6 @@ func usedStyles(folders []Folder, placemarks []Placemark) []Style {
 	collect(placemarks)
 
 	var styles []Style
-	for _, s := range iconStyles {
-		if used[s.Type] {
-			styles = append(styles, Style{
-				ID:        s.Type,
-				IconStyle: &IconStyle{Color: s.Color, Icon: Icon{Href: s.Href}},
-			})
-		}
-	}
 	for _, s := range lineStyles {
 		if used[s.ID] {
 			styles = append(styles, Style{

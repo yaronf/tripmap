@@ -57,7 +57,7 @@ Use exactly one of `--trip` or `--input`. With `--trip`, set `ITINERARIES_BUCKET
 | `--units km|mi`                  | Distance units in the PWA / PDF                                                              |
 
 
-`go build -o tripmap .` for a standalone binary. Live itinerary YAML lives in S3 (edit via agent API / MCP); CLI outputs go under `maps/` (gitignored). Viewer source: `internal/bundle/viewer/` (embedded in the CLI and `tripmapd`).
+`go build -o tripmap .` for a standalone binary. Live itinerary YAML lives in S3 (edit via agent API / MCP); CLI outputs go under `maps/` (gitignored). Viewer source: `internal/bundle/viewer/` (embedded in the CLI and `tripmapd`). The hosted PWA shell (`app.js`, CSS, icons) is served from that image so itinerary regen cannot replace it with a stale S3 copy.
 
 ## Itinerary schema (v2)
 

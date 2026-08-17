@@ -22,8 +22,9 @@ As `tripmap-deploy`, from the repo root:
 ```bash
 ./scripts/deploy-compute.sh
 # or: ./scripts/deploy-compute.sh --prefix rebuild
-# or: ./scripts/deploy-compute.sh --patch-viewer   # also sync app.js/style.css to trip bundles
 ```
+
+Viewer `app.js` / CSS / icons are **served from this image**, not patched onto S3. A laptop `aws s3 cp` of those files is overwritten the next time an itinerary regen runs `bundle.Build`. Deploy a new tag to change the PWA.
 
 That script ECR-logins, builds `linux/amd64`, pushes the tag + `latest`, runs `aws cloudformation deploy` on `tripmap-compute`, waits for ECS, and hits `/health`.
 

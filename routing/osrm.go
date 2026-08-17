@@ -26,7 +26,15 @@ type Route struct {
 }
 
 func RouteOSRM(ctx context.Context, pts []Point) (*Route, error) {
-	return routeOSRM(ctx, defaultOSRMBase, pts, defaultHTTPClient, "full")
+	return RouteOSRMBase(ctx, defaultOSRMBase, pts)
+}
+
+// RouteOSRMBase is RouteOSRM against an explicit OSRM base URL.
+func RouteOSRMBase(ctx context.Context, base string, pts []Point) (*Route, error) {
+	if base == "" {
+		base = defaultOSRMBase
+	}
+	return routeOSRM(ctx, base, pts, defaultHTTPClient, "full")
 }
 
 // RouteOSRMOverview requests a route from OSRM. overview is one of full,

@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yaronf/tripmap/internal/bundle"
 	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/store"
 )
@@ -90,10 +92,17 @@ func (s *Server) serveTripBundle(w http.ResponseWriter, r *http.Request, id, rel
 		return
 	}
 
-	body, ct, err := s.store.GetBundleObject(r.Context(), id, rel)
+	body, ct, ok, err := s.viewerFromImage(r.Context(), id, rel)
 	if err != nil {
 		http.NotFound(w, r)
 		return
+	}
+	if !ok {
+		body, ct, err = s.store.GetBundleObject(r.Context(), id, rel)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
 	}
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Cache-Control", "private, max-age=60")
@@ -101,6 +110,27 @@ func (s *Server) serveTripBundle(w http.ResponseWriter, r *http.Request, id, rel
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(body)
 	}
+}
+
+// viewerFromImage serves the PWA shell from the running binary so S3 copies of
+// app.js cannot drift from a later itinerary regen.
+func (s *Server) viewerFromImage(ctx context.Context, id, rel string) ([]byte, string, bool, error) {
+	raw, ct, ok := bundle.ViewerShell(rel)
+	if !ok {
+		return nil, "", false, nil
+	}
+	if rel != "" && rel != "index.html" && rel != "/" {
+		return raw, ct, true, nil
+	}
+	tj, _, err := s.store.GetBundleObject(ctx, id, "trip.json")
+	if err != nil {
+		return nil, "", false, err
+	}
+	stamped, err := bundle.StampIndexFromTripJSON(raw, tj)
+	if err != nil {
+		return nil, "", false, err
+	}
+	return stamped, ct, true, nil
 }
 
 func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request, id string) {

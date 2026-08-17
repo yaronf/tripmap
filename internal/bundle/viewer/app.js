@@ -1,15 +1,45 @@
 (() => {
-  // Route lines (match KML semantics). Markers use separate fills so they
-  // don't disappear into the path — ink for waypoints, red for lodging.
+  // Route lines (match KML semantics). Stop pins live in icons/.
   const COLORS = {
     driveLine: "#2563eb",
     hikeLine: "#2f7d4a",
     ferryLine: "#c45e14",
-    marker: "#1c1917",
-    overnight: "#c62828",
-    airport: "#4338ca",
-    flight: "#4338ca",
+    fallbackLine: "#5c635c",
   };
+
+  const STOP_ICONS = {
+    overnight: "icons/overnight.svg",
+    hut: "icons/hut.svg",
+    attraction: "icons/attraction.svg",
+    viewpoint: "icons/viewpoint.svg",
+    trailhead: "icons/trailhead.svg",
+    ferry_terminal: "icons/ferry.svg",
+    airport: "icons/airport.svg",
+    flight: "icons/airport.svg",
+    depart: "icons/depart.svg",
+  };
+  const DEFAULT_STOP_ICON = "icons/stop.svg";
+  const leafletIcons = new Map();
+
+  function stopIconURL(type) {
+    return STOP_ICONS[type] || DEFAULT_STOP_ICON;
+  }
+
+  function leafletIconForType(type) {
+    const url = stopIconURL(type);
+    let icon = leafletIcons.get(url);
+    if (!icon) {
+      icon = L.icon({
+        iconUrl: url,
+        iconSize: [28, 36],
+        iconAnchor: [14, 34],
+        popupAnchor: [0, -28],
+        className: "stop-marker",
+      });
+      leafletIcons.set(url, icon);
+    }
+    return icon;
+  }
 
   const state = {
     trip: null,
@@ -334,8 +364,13 @@
         return `<li class="stop">
         <div class="stop-row">
           <button type="button" data-lat="${s.lat}" data-lon="${s.lon}">
-            <span class="stop-name">${escapeHtml(s.name)}</span>
-            <span class="stop-type">${escapeHtml(stopTypeLabel(s.type))}</span>
+            <span class="stop-head">
+              <img class="stop-type-icon" src="${escapeAttr(stopIconURL(s.type))}" alt="" width="18" height="24" />
+              <span class="stop-head-text">
+                <span class="stop-name">${escapeHtml(s.name)}</span>
+                <span class="stop-type">${escapeHtml(stopTypeLabel(s.type))}</span>
+              </span>
+            </span>
           </button>
           ${mapsLink}
         </div>
@@ -478,37 +513,26 @@
   function styleFeature(feature) {
     if (feature.properties?.kind === "route") {
       const style = feature.properties.style || "driveLine";
+      const dashed = style === "fallbackLine";
       return {
         color: COLORS[style] || COLORS.driveLine,
-        weight: 4,
-        opacity: 0.9,
+        weight: dashed ? 3.5 : 4,
+        opacity: dashed ? 0.85 : 0.9,
+        dashArray: dashed ? "8 10" : null,
       };
     }
     return {};
   }
 
   function pointToLayer(feature, latlng) {
+    const name = feature.properties?.name || "";
     const t = feature.properties?.type || "";
-    let fill = COLORS.marker;
-    let stroke = "#fff";
-    if (t === "overnight") {
-      fill = COLORS.overnight;
-    } else if (t === "depart") {
-      fill = COLORS.marker;
-    } else if (t === "trailhead" || t === "hut") {
-      stroke = COLORS.hikeLine;
-    } else if (t === "ferry_terminal") {
-      stroke = COLORS.ferryLine;
-    } else if (t === "airport" || t === "flight") {
-      fill = COLORS.flight || COLORS.airport;
-    }
-    return L.circleMarker(latlng, {
-      radius: 7,
-      color: stroke,
-      weight: t === "trailhead" || t === "hut" || t === "ferry_terminal" ? 2.5 : 1.5,
-      fillColor: fill,
-      fillOpacity: 0.95,
-    }).bindPopup(feature.properties?.name || "");
+    return L.marker(latlng, {
+      icon: leafletIconForType(t),
+      title: name,
+      alt: name,
+      riseOnHover: true,
+    }).bindPopup(name);
   }
 
   async function renderMap() {
@@ -540,12 +564,11 @@
       const merged = bounds[0];
       for (let i = 1; i < bounds.length; i++) merged.extend(bounds[i]);
       state.lastBounds = merged;
-      // fitBounds while the pane is display:none computes a wrong zoom on mobile.
       if (mapPaneVisible()) {
-        state.map.fitBounds(merged, { padding: [28, 28] });
+        state.map.invalidateSize({ animate: false });
+        fitMapBounds(merged);
       }
-    }
-    if (mapPaneVisible()) {
+    } else if (mapPaneVisible()) {
       state.map.invalidateSize({ animate: false });
     }
   }
@@ -556,6 +579,26 @@
     );
   }
 
+  // A zero-size LatLngBounds (one marker, no route) makes fitBounds zoom to
+  // building level. Neighborhood zoom shows context without fake extra stops.
+  const SINGLE_LOCATION_M = 250;
+  const SINGLE_LOCATION_ZOOM = 13;
+
+  function isSingleLocationBounds(b) {
+    if (!b || !b.isValid()) return false;
+    return b.getSouthWest().distanceTo(b.getNorthEast()) < SINGLE_LOCATION_M;
+  }
+
+  function fitMapBounds(b) {
+    if (!state.map || !b || !b.isValid()) return;
+    if (isSingleLocationBounds(b)) {
+      state.map.setView(b.getCenter(), SINGLE_LOCATION_ZOOM);
+      return;
+    }
+    // Cap zoom so a short city hop cannot collapse to building level either.
+    state.map.fitBounds(b, { padding: [28, 28], maxZoom: 14 });
+  }
+
   function fitMapToContent() {
     if (!state.map) return;
     const b =
@@ -564,9 +607,7 @@
         : state.layers.getLayers().length
           ? state.layers.getBounds()
           : null;
-    if (b && b.isValid()) {
-      state.map.fitBounds(b, { padding: [28, 28] });
-    }
+    fitMapBounds(b);
   }
 
   /** Leaflet needs a real size after the map pane is shown (mobile List→Map). */

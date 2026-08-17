@@ -2,5 +2,5 @@ package bundle
 
 import "embed"
 
-//go:embed viewer/*
+//go:embed viewer/* viewer/icons/*
 var viewerFS embed.FS

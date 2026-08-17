@@ -335,7 +335,7 @@ func TestGlobalPlacemarkDedup(t *testing.T) {
 	}
 }
 
-func TestAirportStopEmitsStyle(t *testing.T) {
+func TestAirportStopHasNoIconStyle(t *testing.T) {
 	trip := Trip{
 		Trip: "airport",
 		Days: []Day{{
@@ -352,21 +352,21 @@ func TestAirportStopEmitsStyle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildDocument: %v", err)
 	}
-	var hasAirport, hasDrive bool
+	var hasDrive bool
 	for _, s := range doc.Styles {
-		switch s.ID {
-		case "airport":
-			hasAirport = true
-		case "driveLine":
+		if s.ID == "airport" {
+			t.Fatalf("did not expect airport icon style, got %+v", doc.Styles)
+		}
+		if s.ID == "driveLine" {
 			hasDrive = true
 		}
 	}
-	if !hasAirport || !hasDrive {
-		t.Fatalf("styles = %+v, want airport and driveLine", doc.Styles)
+	if !hasDrive {
+		t.Fatalf("styles = %+v, want driveLine", doc.Styles)
 	}
 	pm := doc.Folders[0].Placemarks[0]
-	if pm.StyleURL != "#airport" {
-		t.Fatalf("airport styleUrl = %q, want #airport", pm.StyleURL)
+	if pm.StyleURL != "" {
+		t.Fatalf("point styleUrl = %q, want empty", pm.StyleURL)
 	}
 }
 
@@ -421,7 +421,7 @@ func TestSplitLongLinePlacemark(t *testing.T) {
 	}
 }
 
-func TestTypedStopsEmitStyles(t *testing.T) {
+func TestTypedOvernightStopHasNoIconStyle(t *testing.T) {
 	trip := Trip{
 		Trip: "styled",
 		Days: []Day{{
@@ -435,8 +435,14 @@ func TestTypedStopsEmitStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildDocument: %v", err)
 	}
-	if len(doc.Styles) != 1 || doc.Styles[0].ID != "overnight" {
-		t.Fatalf("styles = %+v, want single overnight style", doc.Styles)
+	if len(doc.Styles) != 0 {
+		t.Fatalf("styles = %+v, want none (KML icons unused)", doc.Styles)
+	}
+	if len(doc.Folders) != 1 || len(doc.Folders[0].Placemarks) != 1 {
+		t.Fatalf("folders = %+v", doc.Folders)
+	}
+	if doc.Folders[0].Placemarks[0].StyleURL != "" {
+		t.Fatalf("styleUrl = %q, want empty", doc.Folders[0].Placemarks[0].StyleURL)
 	}
 }
 

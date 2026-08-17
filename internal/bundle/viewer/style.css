@@ -287,6 +287,30 @@ body {
   gap: 0.75rem;
 }
 
+.stop-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.stop-type-icon {
+  width: 18px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-top: 0.12rem;
+}
+
+.stop-head-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.leaflet-marker-icon.stop-marker {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
 .stop button {
   display: block;
   flex: 1;

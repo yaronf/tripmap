@@ -108,6 +108,8 @@ func styleColor(style string, dayIdx int) color.RGBA {
 		return color.RGBA{R: 40, G: 140, B: 70, A: 255}
 	case "ferryLine":
 		return color.RGBA{R: 220, G: 120, B: 40, A: 255}
+	case "fallbackLine":
+		return color.RGBA{R: 92, G: 99, B: 92, A: 255}
 	default:
 		return dayPalette[dayIdx%len(dayPalette)]
 	}

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/yaronf/tripmap/internal/itinerary"
@@ -355,6 +355,22 @@ func copyViewerAssets(outDir string) error {
 	})
 }
 
+func viewerIconAssets() []string {
+	entries, err := fs.ReadDir(viewerFS, "viewer/icons")
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".svg") {
+			continue
+		}
+		out = append(out, "./icons/"+e.Name())
+	}
+	sort.Strings(out)
+	return out
+}
+
 func writeServiceWorker(outDir string, tj TripJSON) error {
 	assets := []string{
 		"./",
@@ -366,6 +382,7 @@ func writeServiceWorker(outDir string, tj TripJSON) error {
 		"./maps-pin.png",
 		"./trip.json",
 	}
+	assets = append(assets, viewerIconAssets()...)
 	for _, d := range tj.Days {
 		assets = append(assets, "./"+d.Geo)
 		if d.Photo != "" && !strings.HasPrefix(d.Photo, "http") {
@@ -454,7 +471,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v39", string(list))
+`, "tripmap-"+tj.ID+"-v40", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 
@@ -464,31 +481,9 @@ func writeViewerIndex(outDir string, t itinerary.Trip) error {
 	if err != nil {
 		return err
 	}
-	pageTitle := t.Trip
-	if pageTitle == "" {
-		pageTitle = "Trip"
-	} else if !strings.Contains(strings.ToLower(pageTitle), "itinerary") {
-		pageTitle = pageTitle + " Itinerary"
+	out, err := StampIndexHTML(b, t.Trip, t.Description)
+	if err != nil {
+		return err
 	}
-	desc := strings.TrimSpace(t.Description)
-	if desc == "" {
-		desc = pageTitle
-	}
-
-	meta := fmt.Sprintf(`<title>%s</title>
-  <meta name="description" content="%s" />
-  <meta property="og:title" content="%s" />
-  <meta property="og:description" content="%s" />
-  <meta property="og:type" content="website" />`,
-		html.EscapeString(pageTitle),
-		html.EscapeString(desc),
-		html.EscapeString(pageTitle),
-		html.EscapeString(desc),
-	)
-
-	out := strings.Replace(string(b), "<title>Trip</title>", meta, 1)
-	if out == string(b) {
-		return fmt.Errorf("viewer index.html missing <title>Trip</title> placeholder")
-	}
-	return os.WriteFile(path, []byte(out), 0644)
+	return os.WriteFile(path, out, 0644)
 }

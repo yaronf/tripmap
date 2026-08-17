@@ -178,6 +178,16 @@ func (m *Mem) UploadBundle(ctx context.Context, id string, root string) error {
 	return nil
 }
 
+// PutBundleFile replaces one object in an uploaded bundle (tests).
+func (m *Mem) PutBundleFile(id, rel string, b []byte) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.bund[id] == nil {
+		m.bund[id] = map[string][]byte{}
+	}
+	m.bund[id][rel] = append([]byte(nil), b...)
+}
+
 func (m *Mem) GetBundleObject(ctx context.Context, id, rel string) ([]byte, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
