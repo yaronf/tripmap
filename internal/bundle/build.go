@@ -135,7 +135,7 @@ func Build(ctx context.Context, t itinerary.Trip, id, inputDir, outDir string, o
   "display": "standalone",
   "background_color": "#f3efe6",
   "theme_color": "#0f5c5c",
-  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+  "icons": [{"src": "icon.png", "sizes": "256x256", "type": "image/png", "purpose": "any"}]
 }
 `, t.Trip, t.Trip)
 	if err := os.WriteFile(filepath.Join(outDir, "manifest.webmanifest"), []byte(manifest), 0644); err != nil {
@@ -378,7 +378,7 @@ func writeServiceWorker(outDir string, tj TripJSON) error {
 		"./app.js",
 		"./style.css",
 		"./manifest.webmanifest",
-		"./icon.svg",
+		"./icon.png",
 		"./maps-pin.png",
 		"./trip.json",
 	}
@@ -444,6 +444,7 @@ self.addEventListener("fetch", (e) => {
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/style.css") ||
     url.pathname.endsWith("/manifest.webmanifest") ||
+    url.pathname.endsWith("/icon.png") ||
     url.pathname.endsWith("/icon.svg") ||
     url.pathname.endsWith("/index.html") ||
     url.pathname.endsWith("/");
@@ -471,7 +472,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v40", string(list))
+`, "tripmap-"+tj.ID+"-v41", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 

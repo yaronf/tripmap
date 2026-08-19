@@ -74,7 +74,7 @@ func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
 // without a session cookie. Keep this list minimal (no trip.json / geo / photos).
 func publicBundleRel(rel string) bool {
 	switch strings.TrimSpace(rel) {
-	case "manifest.webmanifest", "icon.svg":
+	case "manifest.webmanifest", "icon.png", "icon.svg":
 		return true
 	default:
 		return false

@@ -41,6 +41,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /openapi.yaml", s.handleOpenAPI)
+	s.mux.HandleFunc("GET /favicon.png", s.handleFavicon)
 	s.mux.HandleFunc("GET /favicon.svg", s.handleFavicon)
 	s.mux.HandleFunc("GET /favicon.ico", s.handleFavicon)
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
@@ -124,7 +125,7 @@ function login(event){
 	_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>tripmap</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="icon" href="/favicon.png" type="image/png"/>
 <style>body{font-family:system-ui,sans-serif;max-width:36rem;margin:2.5rem auto;padding:0 1rem;line-height:1.5;color:#1a1f1c;background:#f3efe6}
 a{color:#0f5c5c}code{font-size:.9em}.muted{color:#5c6560;font-size:.9rem}ul.trips{list-style:none;padding:0;margin:1.25rem 0}ul.trips li{margin:.55rem 0;padding:.55rem 0;border-top:1px solid #ddd6c8}ul.trips li:first-child{border-top:0}ul.trips a{font-weight:600;text-decoration:none}ul.trips a:hover{text-decoration:underline}ul.trips .id{display:block;font-size:.85rem;color:#5c6560;font-weight:400}</style>
 </head><body><h1>tripmap</h1>%s</body></html>`, body)

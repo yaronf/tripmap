@@ -254,6 +254,8 @@ func contentTypeFor(rel string) string {
 		ct = "application/json"
 	case strings.HasSuffix(rel, ".svg"):
 		ct = "image/svg+xml"
+	case strings.HasSuffix(rel, ".png"):
+		ct = "image/png"
 	default:
 		ct = "application/octet-stream"
 	}

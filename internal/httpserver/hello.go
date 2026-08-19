@@ -161,7 +161,7 @@ func (s *Server) handleHelloLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="icon" href="/favicon.png" type="image/png"/>
 <meta http-equiv="refresh" content="0;url=%s"/>
 <title>Continuing to Hellō…</title></head><body>
 <p>Continuing to Hellō…</p>

@@ -15,6 +15,10 @@ func ViewerShell(rel string) ([]byte, string, bool) {
 	if rel == "." || rel == "" {
 		rel = "index.html"
 	}
+	// Old PWA manifests and cached tabs still request icon.svg.
+	if rel == "icon.svg" {
+		rel = "icon.png"
+	}
 	switch {
 	case rel == "trip.json", rel == "sw.js", rel == "manifest.webmanifest":
 		return nil, "", false

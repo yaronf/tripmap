@@ -39,4 +39,12 @@ func TestViewerShellServesJSNotTripJSON(t *testing.T) {
 	if _, _, ok := ViewerShell("geo/day-01.json"); ok {
 		t.Fatal("geo files must not come from the viewer embed")
 	}
+	png, ct, ok := ViewerShell("icon.png")
+	if !ok || ct != "image/png" || len(png) < 100 {
+		t.Fatalf("ViewerShell icon.png ok=%v ct=%s len=%d", ok, ct, len(png))
+	}
+	alias, aliasCT, ok := ViewerShell("icon.svg")
+	if !ok || aliasCT != "image/png" || len(alias) != len(png) {
+		t.Fatalf("ViewerShell icon.svg alias ok=%v ct=%s len=%d", ok, aliasCT, len(alias))
+	}
 }
