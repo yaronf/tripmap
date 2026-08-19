@@ -345,8 +345,8 @@
     let photo = "";
     if (d.photo) {
       const caption = d.photo_caption || d.title;
-      photo = `<button type="button" class="detail-photo" title="${escapeAttr(caption)}" data-photo="${escapeAttr(d.photo)}" data-caption="${escapeAttr(caption)}">
-        <img src="${escapeAttr(d.photo)}" alt="${escapeAttr(caption)}" title="${escapeAttr(caption)}" loading="lazy" />
+      photo = `<button type="button" class="detail-photo" aria-label="${escapeAttr(caption)}" title="${escapeAttr(caption)}" data-photo="${escapeAttr(d.photo)}" data-caption="${escapeAttr(caption)}">
+        <img src="${escapeAttr(d.photo)}" alt="" loading="lazy" />
       </button>`;
     }
 
@@ -377,7 +377,7 @@
         ${stopNotes}
         ${
           s.photo
-            ? `<img class="stop-thumb" src="${escapeAttr(s.photo)}" alt="${escapeAttr(stopCap)}" title="${escapeAttr(stopCap)}" loading="lazy" data-photo="${escapeAttr(s.photo)}" data-caption="${escapeAttr(stopCap)}" />`
+            ? `<img class="stop-thumb" src="${escapeAttr(s.photo)}" alt="" aria-label="${escapeAttr(stopCap)}" title="${escapeAttr(stopCap)}" loading="lazy" data-photo="${escapeAttr(s.photo)}" data-caption="${escapeAttr(stopCap)}" />`
             : ""
         }
         ${infoHtml}
@@ -433,6 +433,8 @@
           <button type="button" id="shared-notes-done" class="btn shared-notes-done">Done</button>
         </div>
       </section>`;
+
+    body.querySelectorAll(".detail-photo img, .stop-thumb").forEach(hideIfPhotoBroken);
 
     body.querySelectorAll("[data-photo]").forEach((node) => {
       node.addEventListener("click", (e) => {
@@ -859,10 +861,35 @@
     }
   }
 
+  function hideIfPhotoBroken(img) {
+    const hide = () => {
+      const wrap = img.closest(".detail-photo");
+      const node = wrap || img;
+      node.hidden = true;
+      node.removeAttribute("data-photo");
+      node.removeAttribute("data-caption");
+      node.removeAttribute("title");
+      node.removeAttribute("aria-label");
+    };
+    img.addEventListener("error", hide, { once: true });
+    if (img.complete && img.naturalWidth === 0) hide();
+  }
+
   function openLightbox(src, caption) {
+    el.lightboxImg.onload = () => {
+      el.lightboxImg.alt = caption || "";
+      el.lightboxCap.textContent = caption || "";
+      el.lightboxCap.hidden = !caption;
+    };
+    el.lightboxImg.onerror = () => {
+      el.lightbox.hidden = true;
+      el.lightboxImg.removeAttribute("src");
+      el.lightboxImg.alt = "";
+      el.lightboxCap.textContent = "";
+    };
+    el.lightboxImg.removeAttribute("alt");
+    el.lightboxCap.textContent = "";
     el.lightboxImg.src = src;
-    el.lightboxImg.alt = caption || "";
-    el.lightboxCap.textContent = caption || "";
     el.lightbox.hidden = false;
   }
 

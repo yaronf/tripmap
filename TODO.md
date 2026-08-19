@@ -4,7 +4,7 @@
 
 - [x] Cannot see stop notes (e.g. flight details on NZ arrive/depart days)
 - [x] Comments UI showed text twice while editing (pencil Edit / Done)
-- [ ] Offline: hide photo UI (and caption/alt) when an image fails to load — don’t show caption alone on mobile
+- [x] Offline: hide photo UI (and caption/alt) when an image fails to load — don’t show caption alone on mobile
 
 ## Planned
 
