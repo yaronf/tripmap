@@ -24,7 +24,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [x] Comments should display even when not in edit mode
 - [x] Create a favicon
 - [x] Mobile: replace prev/next day buttons with swipe left/right
-- [ ] Map popups: richer HTML (notes / place info), not just the name
+- [x] Map popups: richer HTML (notes / place info), not just the name
 - [x] Map markers: replace default points with small typed icons
 - [x] Improve display of one-point maps (zoom/framing when a day has only a single marker) — viewer + PDF
 - [ ] Agent/MCP: read shared viewer comments (`api/notes`) so itinerary can be updated after the trip

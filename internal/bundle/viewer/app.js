@@ -49,6 +49,7 @@
     map: null,
     layers: L.layerGroup(),
     lastBounds: null,
+    stopMarkers: new Map(),
     geoCache: new Map(),
     sharedNotes: { days: {} },
     notesSaveTimer: null,
@@ -195,6 +196,112 @@
     return url;
   }
 
+  function stopStatsLine(info) {
+    const s = info?.stats;
+    if (!s) return "";
+    const bits = [];
+    if (s.distance_km != null) bits.push(`${s.distance_km} km`);
+    if (s.duration) bits.push(s.duration);
+    if (s.ascent_m != null) bits.push(`↑ ${s.ascent_m} m`);
+    if (s.difficulty) bits.push(s.difficulty);
+    return bits.join(" · ");
+  }
+
+  function truncateText(s, n) {
+    const t = String(s || "").trim();
+    if (!t || t.length <= n) return t;
+    return t.slice(0, n - 1).trimEnd() + "…";
+  }
+
+  function coordsClose(aLat, aLon, bLat, bLon) {
+    return Math.abs(aLat - bLat) < 1e-4 && Math.abs(aLon - bLon) < 1e-4;
+  }
+
+  function stopMarkerKey(dayNum, stop) {
+    const place = stop.place || stop.name || "";
+    return `${dayNum}|${place}|${stop.type || ""}|${stop.lat}|${stop.lon}`;
+  }
+
+  function findStopForFeature(day, feature, latlng) {
+    const name = feature.properties?.name || "";
+    const type = feature.properties?.type || "";
+    const stops = day.stops || [];
+    const named = stops.filter((s) => s.name === name);
+    const typed = named.filter((s) => (s.type || "") === type);
+    const pool = typed.length ? typed : named;
+    const hit = pool.find((s) => coordsClose(s.lat, s.lon, latlng.lat, latlng.lng));
+    return hit || pool[0] || null;
+  }
+
+  function mapsLinkHTML(stop) {
+    const mapsHref = mapsPinURL(stop);
+    if (!mapsHref) return "";
+    return `<a class="maps-link" href="${escapeAttr(mapsHref)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeAttr(stop.name || "stop")} in Google Maps" title="Google Maps"><img class="maps-pin" src="maps-pin.png" alt="" width="22" height="22" /></a>`;
+  }
+
+  function stopPopupHTML(stop) {
+    const warning = (stop.info?.warnings || []).find((w) => String(w).trim());
+    const context = warning
+      ? { text: warning, kind: "warning" }
+      : stop.notes
+        ? { text: truncateText(stop.notes, 140), kind: "notes" }
+        : null;
+    const facts = stopStatsLine(stop.info) || stop.info?.logistics?.opening_hours || "";
+    const cap = stop.photo_caption || stop.name || "";
+    const photo = stop.photo
+      ? `<img class="stop-popup-thumb" src="${escapeAttr(stop.photo)}" alt="" aria-label="${escapeAttr(cap)}" title="${escapeAttr(cap)}" loading="lazy" data-photo="${escapeAttr(stop.photo)}" data-caption="${escapeAttr(cap)}" />`
+      : "";
+    const contextHtml = context
+      ? `<p class="stop-popup-note${context.kind === "warning" ? " is-warning" : ""}">${escapeHtml(context.text)}</p>`
+      : "";
+    const factsHtml = facts ? `<p class="stop-popup-facts">${escapeHtml(facts)}</p>` : "";
+    return `<div class="stop-popup">
+      <div class="stop-popup-head">
+        <img class="stop-type-icon" src="${escapeAttr(stopIconURL(stop.type))}" alt="" width="18" height="24" />
+        <div class="stop-popup-head-text">
+          <div class="stop-popup-name">${escapeHtml(stop.name || "")}</div>
+          <div class="stop-popup-type">${escapeHtml(stopTypeLabel(stop.type))}</div>
+        </div>
+        ${mapsLinkHTML(stop)}
+      </div>
+      ${contextHtml}
+      ${factsHtml}
+      ${photo}
+    </div>`;
+  }
+
+  function highlightStopInList(key) {
+    const body = el.detailBody || el.detail;
+    if (!body) return;
+    body.querySelectorAll(".stop").forEach((row) => {
+      row.classList.toggle("is-active", Boolean(key) && row.dataset.stopKey === key);
+    });
+    if (!key) return;
+    const row = [...body.querySelectorAll(".stop")].find((n) => n.dataset.stopKey === key);
+    if (row) row.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function onStopPopupOpen(e, day, stop, key) {
+    const root = e.popup.getElement();
+    if (root) {
+      root.querySelectorAll("[data-photo]").forEach((node) => {
+        node.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          openLightbox(node.getAttribute("data-photo"), node.getAttribute("data-caption"));
+        });
+      });
+      root.querySelectorAll(".stop-popup-thumb").forEach(hideIfPhotoBroken);
+    }
+    const current = state.trip?.days?.[state.dayIndex];
+    if (current && day.day === current.day) highlightStopInList(key);
+  }
+
+  function openStopMarker(key) {
+    const marker = key ? state.stopMarkers.get(key) : null;
+    if (marker) marker.openPopup();
+  }
+
   function formatStopInfo(info) {
     if (!info) return "";
     const parts = [];
@@ -207,15 +314,8 @@
         .join(" · ");
       parts.push(`<div class="stop-info-row">${links}</div>`);
     }
-    if (info.stats) {
-      const s = info.stats;
-      const bits = [];
-      if (s.distance_km != null) bits.push(`${s.distance_km} km`);
-      if (s.duration) bits.push(s.duration);
-      if (s.ascent_m != null) bits.push(`↑ ${s.ascent_m} m`);
-      if (s.difficulty) bits.push(s.difficulty);
-      if (bits.length) parts.push(`<div class="stop-info-row stop-info-stats">${escapeHtml(bits.join(" · "))}</div>`);
-    }
+    const stats = stopStatsLine(info);
+    if (stats) parts.push(`<div class="stop-info-row stop-info-stats">${escapeHtml(stats)}</div>`);
     if (info.logistics) {
       const L = info.logistics;
       if (L.opening_hours) {
@@ -357,13 +457,11 @@
         const stopNotes = s.notes
           ? `<p class="stop-notes">${escapeHtml(s.notes)}</p>`
           : "";
-        const mapsHref = mapsPinURL(s);
-        const mapsLink = mapsHref
-          ? `<a class="maps-link" href="${escapeAttr(mapsHref)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeAttr(s.name || "stop")} in Google Maps" title="Google Maps"><img class="maps-pin" src="maps-pin.png" alt="" width="22" height="22" /></a>`
-          : "";
-        return `<li class="stop">
+        const mapsLink = mapsLinkHTML(s);
+        const stopKey = stopMarkerKey(d.day, s);
+        return `<li class="stop" data-stop-key="${escapeAttr(stopKey)}">
         <div class="stop-row">
-          <button type="button" data-lat="${s.lat}" data-lon="${s.lon}">
+          <button type="button" data-lat="${s.lat}" data-lon="${s.lon}" data-stop-key="${escapeAttr(stopKey)}">
             <span class="stop-head">
               <img class="stop-type-icon" src="${escapeAttr(stopIconURL(s.type))}" alt="" width="18" height="24" />
               <span class="stop-head-text">
@@ -447,10 +545,18 @@
       btn.addEventListener("click", () => {
         const lat = Number(btn.dataset.lat);
         const lon = Number(btn.dataset.lon);
+        const key = btn.dataset.stopKey || btn.closest(".stop")?.dataset.stopKey;
+        highlightStopInList(key);
+        const focus = () => {
+          if (state.map) {
+            state.map.setView([lat, lon], Math.max(state.map.getZoom() || 0, 12));
+          }
+          openStopMarker(key);
+        };
         if (window.matchMedia("(max-width: 899px)").matches) {
-          setMode("map", { lat, lon, zoom: Math.max(state.map.getZoom() || 0, 12) });
+          setMode("map", { lat, lon, zoom: Math.max(state.map.getZoom() || 0, 12), after: () => openStopMarker(key) });
         } else {
-          state.map.setView([lat, lon], Math.max(state.map.getZoom(), 12));
+          focus();
         }
       });
     });
@@ -526,19 +632,39 @@
     return {};
   }
 
-  function pointToLayer(feature, latlng) {
+  function pointToLayer(feature, latlng, day) {
     const name = feature.properties?.name || "";
     const t = feature.properties?.type || "";
-    return L.marker(latlng, {
+    const stop = day ? findStopForFeature(day, feature, latlng) : null;
+    const marker = L.marker(latlng, {
       icon: leafletIconForType(t),
       title: name,
       alt: name,
       riseOnHover: true,
-    }).bindPopup(name);
+    });
+    if (!stop) {
+      return marker.bindPopup(name);
+    }
+    const key = stopMarkerKey(day.day, stop);
+    state.stopMarkers.set(key, marker);
+    marker.bindPopup(stopPopupHTML(stop), {
+      maxWidth: 260,
+      className: "stop-popup-wrap",
+      autoPan: true,
+      autoPanPadding: [24, 24],
+    });
+    marker.on("popupopen", (e) => onStopPopupOpen(e, day, stop, key));
+    marker.on("popupclose", () => {
+      const body = el.detailBody || el.detail;
+      const row = body && [...body.querySelectorAll(".stop")].find((n) => n.dataset.stopKey === key);
+      if (row && row.classList.contains("is-active")) highlightStopInList("");
+    });
+    return marker;
   }
 
   async function renderMap() {
     state.layers.clearLayers();
+    state.stopMarkers.clear();
     const bounds = [];
 
     const days = state.showFullTrip
@@ -551,7 +677,7 @@
         const geo = await loadGeo(d.geo);
         const layer = L.geoJSON(geo, {
           style: styleFeature,
-          pointToLayer,
+          pointToLayer: (feature, latlng) => pointToLayer(feature, latlng, d),
         });
         layer.addTo(state.layers);
         const b = layer.getBounds();
@@ -857,6 +983,7 @@
         } else {
           fitMapToContent();
         }
+        if (typeof opts.after === "function") opts.after();
       });
     }
   }

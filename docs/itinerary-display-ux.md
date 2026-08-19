@@ -176,6 +176,7 @@ Day 05 · Tongariro Alpine Crossing
 | Style | Light OSM/Carto basemap; quiet; route lines are the color accent |
 | Route | Selected day bold; other days optional faint “trail of the trip” when “Show all days” on |
 | Markers | Type-based icons (reuse tripmap types: overnight, hut, trailhead, attraction, viewpoint, ferry, airport) — limited palette |
+| Popups | Compact: name, type, first warning or note, stats or hours, photo thumb, Maps pin. Opening a popup highlights the matching stop in the selected day’s list; tapping a list stop opens that marker’s popup. |
 | Selection | Fit selected day with padding; don't animate bounce |
 | Offline | Lines + markers remain; basemap may grey out with banner |
 | Whole-trip | Toggle in map toolbar: “This day / Full trip” |

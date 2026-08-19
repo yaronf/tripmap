@@ -275,9 +275,14 @@ body {
 }
 
 .stop {
-  padding: 0.65rem 0;
+  padding: 0.65rem 0.5rem 0.65rem 0.65rem;
   border-top: 1px solid var(--rule);
   min-height: 44px;
+}
+
+.stop.is-active {
+  background: rgba(15, 92, 92, 0.07);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .stop-row {
@@ -309,6 +314,72 @@ body {
 
 .leaflet-marker-icon.stop-marker {
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+.leaflet-popup.stop-popup-wrap .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(26, 31, 28, 0.18);
+}
+
+.leaflet-popup.stop-popup-wrap .leaflet-popup-content {
+  margin: 10px 12px;
+  font-family: var(--sans);
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.stop-popup {
+  min-width: 0;
+  max-width: 236px;
+}
+
+.stop-popup-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.stop-popup-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.stop-popup-name {
+  font-weight: 600;
+}
+
+.stop-popup-type {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.stop-popup .maps-link {
+  align-self: flex-start;
+}
+
+.stop-popup-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.88rem;
+}
+
+.stop-popup-note.is-warning {
+  color: #8a4b00;
+}
+
+.stop-popup-facts {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.stop-popup-thumb {
+  display: block;
+  width: 100%;
+  max-height: 96px;
+  object-fit: cover;
+  margin-top: 0.5rem;
+  border-radius: 4px;
+  cursor: zoom-in;
 }
 
 .stop button {
