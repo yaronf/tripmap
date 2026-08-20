@@ -21,7 +21,7 @@ set -a && source .env && set +a
 | Variable | Required | Default |
 |----------|----------|---------|
 | `OPENAI_API_KEY` | yes* | — |
-| `OPENAI_MODEL` | no | `o4-mini` |
+| `OPENAI_MODEL` | no | `gpt-4o` |
 | `OPENAI_BASE_URL` | no | OpenAI default (*or* set this instead of API key for a compatible endpoint) |
 | `TRIPMAP_MCP_URL` | no | `https://tripmap.sheffer.org/mcp` |
 | `AGENT_BEARER_TOKEN` | yes | — |

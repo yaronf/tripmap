@@ -10,3 +10,5 @@
 /api/openapi.http.yaml
 # Real user emails — keep example only in git
 /config/users.csv
+# ADK experiment run logs (may contain trip YAML snippets)
+/experiments/adk-mcp/runs/

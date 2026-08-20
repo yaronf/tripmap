@@ -2,14 +2,14 @@
 
 ## Goal
 
-Determine whether an ADK Go agent using an OpenAI reasoning model can match the behavior of ChatGPT Agent when both use the same existing MCP server.
+Determine whether an ADK Go agent using OpenAI `gpt-4o` (Responses API) can match the behavior of ChatGPT Agent when both use the same existing MCP server.
 
 This experiment should isolate the agent runtime. Do not redesign, extend, or reinterpret the backend or MCP interface.
 
 ## Comparison
 
 - **Baseline:** ChatGPT Agent (desktop; verified **26.814.41957**, powered by Codex) + existing MCP server
-- **Candidate:** ADK Go + OpenAI reasoning model + the same MCP server
+- **Candidate:** ADK Go + OpenAI `gpt-4o` + the same MCP server
 - Run both against the same backend, data, user prompts, and MCP tool definitions.
 
 ## MCP contract (do not invent another path)
@@ -27,7 +27,7 @@ This experiment should isolate the agent runtime. Do not redesign, extend, or re
 Record exact IDs before scoring:
 
 - **Baseline:** whatever ChatGPT Agent is using for the run (product setting / visible model name). Note app version (e.g. 26.814.41957).
-- **Candidate:** `OPENAI_MODEL` (default in this experiment: `o4-mini`). Change only deliberately; a model mismatch is a known confound in the conclusion.
+- **Candidate:** `OPENAI_MODEL` (default in this experiment: `gpt-4o`, for parity with the earlier in-viewer chatbot). Change only deliberately; a model mismatch is a known confound in the conclusion.
 
 ## Data freeze
 
@@ -42,7 +42,7 @@ Code lives in [`experiments/adk-mcp/`](../experiments/adk-mcp/) (separate Go mod
 
 1. Connects directly to the existing MCP server (Streamable HTTP + Bearer).
 2. Discovers and exposes its current tools to one plain LLM agent.
-3. Uses an OpenAI reasoning model through ADK's `openaimodel` (Responses API).
+3. Uses OpenAI `gpt-4o` through ADK's `openaimodel` (Responses API).
 4. Provides ADK's existing launcher (console CLI and optional web UI) for interactive testing.
 5. Can run a one-shot prompt and write JSONL of events (prompts, model text, tool calls/args/results, errors, elapsed time).
 

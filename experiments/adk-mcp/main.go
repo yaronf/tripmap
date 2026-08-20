@@ -38,7 +38,7 @@ const mcpServerInstructions = "tripmap agent API as MCP tools. Prefer patchTrip 
 
 const (
 	defaultMCPURL = "https://tripmap.sheffer.org/mcp"
-	defaultModel  = "o4-mini"
+	defaultModel  = "gpt-4o"
 	appName       = "tripmap-adk-mcp-experiment"
 )
 
