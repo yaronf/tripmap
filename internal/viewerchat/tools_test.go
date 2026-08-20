@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -39,6 +40,14 @@ func (m *mockOps) ListVersions(context.Context, string) ([]VersionEntry, error) 
 }
 func (m *mockOps) RestoreVersion(context.Context, string, string) (MutateResult, error) {
 	return MutateResult{ID: "t", VersionID: "v0", BundleOK: true}, nil
+}
+
+type failPatchOps struct {
+	mockOps
+}
+
+func (f *failPatchOps) Patch(context.Context, string, []byte) (MutateResult, error) {
+	return MutateResult{}, fmt.Errorf("invalid patch json: cannot unmarshal array into UpsertStop")
 }
 
 func TestBuildToolsIncludesChatAudienceSet(t *testing.T) {
@@ -113,5 +122,41 @@ func TestPatchToolMarksTripUpdatedAndLogs(t *testing.T) {
 	logs := buf.String()
 	if !strings.Contains(logs, `"msg":"tool_call"`) || !strings.Contains(logs, `"tool":"patchTrip"`) {
 		t.Fatalf("expected tool_call log, got %s", logs)
+	}
+}
+
+func TestPatchToolErrorReturnedAsResult(t *testing.T) {
+	sess := &toolSession{
+		ops:       &failPatchOps{},
+		tripID:    "t",
+		viewerDay: 1,
+		log:       turnLogger{log: slog.Default(), requestID: "r", tripID: "t", sub: "s", day: 1},
+	}
+	tools, err := sess.buildTools()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inv tool.InvokableTool
+	for _, tl := range tools {
+		info, _ := tl.Info(t.Context())
+		if info.Name != "patchTrip" {
+			continue
+		}
+		var ok bool
+		inv, ok = tl.(tool.InvokableTool)
+		if !ok {
+			t.Fatal("patchTrip not InvokableTool")
+		}
+		break
+	}
+	if inv == nil {
+		t.Fatal("patchTrip missing")
+	}
+	out, err := inv.InvokableRun(t.Context(), `{"patch":{"upsert_stop":[]}}`)
+	if err != nil {
+		t.Fatalf("error handler should swallow tool error, got %v", err)
+	}
+	if !strings.Contains(out, `"ok":false`) || !strings.Contains(out, "cannot unmarshal") {
+		t.Fatalf("expected error payload for model, got %s", out)
 	}
 }

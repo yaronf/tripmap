@@ -268,49 +268,6 @@ body.chat-open .detail-chat {
   min-height: 0;
 }
 
-.chat-feedback {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.55rem;
-  border-bottom: 1px solid var(--rule);
-  background: #e6dfd0;
-  font-size: 0.75rem;
-  color: var(--muted, #5c635c);
-}
-
-.chat-feedback[hidden] {
-  display: none !important;
-}
-
-.chat-feedback-label {
-  margin-right: 0.25rem;
-}
-
-.chat-feedback-btn {
-  appearance: none;
-  border: 1px solid rgba(26, 31, 28, 0.18);
-  background: #f3efe6;
-  color: #1a1f1c;
-  border-radius: 0.25rem;
-  width: 1.6rem;
-  height: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-
-.chat-feedback-btn:hover {
-  border-color: #0f5c5c;
-  color: #0f5c5c;
-}
-
-.chat-feedback-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
 .persona-dock-host {
   flex: 1 1 auto;
   height: 100%;

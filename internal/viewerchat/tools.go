@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -137,9 +138,31 @@ func (s *toolSession) buildTools() ([]tool.BaseTool, error) {
 		return nil, err
 	}
 
-	return []tool.BaseTool{
+	// Tool failures become string results for the model so it can fix args and
+	// retry in the same turn (instead of aborting the SSE stream).
+	raw := []tool.BaseTool{
 		getSchema, getTrip, getTripYAML, patchTrip, replaceDayRoutes, listVersions, getVersion, restoreVersion,
-	}, nil
+	}
+	out := make([]tool.BaseTool, 0, len(raw))
+	for _, t := range raw {
+		out = append(out, utils.WrapToolWithErrorHandler(t, toolErrorForModel))
+	}
+	return out, nil
+}
+
+func toolErrorForModel(_ context.Context, err error) string {
+	msg := strings.TrimSpace(err.Error())
+	if msg == "" {
+		msg = "unknown tool error"
+	}
+	b, mErr := json.Marshal(map[string]any{
+		"ok":    false,
+		"error": msg,
+	})
+	if mErr != nil {
+		return `{"ok":false,"error":` + strconv.Quote(msg) + `}`
+	}
+	return string(b)
 }
 
 func typedWrap[T any](s *toolSession, name, argsJSON string, mutate bool, fn func() (T, error)) (T, error) {

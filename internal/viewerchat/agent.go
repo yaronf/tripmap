@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 const (
@@ -19,12 +20,16 @@ const (
 		"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
 		"Use listVersions + getVersion to inspect history; restoreVersion only when the user asks to revert. " +
 		"Human viewers sign in with Hellō, then use /me/trips/<id>/."
-	viewerChatRules = "Ground itinerary facts in tool results (getTrip / getTripYAML). " +
-		"To add a stop: create the place under places (title/lat/lon/type) and call upsert_stop " +
-		"with list \"route\" or \"stops\" in the same patchTrip — never put route/stops under update_day " +
+	viewerChatRules = "You can research the live web via OpenAI hosted web_search (coords, maps links, hours, logistics). " +
+		"Ground itinerary facts in tool results (getTrip / getTripYAML). " +
+		"To add a stop: web_search for the place (include city/region/country) and take lat/lon from search results when available; " +
+		"then create the place under places (title/lat/lon/type, preferably maps_url) and call upsert_stop " +
+		"as a single object with day, list (\"route\" or \"stops\"), and place — never put route/stops under update_day " +
 		"(update_day is title/notes/hike/ferry/photo only). " +
 		"For overnight or day-endpoint changes use replaceDayRoutes. " +
-		"If a suggestion is not already in the itinerary, say it is unverified; do not invent precise coordinates."
+		"Never invent latitude/longitude. If web_search does not yield usable coords, ask the user instead of guessing. " +
+		"When confirming a change, speak only in trip terms (day number, place title, where on the day). " +
+		"Never mention version_id, revision ids, schema_version, bundle_ok, or other internal API fields to the user."
 )
 
 // Config wires the OpenAI Responses agent.
@@ -126,16 +131,32 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 		APIKey:          a.apiKey,
 		Model:           modelName,
 		EnableAutoCache: true,
+		Include: []responses.ResponseIncludable{
+			responses.ResponseIncludableWebSearchCallActionSources,
+		},
 	})
 	if err != nil {
 		return TurnResult{}, fmt.Errorf("responses model: %w", err)
+	}
+
+	serverTools := []*agenticopenai.ResponsesServerToolConfig{
+		{
+			WebSearch: &responses.WebSearchToolParam{
+				Type:              responses.WebSearchToolTypeWebSearch,
+				SearchContextSize: responses.WebSearchToolSearchContextSizeLow,
+			},
+		},
+	}
+	genOpts := []model.Option{
+		model.WithTools(infos),
+		agenticopenai.WithResponsesServerTools(serverTools),
 	}
 
 	instruction := fmt.Sprintf(
 		"%s\n\n%s\n\nYou are the in-viewer assistant for trip id %q. "+
 			"The trip id is fixed server-side — never switch trips. "+
 			"The viewer's current day is %d (1-based). Prefer getTripYAML with scope=day for that day before editing. "+
-			"Be concise; confirm mutates briefly.",
+			"Be concise. After a successful mutate, confirm in one short sentence without technical ids.",
 		mcpInstructions, viewerChatRules, in.TripID, in.Day,
 	)
 
@@ -165,7 +186,7 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 		input = append(input, history...)
 
 		start := time.Now()
-		msg, err := am.Generate(ctx, input, model.WithTools(infos))
+		msg, err := am.Generate(ctx, input, genOpts...)
 		latency := time.Since(start).Milliseconds()
 		if err != nil {
 			tl.with("latency_ms", latency, "model", modelName).Error("model_call", "error", truncateRunes(err.Error(), 300))
@@ -176,11 +197,13 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 			respID = msg.ResponseMeta.OpenAIExtension.ID
 		}
 		calls := functionCalls(msg)
+		webSearches := serverToolCallCount(msg)
 		tl.with(
 			"latency_ms", latency,
 			"model", modelName,
 			"response_id", respID,
 			"tool_calls", len(calls),
+			"web_search", webSearches,
 		).Info("model_call")
 
 		history = append(history, msg)
@@ -219,6 +242,19 @@ func functionCalls(msg *schema.AgenticMessage) []*schema.FunctionToolCall {
 		}
 	}
 	return out
+}
+
+func serverToolCallCount(msg *schema.AgenticMessage) int {
+	if msg == nil {
+		return 0
+	}
+	n := 0
+	for _, b := range msg.ContentBlocks {
+		if b != nil && b.ServerToolCall != nil {
+			n++
+		}
+	}
+	return n
 }
 
 func assistantText(msg *schema.AgenticMessage) string {
