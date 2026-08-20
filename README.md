@@ -16,11 +16,12 @@ Paths relative to your public base URL (`PUBLIC_BASE_URL`):
 |---------|----------------|
 | Home / Hellō login | `/` |
 | Trip viewer (signed in) | `/me/trips/{id}/` — notes + shared comments |
-| Agent MCP (Codex) | `POST /mcp` — same Bearer as the agent API |
+| Agent MCP (ChatGPT Agent) | `POST /mcp` — same Bearer as the agent API |
 | OpenAPI | `GET /openapi.yaml` (from [`api/openapi.yaml`](api/openapi.yaml); `go generate ./api` regenerates routes) |
 | Agent REST | `/api/agent/*` (scripts / smoke; MCP wraps the same handlers) |
 
-- MCP setup: [docs/runbook-mcp.md](docs/runbook-mcp.md) (Codex)
+- MCP setup: [docs/runbook-mcp.md](docs/runbook-mcp.md) (ChatGPT Agent)
+- ADK Go MCP experiment (candidate agent): [docs/adk-go-mcp-experiment.md](docs/adk-go-mcp-experiment.md) · [`experiments/adk-mcp/`](experiments/adk-mcp/)
 - Seasonal AWS deploy / undeploy: [docs/runbook-deploy-compute.md](docs/runbook-deploy-compute.md), [docs/runbook-undeploy-compute.md](docs/runbook-undeploy-compute.md)
 - Architecture: [docs/aws-deployment.md](docs/aws-deployment.md)
 

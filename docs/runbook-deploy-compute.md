@@ -144,14 +144,14 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 - [ ] If `HelloClientID` set: open `https://tripmap.sheffer.org/` → Continue with Hellō → open `/me/trips/{id}/`; confirm notes + comments
 - [ ] `GET /auth/me` returns `authenticated: true`
 
-## 5. Codex MCP
+## 5. ChatGPT Agent MCP
 
-- [ ] Connector: Streamable HTTP `https://tripmap.sheffer.org/mcp` + Bearer env (`tripmap_mcp_bearer_token`) — see [runbook-mcp.md](runbook-mcp.md)
-- [ ] Quick test in Codex: “List trips.”
+- [ ] Connector: Streamable HTTP `https://tripmap.sheffer.org/mcp` + Bearer env `AGENT_BEARER_TOKEN` — see [runbook-mcp.md](runbook-mcp.md)
+- [ ] Quick test in ChatGPT Agent: “List trips.”
 
 ## 6. Done when
 
-- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, Codex list-trips works, signed-in viewer + comments OK.
+- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, ChatGPT Agent list-trips works, signed-in viewer + comments OK.
 - After **create/recreate**: step **2b** bake settings applied (or verified already `0` / `100%`).
 
 ## Day-to-day image roll (compute already up)

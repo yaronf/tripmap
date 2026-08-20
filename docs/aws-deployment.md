@@ -22,7 +22,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Comments | Shared read/write for anyone with the URL; offline = read cache only |
 | Custom tripmap MCP | **No** |
 | Cursor | Repo + git; optional AWS MCP; optional same OpenAPI |
-| Agent (LLM) | **Codex MCP** Streamable HTTP + Bearer (`/mcp`); see [runbook-mcp.md](runbook-mcp.md). ChatGPT chat may not see local MCP; Custom GPT Actions deprecated |
+| Agent (LLM) | **ChatGPT Agent MCP** Streamable HTTP + Bearer (`/mcp`); see [runbook-mcp.md](runbook-mcp.md). Custom GPT Actions deprecated |
 | Agent API | OpenAPI on the container (`/openapi.yaml` + `/api/agent/*` + `/mcp`) |
 | Patch retries | **`Idempotency-Key` required** on mutating agent calls |
 | Delete trip | **Omit** initially |
@@ -278,18 +278,18 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 - [x] Save capability URLs (host + token) — password manager / private note  
   Prefer `https://tripmap.sheffer.org/t/{id}/{token}/` (rewrite old `*.on.aws` hosts).
 
-### M6 — Codex MCP (Actions deprecated)
+### M6 — ChatGPT Agent MCP (Actions deprecated)
 
 - [x] Streamable HTTP MCP at `https://tripmap.sheffer.org/mcp` + Bearer (same agent token)
-- [x] Verified with **Codex**; ChatGPT chat may not list local MCP servers
+- [x] Verified with **ChatGPT Agent** (desktop; powered by Codex)
 - [x] Runbook: [runbook-mcp.md](runbook-mcp.md)
 - [x] Durable host — no MCP URL change on compute recreate (only CloudFront origin)
 - ~~Custom GPT Actions~~ — deprecated; keep OpenAPI public for scripts / legacy only
 
-#### Setup (Codex)
+#### Setup (ChatGPT Agent)
 
 1. Confirm edge is up: `curl -fsS https://tripmap.sheffer.org/health`
-2. Configure Codex MCP: URL `https://tripmap.sheffer.org/mcp`, Bearer env `tripmap_mcp_bearer_token` (= `AGENT_BEARER_TOKEN`) — see [runbook-mcp.md](runbook-mcp.md).
+2. Configure MCP: URL `https://tripmap.sheffer.org/mcp`, Bearer env `AGENT_BEARER_TOKEN` — see [runbook-mcp.md](runbook-mcp.md).
 3. Test: “List trips.” → `listTrips`; then a small `patchTrip` / `update_day` if desired.
 
 ### M7 — Cursor
