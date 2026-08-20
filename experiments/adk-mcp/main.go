@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -44,8 +45,9 @@ const (
 
 func main() {
 	prompt := flag.String("prompt", "", "one-shot user prompt (writes JSONL events; skips ADK launcher)")
-	logPath := flag.String("log", "", "JSONL event log path for --prompt (default: stdout)")
-	userID := flag.String("user", "experiment", "session user id for --prompt")
+	scenario := flag.String("scenario", "", "multi-turn scenario JSON path (suite-mt/scenarios/*.json)")
+	logPath := flag.String("log", "", "JSONL event log path for --prompt/--scenario (default: stdout)")
+	userID := flag.String("user", "experiment", "session user id for --prompt/--scenario")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -54,6 +56,13 @@ func main() {
 	a, err := newAgent(ctx)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if strings.TrimSpace(*scenario) != "" {
+		if err := runScenario(ctx, a, *userID, *scenario, *logPath); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 
 	if strings.TrimSpace(*prompt) != "" {
@@ -84,9 +93,16 @@ func newAgent(ctx context.Context) (agent.Agent, error) {
 	}
 
 	modelName := envOr("OPENAI_MODEL", defaultModel)
+	// ADK openaimodel v2.2.0 labels prior assistant text as input_text; Responses
+	// API requires output_text for role=assistant (breaks multi-turn). Rewrite
+	// on the wire — see openai_fix.go.
+	openaiHTTP := &http.Client{
+		Transport: &fixResponsesAssistantContent{Base: http.DefaultTransport},
+	}
 	llm, err := openaimodel.NewModel(ctx, modelName, &openaimodel.ClientConfig{
-		APIKey:  apiKey,
-		BaseURL: baseURL,
+		APIKey:     apiKey,
+		BaseURL:    baseURL,
+		HTTPClient: openaiHTTP,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("openai model: %w", err)

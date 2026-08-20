@@ -12,3 +12,5 @@
 /config/users.csv
 # ADK experiment run logs (may contain trip YAML snippets)
 /experiments/adk-mcp/runs/
+/experiments/eino-responses/runs/
+/experiments/eino-mcp/runs/

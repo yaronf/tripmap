@@ -45,7 +45,7 @@ Code lives in [`experiments/adk-mcp/`](../experiments/adk-mcp/) (separate Go mod
 3. Uses OpenAI `gpt-4o` through ADK's `openaimodel` (Responses API).
 4. Provides ADK's existing launcher (console CLI and optional web UI) for interactive testing.
 5. Can run a one-shot prompt and write JSONL of events (prompts, model text, tool calls/args/results, errors, elapsed time).
-
+6. Can run multi-turn `--scenario` scripts from `suite-mt/` in one session (setup restore + heuristic checks).
 Keep the scaffolding minimal. Do not add graph workflows, multi-agent routing, custom planning, memory, retries, tool wrappers, prompt optimization, or a production UI unless required merely to run the experiment.
 
 ## Setup
@@ -80,7 +80,23 @@ Create a small repeatable suite (about 8–12 prompts) covering:
 
 Run every prompt against both the baseline and candidate using the same initial data. Repeat nondeterministic cases at least three times.
 
-Concrete prompts: [`experiments/adk-mcp/test-cases.md`](../experiments/adk-mcp/test-cases.md).
+Concrete prompts: [`experiments/adk-mcp/test-cases.md`](../experiments/adk-mcp/test-cases.md), [`prompts.md`](../experiments/adk-mcp/prompts.md), [`prompts-s2.md`](../experiments/adk-mcp/prompts-s2.md).
+
+### Multi-turn context-confusion suite
+
+Isolated hard prompts miss failures where the agent confuses **stale** conversational state. Suite MT uses scripted **15–30 turn** conversations that start from a clean scratch trip; the final request depends on information introduced gradually.
+
+See [`experiments/adk-mcp/suite-mt/`](../experiments/adk-mcp/suite-mt/) (`go run . --scenario suite-mt/scenarios/MT….json`). Hazards include rejected option sets, date changes, stale YAML after writes, two-trip pronouns, explore-then-approve, later-wins preferences, corrected ids after tool failure, early constraints after digression, decided-vs-suggested, and ambiguous day/destination finals.
+
+### Multi-turn blocker (ADK OpenAI connector)
+
+One-shot T/S suites do **not** exercise conversation replay. Released ADK-Go `openaimodel` fails from the second user turn with Responses API 400 (`input_text` under assistant role) — [adk-go#1197](https://github.com/google/adk-go/issues/1197); unmerged fixes [PR #1205](https://github.com/google/adk-go/pull/1205), [PR #1291](https://github.com/google/adk-go/pull/1291) as of 2026-08-20.
+
+Suite MT therefore depends on an experiment-local HTTP rewrite (`experiments/adk-mcp/openai_fix.go`). That unblocks typed-content replay only; it does not restore full Responses output-item chaining (reasoning `encrypted_content` / `phase`). Score MT results as “ADK + workaround,” not as proof of production-ready multi-turn parity with ChatGPT Agent.
+
+**Eino check:** [`experiments/eino-responses/`](../experiments/eino-responses/) — stock Eino `AgenticModel` Responses (`EnableAutoCache` and full-history modes) both pass a two-turn smoke without that rewrite; see [`RESULTS.md`](../experiments/eino-responses/RESULTS.md).
+
+**Eino + MCP:** [`experiments/eino-mcp/`](../experiments/eino-mcp/) runs the same tripmap MCP tools and reuses suite-mt scenarios (`go run . --scenario ../adk-mcp/suite-mt/scenarios/MT….json`) with Responses `EnableAutoCache` and **no** ADK-style rewrite.
 
 ## Evaluation
 

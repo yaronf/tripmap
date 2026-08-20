@@ -47,7 +47,14 @@ One-shot prompt with JSONL event log (for the evaluation table):
 go run . --prompt 'List my tripmap trips.' --log /tmp/adk-listTrips.jsonl
 ```
 
-Each JSONL line is one record: `run_start`, `event` (model text / function calls / function responses / usage), `run_end`.
+Multi-turn context-confusion scenario (see [suite-mt/](suite-mt/)):
+
+```bash
+mkdir -p runs/mt
+go run . --scenario suite-mt/scenarios/MT01_rejected_italy.json --log runs/mt/MT01.jsonl
+```
+
+Each JSONL line is one record: `run_start` / `scenario_start`, `event` (model text / function calls / function responses / usage), `turn_*`, `check`, `run_end` / `scenario_end`.
 
 ## System instruction
 
@@ -58,7 +65,9 @@ The agent instruction is copied from the live MCP server `instructions` string i
 - MCP auth is raw Bearer via `AGENT_BEARER_TOKEN` (`oauth2.StaticTokenSource`).
 - `DisableStandaloneSSE: true` — tripmap MCP is used as request/response Streamable HTTP (matches curl smoke in the runbook). If a future server requires the GET SSE stream, flip this and retest.
 - Baseline ChatGPT Agent app version and model ID are recorded by the human operator; this binary only knows `OPENAI_MODEL`.
-
+- **Multi-turn / ADK OpenAI connector:** Released ADK-Go `openaimodel` (through at least v2.2.0) serializes replayed assistant text as typed `input_text`, which the Responses API rejects with HTTP 400 from the **second user turn** onward ([adk-go#1197](https://github.com/google/adk-go/issues/1197)). Fixes are open but unmerged as of 2026-08-20 ([PR #1205](https://github.com/google/adk-go/pull/1205), [PR #1291](https://github.com/google/adk-go/pull/1291)). This experiment applies a **local HTTP rewrite** (`openai_fix.go`: assistant `input_text` → `output_text`) so suite MT can run; that is not an official ADK fix and does **not** preserve Responses reasoning items (`encrypted_content` / `phase`) for native chaining. One-shot suites T/S never hit this path. Do not treat patched replay as equivalent to ChatGPT Agent or `previous_response_id` chaining until ADK preserves full output items.
 ## Test cases
 
-See [test-cases.md](test-cases.md).
+- One-shot suites: [test-cases.md](test-cases.md), [prompts.md](prompts.md), [prompts-s2.md](prompts-s2.md)
+- Multi-turn context suite: [suite-mt/README.md](suite-mt/README.md)
+- Results template: [RESULTS-mt.md](RESULTS-mt.md)

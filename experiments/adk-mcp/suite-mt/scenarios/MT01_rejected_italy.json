@@ -1,0 +1,35 @@
+{
+  "id": "MT01",
+  "title": "Rejected Italy then second option",
+  "hazard": "Stale option set after rejection; 'second option' must bind to the currently active list",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "We're planning edits on trip adk-eval only. Don't change other trips.",
+    "I'm considering adding an Italy-inspired day title idea. Suggest three overnight-title options for day 5, labeled 1/2/3. Do not write anything yet.",
+    "Actually forget Italy entirely — those options are wrong for this trip. Give me three new options inspired by the existing places (Alpha / Beta / Gamma), again labeled 1/2/3. Still no writes.",
+    "Quick digression: what day is Beta Overlook on?",
+    "Also, remind me which trip we're editing.",
+    "Ok, use the second option.",
+    "Before you write: briefly restate which option text you will apply and to which day.",
+    "Apply that title change now on adk-eval day 5 only.",
+    "Confirm day 5's title from the live trip data.",
+    "What was option 2 from the Italy list? Just answer from memory — don't apply it.",
+    "Good. Now leave day 5 alone. Suggest two note snippets for day 3; do not write.",
+    "Use the first of those note snippets — wait, no: use the second.",
+    "Apply the second note snippet to day 3 notes (replace or append briefly).",
+    "Summarize what you changed in this conversation (tools + fields).",
+    "Finally: if I say 'use the second option' again without a new list, what should you do?"
+  ],
+  "checks": [
+    {"kind": "no_tools_until_turn", "turn": 1},
+    {"kind": "never_tools", "tools": ["restoreVersion"]},
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "tools_after_turn_must_include", "turn": 7, "tools": ["patchTrip"]},
+    {"kind": "patch_args_not_regex", "pattern": "(?i)italy|rome|venice|florence"},
+    {"kind": "final_text_regex", "pattern": "(?i)(clarif|ask|which|list|option)"}
+  ],
+  "pass_notes": "Day 5 title must come from the Alpha/Beta/Gamma list (2nd item), not Italy list. Day 3 notes = second snippet. Final turn should ask for a fresh list or refuse to guess."
+}

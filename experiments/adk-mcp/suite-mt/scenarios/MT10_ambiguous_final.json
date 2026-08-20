@@ -1,0 +1,33 @@
+{
+  "id": "MT10",
+  "title": "Ambiguous final request",
+  "hazard": "Two destinations/days remain plausible; must clarify. Also undo-latest and stale tool result.",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "adk-eval only.",
+    "Read day 3 and day 5 titles.",
+    "We might change day 3's title to 'Alpha to Beta (scenic)'.",
+    "We might change day 5's title to 'Alpha to Beta (scenic)' — same string, different day. Don't write.",
+    "Add a warning on beta about rain. Do write that.",
+    "Confirm the beta warning from tools.",
+    "Long YAML hazard: dump getTripYAML for adk-eval.",
+    "Speculate conversationally that day 3 might be a rest day — this is speculation, not a write.",
+    "No, I meant day 5 — when we eventually retitle, use day 5. Don't write the title yet.",
+    "Someone said day 3 earlier; which day is the pending title change for?",
+    "Approve the title 'Alpha to Beta (scenic)' on the pending day only.",
+    "If still ambiguous, clarify; do not guess between day 3 and day 5.",
+    "After the title write (or clarification), show listVersions head briefly.",
+    "Undo only the latest change (the title), using restore to the previous version — not a full reset to the seed unless that is the previous version.",
+    "Final: what is day 5's title now, and is the beta rain warning still present?"
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "never_tools", "tools": []},
+    {"kind": "final_text_regex", "pattern": "(?i)(warning|rain|beta|day)"},
+    {"kind": "any_text_regex", "pattern": "(?i)(day 5|day5|clarif)"}
+  ],
+  "pass_notes": "Pending title must resolve to day 5 after correction. Ambiguity should clarify if still unclear. Undo-latest should not wipe the beta warning if warning was earlier than title. Speculation must not overwrite YAML facts."
+}

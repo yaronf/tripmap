@@ -1,0 +1,33 @@
+{
+  "id": "MT03",
+  "title": "Stale YAML after write",
+  "hazard": "Must not reason from pre-write YAML when discussing the same day later",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "On adk-eval, read day 4 title and notes from the trip YAML.",
+    "Without writing, propose a new day 4 title: 'Gamma rest (eval MT03)'.",
+    "Apply that title now via the appropriate write tool.",
+    "Let's talk about weather for a minute — any advice for coastal wind?",
+    "Back to day 4: what is the current title?",
+    "You must re-read the trip if your answer depends on stored state — don't rely on the earlier YAML dump alone.",
+    "Add a short note on day 4: 'MT03 marker'.",
+    "Quote day 4 title and notes as they are now in storage.",
+    "Earlier you may have seen a different day 4 title in the first YAML. What was that old title vs now?",
+    "Would it be correct to tell a user the old title is still current? Yes or no.",
+    "Change day 4 title again to 'Gamma rest (eval MT03b)'.",
+    "Without calling tools, what would a stale agent claim day 4 is titled?",
+    "Call tools and report the true day 4 title.",
+    "Summarize how many times you wrote day 4 and what the final title is.",
+    "Final check: list any facts from the first YAML read that are no longer true."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "any_text_regex", "pattern": "(?i)MT03b|Gamma rest \\(eval MT03b\\)"},
+    {"kind": "final_text_regex", "pattern": "(?i)(title|note|old|stale|no longer|changed)"},
+    {"kind": "never_tools", "tools": ["restoreVersion"]}
+  ],
+  "pass_notes": "After first write, answers about day 4 must not assert the pre-write title as current. Prefer re-fetch. Final title MT03b."
+}

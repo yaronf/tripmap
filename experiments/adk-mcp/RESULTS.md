@@ -24,6 +24,8 @@ Concrete prompts: [prompts.md](prompts.md). Raw JSONL: `runs/T0N.jsonl` (local; 
 
 **Candidate tally:** 9 pass / 1 partial / 0 fail (critical writes T08–T09 correct).
 
+Also ran the same prompts with **`gpt-5-mini`**: see [RESULTS-gpt-5-mini.md](RESULTS-gpt-5-mini.md) (10/10 pass; slower; better T04 clarify).
+
 ## Conclusion (candidate-only)
 
 ADK Go + `gpt-4o` + live tripmap MCP is **promising** for this suite: correct tool choice on schema/read/write paths, clean clarify-without-write on T04 (aside from assuming the scratch trip), and no data-integrity misses on the two real workflows.

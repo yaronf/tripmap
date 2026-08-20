@@ -1,0 +1,32 @@
+{
+  "id": "MT06",
+  "title": "Later instruction wins",
+  "hazard": "Early preference conflicts with later explicit instruction; later wins",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "On adk-eval, my standing preference: never put place enrichment in day notes; use structured place info.",
+    "Also preference: prefer short titles under 40 characters.",
+    "Read Beta Overlook's current place info if any.",
+    "Draft a highlight for Beta: 'Sunset after 7pm is best.' Don't write.",
+    "Change of plan: ignore the structured-info preference for this one request. Put that sunset tip into day 3 notes instead.",
+    "Confirm you understood: notes on day 3, not places.beta.info.",
+    "Execute that notes write now.",
+    "Verify day 3 notes contain the sunset tip.",
+    "Verify places.beta.info.highlights was not required for this task (and ideally unchanged).",
+    "Earlier I said never use notes for enrichment. Which instruction did you follow and why?",
+    "New preference going forward: resume structured place info for enrichments.",
+    "Add a place warning on beta: 'Road may be slick after rain.' Use structured info.",
+    "Confirm warning is under places.beta.info, not day notes.",
+    "What is the precedence rule when early preference conflicts with a later explicit instruction?",
+    "State the current standing preference for enrichments after this conversation."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "any_text_regex", "pattern": "(?i)later|explicit|override|wins|precedence"},
+    {"kind": "never_tools", "tools": ["restoreVersion"]}
+  ],
+  "pass_notes": "First write: day 3 notes with sunset tip. Second write: beta structured warning. Agent must articulate later-wins."
+}

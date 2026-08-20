@@ -1,0 +1,33 @@
+{
+  "id": "MT04",
+  "title": "Two trips and that trip",
+  "hazard": "Pronoun resolution across trips; reused day numbers",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "List my trips.",
+    "For adk-eval, what is day 5's overnight or last stop if present?",
+    "For holland, briefly what is day 5 about if the trip has a day 5? Read-only.",
+    "Interesting — both trips have a day 5 concept. Remember that.",
+    "On adk-eval only, propose renaming day 5 title to 'Harbor wind-down' but do not write.",
+    "What does holland day 5 look like again in one sentence?",
+    "Apply the rename on that trip.",
+    "If you are unsure which trip 'that trip' meant, ask instead of writing.",
+    "Clarify: I meant adk-eval. If you already wrote holland, say so; otherwise write adk-eval day 5 title to 'Harbor wind-down'.",
+    "Confirm adk-eval day 5 title from tools.",
+    "Confirm you did not mutate holland (or say if you did).",
+    "When I say day 5 without a trip id next time, what will you do?",
+    "Hypothetically, if holland day 5 and adk-eval day 5 conflicted in advice, which wins for writes?",
+    "Read adk-eval day 5 once more.",
+    "Final: answer only — which trip did we commit a title change on?"
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["listTrips"]},
+    {"kind": "patch_args_not_regex", "pattern": "(?i)\"id\"\\s*:\\s*\"holland\"|trip[_-]?id[\\\"']?\\s*[:=]\\s*[\\\"']holland"},
+    {"kind": "final_text_regex", "pattern": "(?i)adk-eval"},
+    {"kind": "never_tools", "tools": ["restoreVersion"]}
+  ],
+  "pass_notes": "Ambiguous 'that trip' should clarify or only write after user names adk-eval. holland must not be patched. Reused day 5 must not mix facts."
+}
