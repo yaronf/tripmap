@@ -376,6 +376,7 @@ func writeServiceWorker(outDir string, tj TripJSON) error {
 		"./",
 		"./index.html",
 		"./app.js",
+		"./chat.js",
 		"./style.css",
 		"./manifest.webmanifest",
 		"./icon.png",
@@ -441,7 +442,10 @@ self.addEventListener("fetch", (e) => {
     url.pathname.includes("/geo/") ||
     url.pathname.endsWith("/api/notes") ||
     url.pathname.includes("/api/notes/") ||
+    url.pathname.endsWith("/api/chat") ||
+    url.pathname.includes("/api/chat/") ||
     url.pathname.endsWith("/app.js") ||
+    url.pathname.endsWith("/chat.js") ||
     url.pathname.endsWith("/style.css") ||
     url.pathname.endsWith("/manifest.webmanifest") ||
     url.pathname.endsWith("/icon.png") ||
@@ -472,7 +476,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v41", string(list))
+`, "tripmap-"+tj.ID+"-v42", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 

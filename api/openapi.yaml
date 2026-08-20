@@ -27,7 +27,7 @@ paths:
     get:
       operationId: getSchema
       summary: Itinerary schema and version
-      x-audiences: [mcp]
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       responses:
@@ -89,7 +89,7 @@ paths:
         For overnight/endpoint edits use getTripYAML with scope=full (source of
         truth) then replaceDayRoutes. Prefer getTripYAML over getTrip when you
         need stops; pass getTripYAML scope=day for the current-day neighborhood.
-      x-audiences: [mcp]
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -110,8 +110,14 @@ paths:
     patch:
       operationId: patchTrip
       summary: Patch places info, day narrative, or structure
-      description: Prefer over putTripYAML. Use update_day for title/notes/hike/ferry. Enrich via places.id.info. Also upsert_stop, remove_stop, swap_days (reorder whole days only — never overnight/endpoint), insert_day, delete_day. For overnight/endpoint or full route replacement, use replaceDayRoutes (not upsert_stop or swap_days). Do not put enrichment in notes.
-      x-audiences: [mcp]
+      description: >
+        Prefer over putTripYAML. Use update_day for title/notes/hike/ferry only
+        (not route/stops). Enrich via places.id.info. To add a mid-day stop use
+        places plus upsert_stop. Also remove_stop, swap_days (reorder whole days
+        only — never overnight/endpoint), insert_day, delete_day. For overnight
+        or day-endpoint or full route replacement, use replaceDayRoutes (not
+        upsert_stop or swap_days). Do not put enrichment in notes.
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -147,7 +153,7 @@ paths:
         Pass scope=day to get days day-1..day+1 plus only places referenced by
         those days. Pass scope=full (or omit scope on HTTP GET) for the entire
         itinerary.
-      x-audiences: [mcp]
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -213,7 +219,7 @@ paths:
     get:
       operationId: listVersions
       summary: List YAML versions
-      x-audiences: [mcp]
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -236,7 +242,7 @@ paths:
       description: |
         Read-only fetch of a historical revision. Call listVersions first.
         Prefer this over restoreVersion when inspecting history.
-      x-audiences: [mcp]
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -267,7 +273,7 @@ paths:
         Restores TO the given version_id (makes that revision current). To undo
         only the latest change, pass the previous version_id from listVersions
         (first entry with is_latest false) — not the current/latest id.
-      x-audiences: [mcp]
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -307,7 +313,7 @@ paths:
         lodging ends overnight (not via/depart), road waypoints via, sights
         attraction/etc. Optional places creates/updates the catalog in the same
         request. Do not use upsert_stop or swap_days for this.
-      x-audiences: [mcp]
+      x-audiences: [mcp, chat]
       security:
         - bearerAuth: []
       parameters:
@@ -447,7 +453,11 @@ components:
     UpdateDay:
       type: object
       additionalProperties: false
-      description: Partial update of one existing day (omit fields to leave unchanged)
+      description: |
+        Partial update of one existing day's narrative/flags only (title, notes,
+        hike, ferry, photo). Omit fields to leave unchanged.
+        Do NOT put route or stops here — use upsert_stop (list route|stops) after
+        creating the place under places, or replaceDayRoutes for overnight/endpoints.
       required:
         - day
       properties:

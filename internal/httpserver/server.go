@@ -16,6 +16,7 @@ import (
 	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/routebuild"
 	"github.com/yaronf/tripmap/internal/store"
+	"github.com/yaronf/tripmap/internal/viewerchat"
 )
 
 var _ api.ServerInterface = (*Server)(nil)
@@ -25,11 +26,21 @@ type Server struct {
 	cfg   Config
 	store store.Store
 	mux   *http.ServeMux
+	chat  chatHTTP // nil until viewerchat agent is wired
 }
 
 // New builds the HTTP server.
 func New(cfg Config, st store.Store) *Server {
 	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux()}
+	if cfg.OpenAIAPIKey != "" {
+		s.chat = &viewerchat.Handler{
+			Agent: viewerchat.NewAgent(viewerchat.Config{
+				APIKey: cfg.OpenAIAPIKey,
+				Model:  cfg.OpenAIModel,
+				Ops:    chatTripOps{s: s},
+			}),
+		}
+	}
 	s.routes()
 	return s
 }

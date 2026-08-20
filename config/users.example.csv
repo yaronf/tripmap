@@ -1,8 +1,9 @@
-email,sub
-# Sign-in ACL. Copy to users.csv and edit (users.csv is gitignored).
+email,sub,chat
+# Sign-in ACL + optional viewer chat. Copy to users.csv and edit (users.csv is gitignored).
 # email: Hellō account email (usual way to allow someone).
 # sub: Hellō OIDC subject id (e.g. sub_…), a stable account id independent of email.
 #      Allow by email, by sub, or both. Prefer email unless you need to pin a specific account.
-alice@example.com,
-bob@example.com,
-,sub_example_only
+# chat: yes|true|1 enables Persona chat; empty/no = Hellō sign-in only.
+alice@example.com,,yes
+bob@example.com,,
+,sub_example_only,yes

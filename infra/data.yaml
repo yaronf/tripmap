@@ -12,7 +12,7 @@ Parameters:
   OpenAISecretArn:
     Type: String
     Default: "arn:aws:secretsmanager:eu-central-1:077804408159:secret:tripmap/openai-Uy9vLX"
-    Description: Unused legacy OpenAI secret ARN (not injected by compute)
+    Description: Secrets Manager ARN for OpenAI JSON {"api_key":"sk-..."}; injected as OPENAI_SECRET_JSON
 
 Resources:
   ItinerariesBucket:
@@ -234,7 +234,7 @@ Outputs:
       Name: !Sub "${ProjectName}-HelloSessionSecretArn"
 
   OpenAISecretArnExport:
-    Description: Unused legacy OpenAI secret ARN
+    Description: OpenAI secret ARN (OPENAI_SECRET_JSON for viewer chat)
     Value: !Ref OpenAISecretArn
     Export:
       Name: !Sub "${ProjectName}-OpenAISecretArn"

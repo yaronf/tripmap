@@ -8,15 +8,17 @@ import (
 	"strings"
 )
 
-// usersFile holds Hellō sign-in ACL.
+// usersFile holds Hellō sign-in ACL and optional chat ACL from one CSV.
 type usersFile struct {
 	LoginEmails []string
 	LoginSubs   []string
+	ChatEmails  []string
+	ChatSubs    []string
 }
 
 // loadUsersFile reads config/users.csv (or path).
-// Columns: email, sub (extra columns are ignored).
-// Every row with email and/or sub may sign in.
+// Columns: email, sub, chat (optional). Every row with email and/or sub may sign in.
+// chat=yes|true|1 grants viewer chat; empty/no/false = sign-in only.
 func loadUsersFile(path string) (usersFile, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -31,13 +33,15 @@ func loadUsersFile(path string) (usersFile, error) {
 	if err != nil {
 		return usersFile{}, fmt.Errorf("users header: %w", err)
 	}
-	colEmail, colSub := -1, -1
+	colEmail, colSub, colChat := -1, -1, -1
 	for i, h := range header {
 		switch strings.ToLower(strings.TrimSpace(h)) {
 		case "email":
 			colEmail = i
 		case "sub":
 			colSub = i
+		case "chat":
+			colChat = i
 		}
 	}
 	if colEmail < 0 && colSub < 0 {
@@ -69,8 +73,29 @@ func loadUsersFile(path string) (usersFile, error) {
 		if sub != "" {
 			out.LoginSubs = append(out.LoginSubs, sub)
 		}
+		chat := false
+		if colChat >= 0 && colChat < len(rec) {
+			chat = truthyChat(rec[colChat])
+		}
+		if chat {
+			if email != "" {
+				out.ChatEmails = append(out.ChatEmails, email)
+			}
+			if sub != "" {
+				out.ChatSubs = append(out.ChatSubs, sub)
+			}
+		}
 	}
 	return out, nil
+}
+
+func truthyChat(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "y", "chat":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveUsersPath() string {

@@ -338,6 +338,7 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		"email":         sess.Email,
 		"name":          sess.Name,
 		"exp":           sess.Exp,
+		"chat_enabled":  s.chatEnabledFor(sess),
 	})
 }
 

@@ -79,6 +79,8 @@ Resources:
               - "${Base}/auth/hello/callback"
               - Base:
                   Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
+          - Name: OPENAI_MODEL
+            Value: gpt-5-mini
         Secrets:
           # Injects the JSON key "token" from tripmap/agent-bearer
           - Name: AGENT_BEARER_TOKEN
@@ -92,6 +94,10 @@ Resources:
               - "${SecretArn}:secret::"
               - SecretArn:
                   Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
+          # Injects full JSON; tripmapd reads api_key (empty/missing disables chat)
+          - Name: OPENAI_SECRET_JSON
+            ValueFrom:
+              Fn::ImportValue: !Sub "${ProjectName}-OpenAISecretArn"
       ScalingTarget:
         MinTaskCount: !Ref MinTaskCount
         MaxTaskCount: !Ref MaxTaskCount

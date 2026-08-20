@@ -1,6 +1,7 @@
 package itinerary
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -132,6 +133,20 @@ func TestApplyPatchUpdateDay(t *testing.T) {
 	// omitted ferry unchanged
 	if d.Ferry {
 		t.Fatal("ferry should remain false/unchanged")
+	}
+}
+
+func TestUpdateDayRejectsStopsField(t *testing.T) {
+	var p Patch
+	err := json.Unmarshal([]byte(`{
+		"places":{"x":{"title":"X","lat":1,"lon":2,"type":"attraction"}},
+		"update_day":{"day":1,"stops":[{"place":"x"}]}
+	}`), &p)
+	if err == nil {
+		t.Fatal("expected error for update_day.stops")
+	}
+	if !strings.Contains(err.Error(), "upsert_stop") {
+		t.Fatalf("error should point at upsert_stop: %v", err)
 	}
 }
 

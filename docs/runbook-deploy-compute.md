@@ -74,6 +74,8 @@ Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/ca
 
 `HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer. Signed-in ACL is `config/users.csv` (gitignored; baked into the image from the deploy machine). Start from `config/users.example.csv`.
 
+In-viewer chat (optional): `OPENAI_SECRET_JSON` from `tripmap/openai` + `OPENAI_MODEL=gpt-5-mini`; require `chat=yes` rows. See [runbook-viewer-chat.md](runbook-viewer-chat.md).
+
 Day-to-day **image-only** updates (same stack, new `ImageTag`) typically finish in ~3 minutes after the Express bake tweak below. A full seasonal **create** still needs edge (step 3) and the bake step.
 
 ## 2b. Express bake settings (required after create / recreate)
@@ -139,10 +141,12 @@ set -a && source .env && set +a
 curl -fsS "https://tripmap.sheffer.org/health"
 curl -fsS "https://tripmap.sheffer.org/openapi.yaml" | head
 BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
+# Optional (needs OPENAI_* + chat=yes ACL): BASE_URL=… ./scripts/smoke-chat.sh
 ```
 
 - [ ] If `HelloClientID` set: open `https://tripmap.sheffer.org/` → Continue with Hellō → open `/me/trips/{id}/`; confirm notes + comments
-- [ ] `GET /auth/me` returns `authenticated: true`
+- [ ] `GET /auth/me` returns `authenticated: true` (and `chat_enabled: true` when OpenAI + `chat=yes`)
+- [ ] Optional: Ask pane + [runbook-viewer-chat.md](runbook-viewer-chat.md)
 
 ## 5. ChatGPT Agent MCP
 

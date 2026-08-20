@@ -21,6 +21,7 @@ type Patch struct {
 
 // UpdateDay partially updates one existing day's narrative/flags.
 // Omitted pointer fields are left unchanged.
+// Does not accept route/stops — use UpsertStop or replaceDayRoutes.
 type UpdateDay struct {
 	Day          int     `json:"day"`
 	Title        *string `json:"title,omitempty"`
@@ -29,6 +30,35 @@ type UpdateDay struct {
 	Ferry        *bool   `json:"ferry,omitempty"`
 	Photo        *string `json:"photo,omitempty"`
 	PhotoCaption *string `json:"photo_caption,omitempty"`
+}
+
+// UnmarshalJSON rejects route/stops and other unknown fields so agents cannot
+// silently no-op when they put stops under update_day instead of upsert_stop.
+func (u *UpdateDay) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	allowed := map[string]struct{}{
+		"day": {}, "title": {}, "notes": {}, "hike": {}, "ferry": {},
+		"photo": {}, "photo_caption": {},
+	}
+	for k := range raw {
+		if _, ok := allowed[k]; ok {
+			continue
+		}
+		if k == "stops" || k == "route" {
+			return fmt.Errorf("update_day: %s is not supported — use upsert_stop with list \"route\" or \"stops\" (create the place under places in the same patch); for overnight/endpoint changes use replaceDayRoutes", k)
+		}
+		return fmt.Errorf("update_day: unknown field %q (allowed: day, title, notes, hike, ferry, photo, photo_caption)", k)
+	}
+	type alias UpdateDay
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*u = UpdateDay(a)
+	return nil
 }
 
 // UpsertStop adds or replaces a route/stop ref on a day by place id.
