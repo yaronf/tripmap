@@ -22,4 +22,4 @@ go run . --scenario ../adk-mcp/suite-mt/scenarios/MT01_rejected_italy.json --log
 ## Notes
 
 - Instruction text matches the ADK experiment / MCP server instructions.
-- Heuristic checks are the same kinds as ADK suite MT.
+- Heuristic checks live in [`internal/mteval`](../../internal/mteval) (shared with viewer-chat MT).

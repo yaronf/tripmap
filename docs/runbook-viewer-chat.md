@@ -27,6 +27,19 @@ BASE_URL=http://127.0.0.1:8080 ./scripts/smoke-chat.sh
 
 Requires `AGENT_BEARER_TOKEN`, `HELLO_SESSION_SECRET`, `OPENAI_API_KEY`, and a `chat=yes` email in `users.csv` (or `CHAT_EMAIL=…`).
 
+## Multi-turn e2e (laptop)
+
+[`test/viewerchat-mt`](../test/viewerchat-mt/) runs suite-mt scripts through in-process tripmapd (Hellō cookie + SSE). With `ITINERARIES_BUCKET` unset, the runner uses a mem store and seeds `adk-eval` from prod (`TRIPMAP_SEED_URL`, default `https://tripmap.sheffer.org`) via agent `getVersion`. Needs OpenAI + Hellō secrets + agent Bearer.
+
+```bash
+set -a && source .env && set +a
+go run ./test/viewerchat-mt \
+  --scenario experiments/adk-mcp/suite-mt/scenarios/MT01_rejected_italy.json \
+  --log test/viewerchat-mt/runs/MT01.jsonl
+```
+
+Viewer forks (no `listTrips`): `test/viewerchat-mt/scenarios/MT04_*.json`, `MT09_*.json`, `MT10_*.json`. See that directory’s README. Scoring uses [`internal/mteval`](../internal/mteval).
+
 ## Logs (CloudWatch / stdout)
 
 Structured `log/slog` lines with `component=viewerchat` and `request_id`:

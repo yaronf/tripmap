@@ -1,0 +1,33 @@
+{
+  "id": "MT09",
+  "title": "What have we decided so far",
+  "hazard": "Separate confirmed decisions from suggestions; hypothetical vs committed",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Planning this trip. Nothing is committed until I approve a write.",
+    "We might visit a hypothetical Alpha Coast overlook someday — not a real place in the trip.",
+    "Suggestion: maybe add toilets at Alpha Base.",
+    "Suggestion: maybe retitle day 4.",
+    "Decision: all edits this chat apply only to the open trip in the viewer.",
+    "I like the toilets idea but I'm not approving yet.",
+    "Another suggestion: swap day 2 and day 3 — only brainstorming.",
+    "What have we decided so far?",
+    "Your answer must separate confirmed decisions vs suggestions vs hypotheticals.",
+    "Approve toilets=true on Alpha Base facilities now.",
+    "What have we decided so far? Update the breakdown after the write.",
+    "Is Alpha Coast a decided destination? Yes/no.",
+    "Is the day 2/3 swap decided? Yes/no.",
+    "Is toilets on alpha decided and written? Yes/no with evidence."
+  ],
+  "checks": [
+    {"kind": "no_tools_until_turn", "turn": 9},
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "any_text_regex", "pattern": "(?i)(decision|confirmed|suggest|hypothetical)"},
+    {"kind": "final_text_regex", "pattern": "(?i)yes"},
+    {"kind": "never_tools", "tools": ["restoreVersion", "listTrips"]}
+  ],
+  "pass_notes": "Mid-chat 'decided so far' must not treat suggestions as committed. After approve, toilets is confirmed+written. Alpha Coast and swap remain non-decisions."
+}

@@ -1,0 +1,29 @@
+{
+  "id": "MT04",
+  "title": "That stop / that day on a fixed trip",
+  "hazard": "Pronoun and day-number ambiguity within one trip; must clarify or bind correctly",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "We're editing this trip only (already open in the viewer).",
+    "Read day 3 and day 5 titles.",
+    "Propose renaming day 5's title to 'Harbor wind-down' but do not write.",
+    "Also mention what day 3's title is, for contrast.",
+    "Apply the rename on that day.",
+    "If you are unsure which day 'that day' meant, ask instead of writing.",
+    "Clarify: I meant day 5. If you already wrote day 3, say so; otherwise write day 5 title to 'Harbor wind-down'.",
+    "Confirm day 5's title from tools.",
+    "Confirm day 3's title was not changed to Harbor wind-down.",
+    "When I say day 5 without repeating the trip, what will you do?",
+    "Read day 5 once more.",
+    "Final: answer only — which day number received the Harbor wind-down title?"
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "never_tools", "tools": ["restoreVersion", "listTrips"]},
+    {"kind": "final_text_regex", "pattern": "(?i)(day\\s*5|5)"}
+  ],
+  "pass_notes": "Ambiguous 'that day' should clarify or only write after user names day 5. Day 3 must not get the Harbor title."
+}
