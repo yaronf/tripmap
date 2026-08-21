@@ -16,6 +16,7 @@ import (
 
 const (
 	defaultMaxIter = 24
+	defaultModel   = "gpt-5-mini"
 	mcpInstructions = "tripmap agent API as MCP tools. Prefer patchTrip with update_day or places.<id>.info; " +
 		"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
 		"Use listVersions + getVersion to inspect history; restoreVersion only when the user asks to revert. " +
@@ -36,7 +37,7 @@ const (
 type Config struct {
 	APIKey string
 	Model  string
-	Ops    TripOps
+	Ops    Ops
 	Log    *slog.Logger
 	MaxIter int
 }
@@ -45,7 +46,7 @@ type Config struct {
 type Agent struct {
 	apiKey  string
 	model   string
-	ops     TripOps
+	ops     Ops
 	log     *slog.Logger
 	maxIter int
 }
@@ -60,9 +61,13 @@ func NewAgent(cfg Config) *Agent {
 	if max <= 0 {
 		max = defaultMaxIter
 	}
+	model := strings.TrimSpace(cfg.Model)
+	if model == "" {
+		model = defaultModel
+	}
 	return &Agent{
 		apiKey:  strings.TrimSpace(cfg.APIKey),
-		model:   strings.TrimSpace(cfg.Model),
+		model:   model,
 		ops:     cfg.Ops,
 		log:     log,
 		maxIter: max,
@@ -97,10 +102,6 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 	if a.apiKey == "" {
 		return TurnResult{}, fmt.Errorf("OpenAI API key not configured")
 	}
-	modelName := a.model
-	if modelName == "" {
-		modelName = "gpt-5-mini"
-	}
 
 	tripUpdated := false
 	sess := &toolSession{
@@ -129,7 +130,7 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 
 	am, err := agenticopenai.NewResponsesModel(ctx, &agenticopenai.ResponsesConfig{
 		APIKey:          a.apiKey,
-		Model:           modelName,
+		Model:           a.model,
 		EnableAutoCache: true,
 		Include: []responses.ResponseIncludable{
 			responses.ResponseIncludableWebSearchCallActionSources,
@@ -189,7 +190,7 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 		msg, err := am.Generate(ctx, input, genOpts...)
 		latency := time.Since(start).Milliseconds()
 		if err != nil {
-			tl.with("latency_ms", latency, "model", modelName).Error("model_call", "error", truncateRunes(err.Error(), 300))
+			tl.with("latency_ms", latency, "model", a.model).Error("model_call", "error", truncateRunes(err.Error(), 300))
 			return TurnResult{TripUpdated: tripUpdated}, err
 		}
 		respID := ""
@@ -200,7 +201,7 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 		webSearches := serverToolCallCount(msg)
 		tl.with(
 			"latency_ms", latency,
-			"model", modelName,
+			"model", a.model,
 			"response_id", respID,
 			"tool_calls", len(calls),
 			"web_search", webSearches,

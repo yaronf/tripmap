@@ -1,6 +1,6 @@
 # Runbook: in-viewer chat (Persona + Eino)
 
-Hellō-signed-in viewers with `chat=yes` in `config/users.csv` get an **Ask** pane (Persona). The backend agent is Eino OpenAI **Responses** (`gpt-5-mini` by default) with hosted **`web_search`** plus in-process itinerary tools (same ops as MCP).
+Hellō-signed-in viewers with `chat=yes` in `config/users.csv` get an **Ask** pane (Persona). The backend agent is Eino OpenAI **Responses** (`gpt-5-mini` by default) with hosted **`web_search`** plus in-process itinerary tools. Tool implementations share `internal/tripops` with HTTP/MCP (chat binders only fix trip id, viewer-day defaults, logging).
 
 ## Enable
 
@@ -37,7 +37,6 @@ Structured `log/slog` lines with `component=viewerchat` and `request_id`:
 | `model_call` | latency, model, response_id, function `tool_calls`, `web_search` count (or error) |
 | `tool_call` | tool name, truncated args (~500 runes), latency, result bytes, mutate flag |
 | `turn_end` | total ms, trip_updated, outcome `done` / `error` |
-| `viewerchat feedback` | thumbs up/down (stdlib `log`, truncated texts) |
 
 Never log API keys or full YAML. Filter Insights by `trip_id` or `tool`.
 

@@ -86,11 +86,7 @@ func (s *Server) serveTripBundle(w http.ResponseWriter, r *http.Request, id, rel
 		s.handleNotes(w, r, id)
 		return
 	}
-	if rel == "api/chat/feedback" {
-		s.handleChatFeedback(w, r, id)
-		return
-	}
-	if rel == "api/chat" || strings.HasPrefix(rel, "api/chat/") {
+	if rel == "api/chat" {
 		s.handleChat(w, r, id)
 		return
 	}

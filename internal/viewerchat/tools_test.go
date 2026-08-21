@@ -10,23 +10,24 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/components/tool"
+	"github.com/yaronf/tripmap/internal/tripops"
 )
 
 type mockOps struct {
 	patched bool
 }
 
-func (m *mockOps) Summary(context.Context, string) (TripCard, error) {
-	return TripCard{ID: "t", Title: "T", Days: 1}, nil
+func (m *mockOps) Summary(context.Context, string) (TripSummary, error) {
+	return TripSummary{ID: "t", Trip: "T", Days: 1}, nil
 }
 func (m *mockOps) SchemaJSON(context.Context) (json.RawMessage, error) {
 	return json.RawMessage(`{"schema_version":2}`), nil
 }
-func (m *mockOps) GetYAML(context.Context, string, string, int) ([]byte, error) {
-	return []byte("trip: T\ndays: []\n"), nil
+func (m *mockOps) GetYAML(context.Context, string, string, int) (YAMLResult, error) {
+	return YAMLResult{Body: []byte("trip: T\ndays: []\n")}, nil
 }
-func (m *mockOps) GetYAMLVersion(context.Context, string, string) ([]byte, error) {
-	return []byte("trip: old\n"), nil
+func (m *mockOps) GetYAMLVersion(context.Context, string, string) (YAMLResult, error) {
+	return YAMLResult{Body: []byte("trip: old\n")}, nil
 }
 func (m *mockOps) Patch(context.Context, string, []byte) (MutateResult, error) {
 	m.patched = true
@@ -35,12 +36,14 @@ func (m *mockOps) Patch(context.Context, string, []byte) (MutateResult, error) {
 func (m *mockOps) ReplaceDayRoutes(context.Context, string, []byte) (MutateResult, error) {
 	return MutateResult{ID: "t", VersionID: "v2", BundleOK: true}, nil
 }
-func (m *mockOps) ListVersions(context.Context, string) ([]VersionEntry, error) {
+func (m *mockOps) ListVersions(context.Context, string, int) ([]VersionEntry, error) {
 	return []VersionEntry{{VersionID: "v1", IsLatest: true}}, nil
 }
 func (m *mockOps) RestoreVersion(context.Context, string, string) (MutateResult, error) {
 	return MutateResult{ID: "t", VersionID: "v0", BundleOK: true}, nil
 }
+
+var _ tripops.Ops = (*mockOps)(nil)
 
 type failPatchOps struct {
 	mockOps

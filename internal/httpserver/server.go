@@ -1,21 +1,18 @@
 package httpserver
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/yaronf/mcpopenapi"
 	"github.com/yaronf/tripmap/api"
-	"github.com/yaronf/tripmap/internal/bundle"
 	"github.com/yaronf/tripmap/internal/itinerary"
-	"github.com/yaronf/tripmap/internal/routebuild"
 	"github.com/yaronf/tripmap/internal/store"
+	"github.com/yaronf/tripmap/internal/tripops"
 	"github.com/yaronf/tripmap/internal/viewerchat"
 )
 
@@ -25,19 +22,25 @@ var _ api.ServerInterface = (*Server)(nil)
 type Server struct {
 	cfg   Config
 	store store.Store
+	ops   *tripops.Service
 	mux   *http.ServeMux
 	chat  chatHTTP // nil until viewerchat agent is wired
 }
 
 // New builds the HTTP server.
 func New(cfg Config, st store.Store) *Server {
-	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux()}
+	ops := tripops.New(tripops.Config{
+		Store:         st,
+		PublicBaseURL: cfg.PublicBaseURL,
+		RouteMode:     cfg.RouteMode,
+	})
+	s := &Server{cfg: cfg, store: st, ops: ops, mux: http.NewServeMux()}
 	if cfg.OpenAIAPIKey != "" {
 		s.chat = &viewerchat.Handler{
 			Agent: viewerchat.NewAgent(viewerchat.Config{
 				APIKey: cfg.OpenAIAPIKey,
 				Model:  cfg.OpenAIModel,
-				Ops:    chatTripOps{s: s},
+				Ops:    ops,
 			}),
 		}
 	}
@@ -90,14 +93,7 @@ func (s *Server) routes() {
 	s.mux.Handle("/mcp/", bearerAuth(s.cfg.AgentBearerToken, mcpHandler))
 }
 
-type mutateResult struct {
-	ID            string `json:"id"`
-	VersionID     string `json:"version_id,omitempty"`
-	SchemaVersion int    `json:"schema_version"`
-	ViewerURL     string `json:"viewer_url,omitempty"`
-	BundleOK      bool   `json:"bundle_ok"`
-	BundleError   string `json:"bundle_error,omitempty"`
-}
+type mutateResult = tripops.MutateResult
 
 func (s *Server) Health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -198,60 +194,35 @@ func (s *Server) GetTrip(w http.ResponseWriter, r *http.Request, id string) {
 	if !s.requireTripID(w, id) {
 		return
 	}
-	obj, err := s.store.GetYAML(r.Context(), id)
+	sum, err := s.ops.Summary(r.Context(), id)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
+		writeErr(w, tripops.HTTPStatus(err), err)
 		return
 	}
-	trip, err := itinerary.ParseYAML(obj.Body)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	meta, _ := s.store.GetMeta(r.Context(), id)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"id":             id,
-		"version_id":     obj.VersionID,
-		"schema_version": trip.SchemaVersion,
-		"trip":           trip.Trip,
-		"description":    trip.Description,
-		"start":          trip.Start,
-		"days":           len(trip.Days),
-		"updated_at":     meta.UpdatedAt,
-	})
+	writeJSON(w, http.StatusOK, sum)
 }
 
 func (s *Server) GetTripYAML(w http.ResponseWriter, r *http.Request, id string, params api.GetTripYAMLParams) {
 	if !s.requireTripID(w, id) {
 		return
 	}
-	obj, err := s.store.GetYAML(r.Context(), id)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
-		return
-	}
-	body := obj.Body
-	// HTTP default remains full YAML when scope is omitted (compat for MCP/scripts).
+	scope := ""
+	day := 0
 	if params.Scope != nil && *params.Scope == api.Day {
-		day := 0
+		scope = "day"
 		if params.Day != nil {
 			day = *params.Day
 		}
-		if day < 1 {
-			writeErr(w, http.StatusBadRequest, fmt.Errorf("day is required when scope=day"))
-			return
-		}
-		scoped, err := itinerary.BuildDayScopedYAML(body, day)
-		if err != nil {
-			writeErr(w, http.StatusBadRequest, err)
-			return
-		}
-		body = scoped
+	}
+	res, err := s.ops.GetYAML(r.Context(), id, scope, day)
+	if err != nil {
+		writeErr(w, tripops.HTTPStatus(err), err)
+		return
 	}
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
-	w.Header().Set("X-Tripmap-Version-Id", obj.VersionID)
+	w.Header().Set("X-Tripmap-Version-Id", res.VersionID)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(body)
+	_, _ = w.Write(res.Body)
 }
 
 func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.CreateTripParams) {
@@ -283,7 +254,7 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.Create
 		return
 	}
 
-	trip, err := prepareTripYAML(yamlBytes)
+	trip, err := tripops.PrepareYAML(yamlBytes)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
@@ -297,9 +268,9 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.Create
 	now := time.Now().UTC()
 	meta := store.Meta{SchemaVersion: trip.SchemaVersion, CreatedAt: now, UpdatedAt: now}
 
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
+	res, err := s.ops.Commit(r.Context(), id, outYAML, &meta)
 	if err != nil {
-		writeErr(w, status, err)
+		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	s.finishIdempotent(w, r, http.StatusCreated, res)
@@ -327,7 +298,7 @@ func (s *Server) PutTripYAML(w http.ResponseWriter, r *http.Request, id string, 
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	trip, err := prepareTripYAML(body)
+	trip, err := tripops.PrepareYAML(body)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
@@ -344,9 +315,9 @@ func (s *Server) PutTripYAML(w http.ResponseWriter, r *http.Request, id string, 
 	}
 	meta.SchemaVersion = trip.SchemaVersion
 	meta.UpdatedAt = time.Now().UTC()
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
+	res, err := s.ops.Commit(r.Context(), id, outYAML, &meta)
 	if err != nil {
-		writeErr(w, status, err)
+		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	s.finishIdempotent(w, r, http.StatusOK, res)
@@ -364,12 +335,12 @@ func (s *Server) PatchTrip(w http.ResponseWriter, r *http.Request, id string, _ 
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	var p itinerary.Patch
-	if err := json.Unmarshal(body, &p); err != nil {
-		writeErr(w, http.StatusBadRequest, fmt.Errorf("invalid patch json: %w", err))
+	res, err := s.ops.Patch(r.Context(), id, body)
+	if err != nil {
+		writeErr(w, tripops.HTTPStatus(err), err)
 		return
 	}
-	s.applyTripPatch(w, r, id, p)
+	s.finishIdempotent(w, r, http.StatusOK, res)
 }
 
 func (s *Server) ReplaceDayRoutes(w http.ResponseWriter, r *http.Request, id string, _ api.ReplaceDayRoutesParams) {
@@ -384,52 +355,9 @@ func (s *Server) ReplaceDayRoutes(w http.ResponseWriter, r *http.Request, id str
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	p, err := itinerary.ParseReplaceDayRoutes(body)
+	res, err := s.ops.ReplaceDayRoutes(r.Context(), id, body)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
-		return
-	}
-	s.applyTripPatch(w, r, id, p)
-}
-
-func (s *Server) applyTripPatch(w http.ResponseWriter, r *http.Request, id string, p itinerary.Patch) {
-	obj, err := s.store.GetYAML(r.Context(), id)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
-		return
-	}
-	trip, err := itinerary.ParseYAML(obj.Body)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := itinerary.ApplyPatch(&trip, p); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
-		return
-	}
-	if err := itinerary.EnsureSchemaVersion(&trip); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
-		return
-	}
-	if err := itinerary.ResolveDayDates(&trip); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
-		return
-	}
-	outYAML, err := itinerary.MarshalYAML(trip)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	meta, err := s.store.GetMeta(r.Context(), id)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	meta.SchemaVersion = trip.SchemaVersion
-	meta.UpdatedAt = time.Now().UTC()
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
-	if err != nil {
-		writeErr(w, status, err)
+		writeErr(w, tripops.HTTPStatus(err), err)
 		return
 	}
 	s.finishIdempotent(w, r, http.StatusOK, res)
@@ -439,9 +367,9 @@ func (s *Server) ListVersions(w http.ResponseWriter, r *http.Request, id string)
 	if !s.requireTripID(w, id) {
 		return
 	}
-	vers, err := s.store.ListVersions(r.Context(), id)
+	vers, err := s.ops.ListVersions(r.Context(), id, 0)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
+		writeErr(w, tripops.HTTPStatus(err), err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "versions": vers})
@@ -451,20 +379,15 @@ func (s *Server) GetVersion(w http.ResponseWriter, r *http.Request, id, versionI
 	if !s.requireTripID(w, id) {
 		return
 	}
-	versionID = strings.TrimSpace(versionID)
-	if versionID == "" {
-		writeErr(w, http.StatusBadRequest, fmt.Errorf("version_id required"))
-		return
-	}
-	obj, err := s.store.GetYAMLVersion(r.Context(), id, versionID)
+	res, err := s.ops.GetYAMLVersion(r.Context(), id, versionID)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
+		writeErr(w, tripops.HTTPStatus(err), err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
-	w.Header().Set("X-Tripmap-Version-Id", obj.VersionID)
+	w.Header().Set("X-Tripmap-Version-Id", res.VersionID)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(obj.Body)
+	_, _ = w.Write(res.Body)
 }
 
 func (s *Server) RestoreVersion(w http.ResponseWriter, r *http.Request, id string, _ api.RestoreVersionParams) {
@@ -486,125 +409,12 @@ func (s *Server) RestoreVersion(w http.ResponseWriter, r *http.Request, id strin
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("version_id required"))
 		return
 	}
-	obj, err := s.store.GetYAMLVersion(r.Context(), id, req.VersionID)
+	res, err := s.ops.RestoreVersion(r.Context(), id, req.VersionID)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, err)
-		return
-	}
-	trip, err := prepareTripYAML(obj.Body)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
-		return
-	}
-	outYAML, err := itinerary.MarshalYAML(trip)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	meta, err := s.store.GetMeta(r.Context(), id)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	meta.SchemaVersion = trip.SchemaVersion
-	meta.UpdatedAt = time.Now().UTC()
-	res, status, err := s.commitMutate(r.Context(), id, outYAML, &meta)
-	if err != nil {
-		writeErr(w, status, err)
+		writeErr(w, tripops.HTTPStatus(err), err)
 		return
 	}
 	s.finishIdempotent(w, r, http.StatusOK, res)
-}
-
-func (s *Server) commitMutate(ctx context.Context, id string, yamlBytes []byte, meta *store.Meta) (mutateResult, int, error) {
-	vid, err := s.store.PutYAML(ctx, id, yamlBytes)
-	if err != nil {
-		return mutateResult{}, http.StatusInternalServerError, err
-	}
-	if err := s.store.PutMeta(ctx, id, *meta); err != nil {
-		return mutateResult{}, http.StatusInternalServerError, err
-	}
-
-	trip, err := itinerary.ParseYAML(yamlBytes)
-	if err != nil {
-		return mutateResult{}, http.StatusInternalServerError, err
-	}
-	_ = itinerary.ResolveDayDates(&trip)
-	_ = itinerary.ResolvePlaces(&trip)
-
-	res := mutateResult{
-		ID:            id,
-		VersionID:     vid,
-		SchemaVersion: trip.SchemaVersion,
-	}
-	base := s.cfg.PublicBaseURL
-	if base != "" {
-		res.ViewerURL = fmt.Sprintf("%s/me/trips/%s/", base, id)
-	} else {
-		res.ViewerURL = fmt.Sprintf("/me/trips/%s/", id)
-	}
-
-	if err := s.regenBundle(ctx, id, trip); err != nil {
-		res.BundleOK = false
-		res.BundleError = err.Error()
-	} else {
-		res.BundleOK = true
-	}
-	return res, http.StatusOK, nil
-}
-
-func (s *Server) regenBundle(ctx context.Context, id string, trip itinerary.Trip) error {
-	dir, err := os.MkdirTemp("", "tripmap-bundle-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
-
-	opts := routebuild.RouteOptions{
-		Mode:           s.cfg.RouteMode,
-		SimplifyMeters: 100,
-		CoordPrecision: 5,
-		Units:          "km",
-	}
-	if opts.Mode == "" {
-		opts.Mode = "osrm"
-	}
-	// For tests / offline, allow straight without OSRM.
-	if opts.Mode == "osrm" && os.Getenv("TRIPMAP_FORCE_STRAIGHT") == "1" {
-		opts.Mode = "straight"
-	}
-	if err := bundle.Build(ctx, trip, id, "", dir, opts); err != nil {
-		// fall back to straight if OSRM fails
-		if opts.Mode != "straight" {
-			opts.Mode = "straight"
-			if err2 := bundle.Build(ctx, trip, id, "", dir, opts); err2 != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	return s.store.UploadBundle(ctx, id, dir)
-}
-
-func prepareTripYAML(b []byte) (itinerary.Trip, error) {
-	trip, err := itinerary.ParseYAML(b)
-	if err != nil {
-		return itinerary.Trip{}, err
-	}
-	if err := itinerary.EnsureSchemaVersion(&trip); err != nil {
-		return itinerary.Trip{}, err
-	}
-	if err := itinerary.ValidateBasic(trip); err != nil {
-		return itinerary.Trip{}, err
-	}
-	if err := itinerary.ResolvePlaces(&trip); err != nil {
-		return itinerary.Trip{}, err
-	}
-	if err := itinerary.ResolveDayDates(&trip); err != nil {
-		return itinerary.Trip{}, err
-	}
-	return trip, nil
 }
 
 func parseCreateBody(body []byte) (id string, yamlBytes []byte, err error) {
