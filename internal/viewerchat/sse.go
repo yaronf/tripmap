@@ -10,10 +10,11 @@ import (
 
 // Event is one SSE data payload for Persona (parseSSEEvent maps these).
 type Event struct {
-	Type  string `json:"type"`
-	Text  string `json:"text,omitempty"`
-	Error string `json:"error,omitempty"`
-	Done  bool   `json:"done,omitempty"`
+	Type   string `json:"type"`
+	Text   string `json:"text,omitempty"`
+	Status string `json:"status,omitempty"`
+	Error  string `json:"error,omitempty"`
+	Done   bool   `json:"done,omitempty"`
 }
 
 type sseWriter struct {

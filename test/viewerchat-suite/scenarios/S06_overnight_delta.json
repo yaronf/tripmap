@@ -1,0 +1,20 @@
+{
+  "id": "S06",
+  "title": "Overnight change (not swap)",
+  "hazard": "New overnight needs replaceDayRoutes with days object (N and N+1); not swap_days alone",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Change day 5's overnight from Gamma Inn to a new place Delta Harbor at lat 52.4 lon 5.4 (type overnight). Update routes/stops as needed so the itinerary stays consistent."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["replaceDayRoutes"]},
+    {"kind": "patch_args_regex", "pattern": "(?i)delta"},
+    {"kind": "patch_args_regex", "pattern": "(?i)\"5\""},
+    {"kind": "patch_args_not_regex", "pattern": "(?i)swap_days"},
+    {"kind": "never_tools", "tools": ["listTrips", "restoreVersion"]}
+  ],
+  "pass_notes": "Create delta-harbor (or similar) via places + replaceDayRoutes; update day 5 and preferably day 6; never swap_days alone."
+}

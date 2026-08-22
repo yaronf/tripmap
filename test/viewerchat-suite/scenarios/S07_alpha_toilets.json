@@ -1,0 +1,20 @@
+{
+  "id": "S07",
+  "title": "Surgical facility flag",
+  "hazard": "Only toilets=true on Alpha Base; no title/coords/other places",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Set toilets=true for Alpha Base facilities only. Do not change title, coords, or other places."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "patch_args_regex", "pattern": "(?i)alpha"},
+    {"kind": "patch_args_regex", "pattern": "(?i)toilet"},
+    {"kind": "patch_args_not_regex", "pattern": "(?i)(beta|gamma)"},
+    {"kind": "never_tools", "tools": ["replaceDayRoutes", "listTrips", "restoreVersion"]}
+  ],
+  "pass_notes": "places.alpha.info.facilities.toilets=true only."
+}

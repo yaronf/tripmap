@@ -14,7 +14,8 @@ import (
 )
 
 type mockOps struct {
-	patched bool
+	patched             bool
+	replaceDayRoutesArg string
 }
 
 func (m *mockOps) Summary(context.Context, string) (TripSummary, error) {
@@ -33,7 +34,8 @@ func (m *mockOps) Patch(context.Context, string, []byte) (MutateResult, error) {
 	m.patched = true
 	return MutateResult{ID: "t", VersionID: "v1", BundleOK: true}, nil
 }
-func (m *mockOps) ReplaceDayRoutes(context.Context, string, []byte) (MutateResult, error) {
+func (m *mockOps) ReplaceDayRoutes(_ context.Context, _ string, body []byte) (MutateResult, error) {
+	m.replaceDayRoutesArg = string(body)
 	return MutateResult{ID: "t", VersionID: "v2", BundleOK: true}, nil
 }
 func (m *mockOps) ListVersions(context.Context, string, int) ([]VersionEntry, error) {
@@ -41,6 +43,12 @@ func (m *mockOps) ListVersions(context.Context, string, int) ([]VersionEntry, er
 }
 func (m *mockOps) RestoreVersion(context.Context, string, string) (MutateResult, error) {
 	return MutateResult{ID: "t", VersionID: "v0", BundleOK: true}, nil
+}
+func (m *mockOps) EstimateDrive(context.Context, string, []tripops.DriveWaypoint) (tripops.DriveEstimate, error) {
+	return tripops.DriveEstimate{
+		Legs: []tripops.DriveLeg{{From: "a", To: "b", DistanceKm: 10, DurationMinutes: 12}},
+		DistanceKm: 10, DurationMinutes: 12, Provider: "osrm",
+	}, nil
 }
 
 var _ tripops.Ops = (*mockOps)(nil)
@@ -67,6 +75,7 @@ func TestBuildToolsIncludesChatAudienceSet(t *testing.T) {
 	want := map[string]bool{
 		"getSchema": true, "getTrip": true, "getTripYAML": true, "patchTrip": true,
 		"replaceDayRoutes": true, "listVersions": true, "getVersion": true, "restoreVersion": true,
+		"estimateDrive": true,
 	}
 	for _, tl := range tools {
 		info, err := tl.Info(t.Context())
@@ -125,6 +134,74 @@ func TestPatchToolMarksTripUpdatedAndLogs(t *testing.T) {
 	logs := buf.String()
 	if !strings.Contains(logs, `"msg":"tool_call"`) || !strings.Contains(logs, `"tool":"patchTrip"`) {
 		t.Fatalf("expected tool_call log, got %s", logs)
+	}
+}
+
+func TestReplaceDayRoutesFlatArgs(t *testing.T) {
+	ops := &mockOps{}
+	updated := false
+	sess := &toolSession{
+		ops:         ops,
+		tripID:      "t",
+		viewerDay:   5,
+		tripUpdated: &updated,
+		log:         turnLogger{log: slog.Default(), requestID: "r", tripID: "t", sub: "s", day: 5},
+	}
+	tools, err := sess.buildTools()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inv tool.InvokableTool
+	for _, tl := range tools {
+		info, _ := tl.Info(t.Context())
+		if info.Name != "replaceDayRoutes" {
+			continue
+		}
+		var ok bool
+		inv, ok = tl.(tool.InvokableTool)
+		if !ok {
+			t.Fatal("not InvokableTool")
+		}
+		// Schema must expose days at top level, not nested body.
+		if info.ParamsOneOf == nil {
+			t.Fatal("missing params schema")
+		}
+		params, err := info.ToJSONSchema()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(params)
+		if !strings.Contains(string(b), `"days"`) || strings.Contains(string(b), `"body"`) {
+			t.Fatalf("want flat days, no body wrapper: %s", b)
+		}
+		break
+	}
+	if inv == nil {
+		t.Fatal("replaceDayRoutes missing")
+	}
+	out, err := inv.InvokableRun(t.Context(), `{
+		"places": {"ashhurst": {"title": "Ashhurst", "lat": -40.3, "lon": 175.7, "type": "overnight"}},
+		"days": {
+			"5": {"title": "To Ashhurst", "route": [{"place": "a", "type": "overnight"}, {"place": "ashhurst", "type": "overnight"}]},
+			"6": {"title": "From Ashhurst", "route": [{"place": "ashhurst", "type": "overnight"}, {"place": "b", "type": "overnight"}]}
+		}
+	}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatalf("expected trip_updated, out=%s", out)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(ops.replaceDayRoutesArg), &got); err != nil {
+		t.Fatal(err)
+	}
+	days, _ := got["days"].(map[string]any)
+	if days["5"] == nil || days["6"] == nil {
+		t.Fatalf("expected days 5 and 6 in ops arg: %s", ops.replaceDayRoutesArg)
+	}
+	if got["places"] == nil {
+		t.Fatalf("expected places: %s", ops.replaceDayRoutesArg)
 	}
 }
 

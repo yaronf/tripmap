@@ -1,0 +1,20 @@
+{
+  "id": "S10",
+  "title": "Composite read — day 3 order",
+  "hazard": "Read tools only; accurate place order; no invented drive stats",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "For day 3, list the stop/route place names in order and any drive distance/time if the trip data has them."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["getTripYAML"]},
+    {"kind": "never_tools", "tools": ["patchTrip", "replaceDayRoutes", "restoreVersion", "listTrips"]},
+    {"kind": "final_text_regex", "pattern": "(?i)alpha"},
+    {"kind": "final_text_regex", "pattern": "(?i)beta"},
+    {"kind": "final_text_regex", "pattern": "(?i)gamma"}
+  ],
+  "pass_notes": "Read tools only; order alpha→beta→gamma; drive stats only if present (YAML typically has none)."
+}

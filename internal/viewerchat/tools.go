@@ -89,16 +89,24 @@ func (s *toolSession) buildTools() ([]tool.BaseTool, error) {
 		return nil, err
 	}
 	type routesIn struct {
-		Body json.RawMessage `json:"body" jsonschema:"required,description=replaceDayRoutes request JSON"`
+		Places map[string]any `json:"places,omitempty" jsonschema:"description=Optional new/updated places keyed by kebab-case id (title, lat, lon, type at top level)"`
+		Days   map[string]any `json:"days" jsonschema:"required,description=Object keyed by day-number strings (e.g. 5 and 6) — NOT an array. Each value needs a full route array and usually title. Overnight moves must include day N and N+1 in the same call."`
 	}
 	replaceDayRoutes, err := utils.InferTool("replaceDayRoutes", tripops.SummaryReplaceDayRoutes,
 		func(ctx context.Context, in routesIn) (MutateResult, error) {
-			args := string(in.Body)
-			return typedWrap(s, "replaceDayRoutes", args, true, func() (MutateResult, error) {
-				if len(in.Body) == 0 {
-					return MutateResult{}, fmt.Errorf("body is required")
-				}
-				return s.ops.ReplaceDayRoutes(ctx, s.tripID, in.Body)
+			if len(in.Days) == 0 {
+				return MutateResult{}, fmt.Errorf("days is required (object keyed by day number, not an array)")
+			}
+			payload := map[string]any{"days": in.Days}
+			if len(in.Places) > 0 {
+				payload["places"] = in.Places
+			}
+			body, err := json.Marshal(payload)
+			if err != nil {
+				return MutateResult{}, err
+			}
+			return typedWrap(s, "replaceDayRoutes", string(body), true, func() (MutateResult, error) {
+				return s.ops.ReplaceDayRoutes(ctx, s.tripID, body)
 			})
 		})
 	if err != nil {
@@ -140,9 +148,22 @@ func (s *toolSession) buildTools() ([]tool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
+	type driveIn struct {
+		Points []tripops.DriveWaypoint `json:"points" jsonschema:"required,description=Ordered waypoints (min 2). Prefer place ids from the trip; or lat/lon (+ optional title) for candidates not yet in the itinerary."`
+	}
+	estimateDrive, err := utils.InferTool("estimateDrive", tripops.SummaryEstimateDrive,
+		func(ctx context.Context, in driveIn) (tripops.DriveEstimate, error) {
+			args, _ := json.Marshal(in)
+			return typedWrap(s, "estimateDrive", string(args), false, func() (tripops.DriveEstimate, error) {
+				return s.ops.EstimateDrive(ctx, s.tripID, in.Points)
+			})
+		})
+	if err != nil {
+		return nil, err
+	}
 
 	raw := []tool.BaseTool{
-		getSchema, getTrip, getTripYAML, patchTrip, replaceDayRoutes, listVersions, getVersion, restoreVersion,
+		getSchema, getTrip, getTripYAML, patchTrip, replaceDayRoutes, listVersions, getVersion, restoreVersion, estimateDrive,
 	}
 	out := make([]tool.BaseTool, 0, len(raw))
 	for _, t := range raw {

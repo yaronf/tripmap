@@ -33,4 +33,16 @@ func TestEvalChecksPatchArgs(t *testing.T) {
 	if AllPassed(res) {
 		t.Fatal("expected fail on alpha")
 	}
+	res = EvalChecks([]Check{
+		{Kind: "patch_args_regex", Pattern: "(?i)alpha"},
+	}, traces)
+	if !AllPassed(res) {
+		t.Fatalf("expected match on alpha: %+v", res)
+	}
+	res = EvalChecks([]Check{
+		{Kind: "patch_args_regex", Pattern: "(?i)delta"},
+	}, traces)
+	if AllPassed(res) {
+		t.Fatal("expected miss on delta")
+	}
 }

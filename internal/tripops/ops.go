@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/yaronf/tripmap/api"
+	"github.com/yaronf/tripmap/internal/bundle"
 	"github.com/yaronf/tripmap/internal/itinerary"
 	"github.com/yaronf/tripmap/internal/store"
 )
@@ -26,19 +27,29 @@ type Ops interface {
 	ReplaceDayRoutes(ctx context.Context, tripID string, bodyJSON []byte) (MutateResult, error)
 	ListVersions(ctx context.Context, tripID string, limit int) ([]VersionEntry, error)
 	RestoreVersion(ctx context.Context, tripID, versionID string) (MutateResult, error)
+	EstimateDrive(ctx context.Context, tripID string, points []DriveWaypoint) (DriveEstimate, error)
 }
 
-// TripSummary matches OpenAPI TripSummary (plus optional day_titles for agents).
+// DayDriveStats is precomputed OSRM drive totals for one day (from bundle trip.json).
+type DayDriveStats struct {
+	Day       int     `json:"day"`
+	DriveDist float64 `json:"drive_dist,omitempty"`
+	DriveMin  int     `json:"drive_min,omitempty"`
+}
+
+// TripSummary matches OpenAPI TripSummary (plus optional agent fields).
 type TripSummary struct {
-	ID            string    `json:"id"`
-	VersionID     string    `json:"version_id,omitempty"`
-	SchemaVersion int       `json:"schema_version"`
-	Trip          string    `json:"trip"`
-	Description   string    `json:"description,omitempty"`
-	Start         string    `json:"start,omitempty"`
-	Days          int       `json:"days"`
-	UpdatedAt     time.Time `json:"updated_at,omitempty"`
-	DayTitles     []string  `json:"day_titles,omitempty"`
+	ID            string          `json:"id"`
+	VersionID     string          `json:"version_id,omitempty"`
+	SchemaVersion int             `json:"schema_version"`
+	Trip          string          `json:"trip"`
+	Description   string          `json:"description,omitempty"`
+	Start         string          `json:"start,omitempty"`
+	Days          int             `json:"days"`
+	UpdatedAt     time.Time       `json:"updated_at,omitempty"`
+	DayTitles     []string        `json:"day_titles,omitempty"`
+	Units         string          `json:"units,omitempty"` // km | mi — bundle distance unit for drive_dist
+	DayStats      []DayDriveStats `json:"day_stats,omitempty"`
 }
 
 // YAMLResult is itinerary YAML plus version id.
@@ -67,10 +78,10 @@ type VersionEntry struct {
 // OpenAPI operation summaries — single source for chat tool one-liners.
 const (
 	SummaryGetSchema        = "Itinerary schema and version"
-	SummaryGetTrip          = "Compact trip title card (not full routes)"
+	SummaryGetTrip          = "Compact trip card with day titles and per-day drive_dist/drive_min from bundle (use for drive-time questions; no YAML needed)"
 	SummaryGetTripYAML      = "Get itinerary YAML"
 	SummaryPatchTrip        = "Patch places info, day narrative, or structure"
-	SummaryReplaceDayRoutes = "Replace full day routes (overnight / endpoint changes)"
+	SummaryReplaceDayRoutes = "Replace full day routes (overnight / endpoint). Args: days object keyed by day number (not array); include N and N+1 for overnight moves; optional places."
 	SummaryListVersions     = "List YAML versions"
 	SummaryGetVersion       = "Get YAML for a prior version"
 	SummaryRestoreVersion   = "Restore a prior YAML version"
@@ -145,7 +156,35 @@ func BuildSummary(ctx context.Context, st store.Store, tripID string) (TripSumma
 	if meta, err := st.GetMeta(ctx, tripID); err == nil {
 		sum.UpdatedAt = meta.UpdatedAt
 	}
+	mergeBundleDriveStats(ctx, st, tripID, &sum)
 	return sum, nil
+}
+
+func mergeBundleDriveStats(ctx context.Context, st store.Store, tripID string, sum *TripSummary) {
+	if sum == nil {
+		return
+	}
+	body, _, err := st.GetBundleObject(ctx, tripID, "trip.json")
+	if err != nil {
+		return
+	}
+	var tj bundle.TripJSON
+	if err := json.Unmarshal(body, &tj); err != nil {
+		return
+	}
+	sum.Units = tj.Units
+	if len(tj.Days) == 0 {
+		return
+	}
+	stats := make([]DayDriveStats, 0, len(tj.Days))
+	for _, d := range tj.Days {
+		stats = append(stats, DayDriveStats{
+			Day:       d.Day,
+			DriveDist: d.DriveDist,
+			DriveMin:  d.DriveMin,
+		})
+	}
+	sum.DayStats = stats
 }
 
 // LoadYAML returns full or day-scoped YAML.

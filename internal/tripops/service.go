@@ -18,6 +18,7 @@ type Config struct {
 	Store         store.Store
 	PublicBaseURL string
 	RouteMode     string // straight | osrm
+	OSRMBaseURL   string // optional; empty uses the public OSRM demo server
 }
 
 // Service implements Ops against a Store.
@@ -25,6 +26,7 @@ type Service struct {
 	store         store.Store
 	publicBaseURL string
 	routeMode     string
+	osrmBase      string
 }
 
 // New builds a Service. Store must be non-nil.
@@ -33,6 +35,7 @@ func New(cfg Config) *Service {
 		store:         cfg.Store,
 		publicBaseURL: strings.TrimRight(cfg.PublicBaseURL, "/"),
 		routeMode:     cfg.RouteMode,
+		osrmBase:      strings.TrimRight(cfg.OSRMBaseURL, "/"),
 	}
 }
 
@@ -142,6 +145,7 @@ func (s *Service) regenBundle(ctx context.Context, id string, trip itinerary.Tri
 		SimplifyMeters: 100,
 		CoordPrecision: 5,
 		Units:          "km",
+		OSRMBase:       s.osrmBase,
 	}
 	if opts.Mode == "" {
 		opts.Mode = "osrm"

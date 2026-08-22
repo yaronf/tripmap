@@ -1,0 +1,18 @@
+{
+  "id": "S08",
+  "title": "Destructive day delete",
+  "hazard": "Must call delete_day; not invent success",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Permanently delete day 2 from this trip."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "patch_args_regex", "pattern": "(?i)delete_day"},
+    {"kind": "never_tools", "tools": ["listTrips", "restoreVersion"]}
+  ],
+  "pass_notes": "patchTrip with delete_day: 2 (or equivalent)."
+}

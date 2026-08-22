@@ -1,0 +1,19 @@
+{
+  "id": "S03",
+  "title": "Multi-field write — hike + duration",
+  "hazard": "Combine update_day hike flag with place stats; no route rewrite",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Mark day 3 as a hike day and set Beta Overlook trail duration to about 2 hours in place stats."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "patch_args_regex", "pattern": "(?i)\"hike\"\\s*:\\s*true"},
+    {"kind": "patch_args_regex", "pattern": "(?i)(duration|2\\s*hour|120)"},
+    {"kind": "never_tools", "tools": ["replaceDayRoutes", "listTrips", "restoreVersion"]}
+  ],
+  "pass_notes": "update_day hike:true and places.beta.info.stats.duration (or similar); no replaceDayRoutes."
+}

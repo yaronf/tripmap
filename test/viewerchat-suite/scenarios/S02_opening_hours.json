@@ -1,0 +1,20 @@
+{
+  "id": "S02",
+  "title": "Notes vs info — opening hours",
+  "hazard": "Opening hours belong under place info logistics, not day notes",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Record that Beta Overlook is open 09:00–17:00. Prefer the right place-info field over day notes."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "patch_args_regex", "pattern": "(?i)beta"},
+    {"kind": "patch_args_regex", "pattern": "(?i)(opening_hours|09:00|9:00)"},
+    {"kind": "patch_args_not_regex", "pattern": "(?i)\"update_day\"[\\s\\S]*\"notes\""},
+    {"kind": "never_tools", "tools": ["listTrips", "restoreVersion"]}
+  ],
+  "pass_notes": "places.beta.info.logistics.opening_hours (or equivalent under info); not day 3 notes."
+}

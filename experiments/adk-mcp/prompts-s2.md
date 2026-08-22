@@ -18,3 +18,5 @@
 | S10 | Composite read | For adk-eval day 3, list the stop/route place names in order and any drive distance/time if the trip JSON has them. | Read tools only (`getTrip` and/or `getTripYAML`); accurate order alpha→beta→gamma |
 
 Mutating cases requiring restore after: **S01, S02, S03, S06, S07, S08** (S08 changes day numbering—restore essential before later cases).
+
+Viewer-chat e2e ports of these prompts (fixed open trip, heuristic checks): [`../../test/viewerchat-suite/scenarios/`](../../test/viewerchat-suite/scenarios/) (`S01_*.json` … `S10_*.json`).

@@ -1,5 +1,5 @@
-// Command viewerchat-mt runs multi-turn viewer-chat e2e scenarios against an
-// in-process tripmapd (Hellō cookie + SSE + tripops tools).
+// Command viewerchat-suite runs viewer-chat e2e scenarios (MT context suite +
+// S one-shot sophistication suite) against in-process tripmapd.
 package main
 
 import (
@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,18 +19,20 @@ import (
 )
 
 func main() {
-	scenarioPath := flag.String("scenario", "", "path to suite-mt / viewer scenario JSON")
-	logPath := flag.String("log", "", "optional JSONL log path")
+	scenarioPath := flag.String("scenario", "", "path to one scenario JSON")
+	scenarioDir := flag.String("dir", "", "run all *.json scenarios in this directory")
+	logPath := flag.String("log", "", "JSONL log path (single scenario; default stdout). With --dir, logs go under <dir>/../runs/<id>.jsonl unless set as a directory")
 	day := flag.Int("day", 1, "viewer day context for chat turns")
 	flag.Parse()
-	if strings.TrimSpace(*scenarioPath) == "" {
-		fmt.Fprintln(os.Stderr, "usage: go run ./test/viewerchat-mt --scenario PATH [--log PATH] [--day N]")
+
+	paths, err := scenarioPaths(*scenarioPath, *scenarioDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-
-	sc, err := mteval.LoadScenario(*scenarioPath)
-	if err != nil {
-		log.Fatal(err)
+	if len(paths) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: go run ./test/viewerchat-suite --scenario PATH | --dir DIR [--log PATH] [--day N]")
+		os.Exit(2)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -54,28 +57,89 @@ func main() {
 		log.Fatal(err)
 	}
 
-	enc, closer, err := openLog(*logPath)
+	var failed []string
+	for _, path := range paths {
+		sc, err := mteval.LoadScenario(path)
+		if err != nil {
+			log.Fatalf("load %s: %v", path, err)
+		}
+		lp := *logPath
+		if *scenarioDir != "" {
+			lp = filepath.Join(filepath.Dir(*scenarioDir), "runs", sc.ID+".jsonl")
+			if strings.TrimSpace(*logPath) != "" {
+				// Treat --log as a directory when running a suite.
+				lp = filepath.Join(*logPath, sc.ID+".jsonl")
+			}
+		}
+		ok, err := runScenario(ctx, srv, baseURL, cookie, sink, sc, path, lp, *day)
+		if err != nil {
+			log.Printf("%s: %v", sc.ID, err)
+			failed = append(failed, sc.ID)
+			continue
+		}
+		if !ok {
+			failed = append(failed, sc.ID)
+		}
+	}
+	if len(failed) > 0 {
+		log.Fatalf("failed: %s", strings.Join(failed, ", "))
+	}
+}
+
+func scenarioPaths(one, dir string) ([]string, error) {
+	one = strings.TrimSpace(one)
+	dir = strings.TrimSpace(dir)
+	switch {
+	case one != "" && dir != "":
+		return nil, fmt.Errorf("use --scenario or --dir, not both")
+	case one != "":
+		return []string{one}, nil
+	case dir != "":
+		matches, err := filepath.Glob(filepath.Join(dir, "*.json"))
+		if err != nil {
+			return nil, err
+		}
+		sort.Strings(matches)
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("no *.json in %s", dir)
+		}
+		return matches, nil
+	default:
+		return nil, nil
+	}
+}
+
+func runScenario(
+	ctx context.Context,
+	srv *localServer,
+	baseURL, cookie string,
+	sink *toolSink,
+	sc *mteval.Scenario,
+	scenarioPath, logPath string,
+	day int,
+) (allPass bool, err error) {
+	enc, closer, err := openLog(logPath)
 	if err != nil {
-		log.Fatal(err)
+		return false, err
 	}
 	defer closer()
 
 	start := time.Now()
 	_ = enc.Encode(map[string]any{
 		"type": "scenario_start", "framework": "viewerchat", "scenario": sc.ID, "title": sc.Title,
-		"hazard": sc.Hazard, "path": *scenarioPath, "turns": len(sc.Turns),
-		"model": srv.cfg.OpenAIModel, "base_url": baseURL, "day": *day,
+		"hazard": sc.Hazard, "path": scenarioPath, "turns": len(sc.Turns),
+		"model": srv.cfg.OpenAIModel, "base_url": baseURL, "day": day,
 		"setup": sc.Setup, "pass_notes": sc.PassNotes, "ts": time.Now().UTC().Format(time.RFC3339Nano),
 	})
 
 	tripID := strings.TrimSpace(sc.Setup.Trip)
 	if tripID == "" {
-		log.Fatal("scenario setup.trip required")
+		return false, fmt.Errorf("setup.trip required")
 	}
 	if v := strings.TrimSpace(sc.Setup.RestoreVersion); v != "" {
 		if err := setupTrip(ctx, baseURL, srv.cfg.AgentBearerToken, tripID, v, srv.mem); err != nil {
 			_ = enc.Encode(map[string]any{"type": "setup_error", "error": err.Error()})
-			log.Fatalf("setup restore: %v", err)
+			return false, fmt.Errorf("setup restore: %w", err)
 		}
 		_ = enc.Encode(map[string]any{
 			"type": "setup_restore", "trip": tripID, "restore_version": v, "mem": srv.mem,
@@ -91,11 +155,11 @@ func main() {
 		_ = enc.Encode(map[string]any{"type": "turn_start", "turn": i, "user": userText})
 		history = append(history, chatMsg{Role: "user", Content: userText})
 		sink.BeginTurn()
-		text, err := postChat(ctx, baseURL, tripID, cookie, history, *day)
+		text, err := postChat(ctx, baseURL, tripID, cookie, history, day)
 		tools, args := sink.EndTurn()
 		if err != nil {
 			_ = enc.Encode(map[string]any{"type": "error", "turn": i, "error": err.Error(), "tools": tools})
-			log.Fatalf("turn %d: %v", i, err)
+			return false, fmt.Errorf("turn %d: %w", i, err)
 		}
 		history = append(history, chatMsg{Role: "assistant", Content: text})
 		tr := mteval.TurnTrace{Index: i, User: userText, Texts: []string{text}, ToolNames: tools, ToolArgs: args}
@@ -108,7 +172,7 @@ func main() {
 	}
 
 	results := mteval.EvalChecks(sc.Checks, traces)
-	allPass := mteval.AllPassed(results)
+	allPass = mteval.AllPassed(results)
 	for _, r := range results {
 		_ = enc.Encode(map[string]any{"type": "check", "kind": r.Kind, "pass": r.Pass, "detail": r.Detail})
 		status := "PASS"
@@ -121,10 +185,12 @@ func main() {
 		"type": "scenario_end", "scenario": sc.ID, "elapsed_ms": time.Since(start).Milliseconds(),
 		"all_pass": allPass, "check_count": len(results), "framework": "viewerchat",
 	})
-	if !allPass {
-		log.Fatalf("%s: one or more heuristic checks failed", sc.ID)
+	if allPass {
+		fmt.Fprintf(os.Stderr, "[%s] all checks passed\n", sc.ID)
+	} else {
+		fmt.Fprintf(os.Stderr, "[%s] one or more heuristic checks failed\n", sc.ID)
 	}
-	fmt.Fprintf(os.Stderr, "[%s] all checks passed\n", sc.ID)
+	return allPass, nil
 }
 
 func openLog(path string) (*json.Encoder, func(), error) {
@@ -146,7 +212,6 @@ func chatEmail() (string, error) {
 	if e := strings.TrimSpace(os.Getenv("CHAT_EMAIL")); e != "" {
 		return e, nil
 	}
-	// First chat=yes row from config/users.csv (same heuristic as smoke-chat).
 	b, err := os.ReadFile("config/users.csv")
 	if err != nil {
 		return "", fmt.Errorf("CHAT_EMAIL or config/users.csv required: %w", err)

@@ -1,0 +1,20 @@
+{
+  "id": "S01",
+  "title": "Place id vs title — highlights",
+  "hazard": "Resolve display title to place id; enrich places.*.info not day notes",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Add a highlight to Beta Overlook that sunset is best after 7pm. Use structured place enrichment, not day notes."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "patch_args_regex", "pattern": "(?i)beta"},
+    {"kind": "patch_args_regex", "pattern": "(?i)highlight"},
+    {"kind": "patch_args_not_regex", "pattern": "(?i)\"notes\"\\s*:"},
+    {"kind": "never_tools", "tools": ["listTrips", "restoreVersion"]}
+  ],
+  "pass_notes": "Title→beta; places.beta.info.highlights (not day notes)."
+}

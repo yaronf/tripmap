@@ -1,0 +1,17 @@
+{
+  "id": "S04",
+  "title": "Ambiguous mutate — swap last two days",
+  "hazard": "Viewer trip is fixed; still clarify day numbers or confirm before swap if unclear — do not invent a second trip",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Swap our last two days."
+  ],
+  "checks": [
+    {"kind": "never_tools", "tools": ["listTrips", "restoreVersion"]},
+    {"kind": "final_text_regex", "pattern": "(?i)(swap|day|confirm|which|last two|5|6|4)"}
+  ],
+  "pass_notes": "Trip is already open: either swap_days on this trip or clarify which days. Must not call listTrips. Soft check — human review if it swapped the wrong pair."
+}

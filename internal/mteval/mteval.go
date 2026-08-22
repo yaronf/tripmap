@@ -1,4 +1,4 @@
-// Package mteval loads multi-turn scenario JSON and scores heuristic checks.
+// Package mteval loads viewer-chat scenario JSON (MT + S) and scores heuristic checks.
 package mteval
 
 import (
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// Scenario is one suite-mt conversation script.
+// Scenario is one conversation script (multi-turn MT or one-shot S).
 type Scenario struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`
@@ -50,7 +50,7 @@ type CheckResult struct {
 	Detail string
 }
 
-// LoadScenario reads a suite-mt JSON file.
+// LoadScenario reads a scenario JSON file.
 func LoadScenario(path string) (*Scenario, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -193,26 +193,40 @@ func EvalChecks(checks []Check, traces []TurnTrace) []CheckResult {
 				out = append(out, CheckResult{Kind: c.Kind, Pass: false, Detail: err.Error()})
 				continue
 			}
-			var mutArgs strings.Builder
-			for _, t := range traces {
-				for i, name := range t.ToolNames {
-					if name == "patchTrip" || name == "replaceDayRoutes" || name == "restoreVersion" {
-						if i < len(t.ToolArgs) {
-							mutArgs.WriteString(t.ToolArgs[i])
-							mutArgs.WriteByte('\n')
-						}
-					}
-				}
-			}
-			s := mutArgs.String()
+			s := mutateArgs(traces)
 			matched := re.MatchString(s)
 			out = append(out, CheckResult{Kind: c.Kind, Pass: !matched,
+				Detail: fmt.Sprintf("pattern=%q matched_in_mutate_args=%v", c.Pattern, matched)})
+		case "patch_args_regex":
+			re, err := regexp.Compile(c.Pattern)
+			if err != nil {
+				out = append(out, CheckResult{Kind: c.Kind, Pass: false, Detail: err.Error()})
+				continue
+			}
+			s := mutateArgs(traces)
+			matched := re.MatchString(s)
+			out = append(out, CheckResult{Kind: c.Kind, Pass: matched,
 				Detail: fmt.Sprintf("pattern=%q matched_in_mutate_args=%v", c.Pattern, matched)})
 		default:
 			out = append(out, CheckResult{Kind: c.Kind, Pass: false, Detail: "unknown check kind"})
 		}
 	}
 	return out
+}
+
+func mutateArgs(traces []TurnTrace) string {
+	var mutArgs strings.Builder
+	for _, t := range traces {
+		for i, name := range t.ToolNames {
+			if name == "patchTrip" || name == "replaceDayRoutes" || name == "restoreVersion" {
+				if i < len(t.ToolArgs) {
+					mutArgs.WriteString(t.ToolArgs[i])
+					mutArgs.WriteByte('\n')
+				}
+			}
+		}
+	}
+	return mutArgs.String()
 }
 
 // AllPassed reports whether every check passed.

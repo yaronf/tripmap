@@ -1,0 +1,17 @@
+{
+  "id": "S05",
+  "title": "Version forensics",
+  "hazard": "Diff must come from listVersions + getVersion, not invented prose",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "What changed in the most recent version compared to the previous one? Summarize briefly."
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["listVersions", "getVersion"]},
+    {"kind": "never_tools", "tools": ["patchTrip", "replaceDayRoutes", "restoreVersion", "listTrips"]}
+  ],
+  "pass_notes": "listVersions then getVersion (×2 or latest+previous); no inventing diffs; no mutate."
+}

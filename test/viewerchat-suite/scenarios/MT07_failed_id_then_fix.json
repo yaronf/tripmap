@@ -1,0 +1,33 @@
+{
+  "id": "MT07",
+  "title": "Failed id then correction",
+  "hazard": "After tool failure and user correction, do not retain the failed identifier",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Work on adk-eval.",
+    "Set toilets=true for place id alpha-base (note the hyphenated id).",
+    "If that failed, tell me the error briefly.",
+    "No, I meant place id alpha (Alpha Base).",
+    "Apply toilets=true on alpha only.",
+    "Confirm the place id you patched.",
+    "Did you retry alpha-base after the correction? Yes/no.",
+    "Similar names hazard: there is no Alpha Coast place — don't invent it.",
+    "Add a highlight on beta: 'Bring binoculars.'",
+    "Someone might say Alpha Base vs alpha — which id is canonical in this trip?",
+    "Attempt get on a nonsense place id 'alpha-coast' only if needed to illustrate; prefer not inventing success.",
+    "Summarize failed assumptions you discarded this chat.",
+    "Final write: set booking_required=false under alpha facilities or info if the schema supports it; otherwise say unsupported.",
+    "List every place id you successfully wrote this conversation.",
+    "If I say 'alpha-base' again, what do you do before writing?"
+  ],
+  "checks": [
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "patch_args_not_regex", "pattern": "(?i)alpha-coast|places\\.alpha-base"},
+    {"kind": "final_text_regex", "pattern": "(?i)(clarif|verify|check|exist|list|confirm|alpha)"},
+    {"kind": "never_tools", "tools": ["restoreVersion"]}
+  ],
+  "pass_notes": "Failed alpha-base must not persist in later patches. Successful writes use alpha / beta. No invented Alpha Coast place."
+}

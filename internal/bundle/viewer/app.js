@@ -787,17 +787,54 @@
     return window.matchMedia("(max-width: 899px)").matches;
   }
 
+  function interactionInChat(e) {
+    const path =
+      e && typeof e.composedPath === "function"
+        ? e.composedPath()
+        : e?.target
+          ? [e.target]
+          : [];
+    for (const node of path) {
+      if (!node || node.nodeType !== 1) continue;
+      if (
+        node.id === "detail-chat" ||
+        node.id === "persona-dock-host" ||
+        node.hasAttribute?.("data-persona-root") ||
+        node.hasAttribute?.("data-persona") ||
+        node.hasAttribute?.("data-persona-host-layout") ||
+        node.hasAttribute?.("data-persona-composer-input")
+      ) {
+        return true;
+      }
+      const tag = node.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT") return true;
+    }
+    const t = e?.target;
+    if (t instanceof Element) {
+      if (
+        t.closest(
+          "#detail-chat, #persona-dock-host, [data-persona-root], [data-persona], [data-persona-host-layout]"
+        )
+      ) {
+        return true;
+      }
+      if (t.matches("textarea, input")) return true;
+    }
+    return false;
+  }
+
   /**
    * Book swipe on mobile: full page in List mode; detail sheet only in Map
    * mode (Leaflet keeps the map). Returns the element to translate, or null.
    */
-  function swipeSurface(target) {
+  function swipeSurface(e) {
     if (!isMobile() || !state.trip) return null;
+    if (document.body.classList.contains("chat-open")) return null;
     if (!el.lightbox.hidden || !el.picker.hidden) return null;
+    const target = e?.target;
+    if (!(target instanceof Element)) return null;
+    if (interactionInChat(e)) return null;
     if (target.closest("textarea, input, button, a, .shared-notes-editor, .chrome")) {
-      return null;
-    }
-    if (target.closest("#detail-chat, #persona-dock-host, [data-persona-host-layout]")) {
       return null;
     }
     if (state.mode === "list") {
@@ -901,7 +938,7 @@
       "touchstart",
       (e) => {
         if (e.touches.length !== 1 || turning) return;
-        const node = swipeSurface(e.target);
+        const node = swipeSurface(e);
         if (!node) return;
         tracking = true;
         surface = node;
@@ -1158,6 +1195,7 @@
   window.addEventListener("offline", updateOnline);
 
   function eventFromEditable(e) {
+    if (interactionInChat(e)) return true;
     const path = typeof e.composedPath === "function" ? e.composedPath() : [];
     for (const node of path) {
       if (!node || node.nodeType !== 1) continue;

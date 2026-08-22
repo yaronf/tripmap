@@ -17,7 +17,7 @@ func mintSessionCookie(secret, email string) (string, error) {
 		return "", fmt.Errorf("session secret and email required")
 	}
 	sess := map[string]any{
-		"sub":   "viewerchat-mt",
+		"sub":   "viewerchat-suite",
 		"email": email,
 		"name":  "Viewerchat MT",
 		"exp":   time.Now().Add(2 * time.Hour).Unix(),

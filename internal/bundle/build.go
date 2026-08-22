@@ -476,7 +476,7 @@ self.addEventListener("fetch", (e) => {
     }))
   );
 });
-`, "tripmap-"+tj.ID+"-v42", string(list))
+`, "tripmap-"+tj.ID+"-v43", string(list))
 	return os.WriteFile(filepath.Join(outDir, "sw.js"), []byte(sw), 0644)
 }
 

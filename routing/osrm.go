@@ -37,6 +37,15 @@ func RouteOSRMBase(ctx context.Context, base string, pts []Point) (*Route, error
 	return routeOSRM(ctx, base, pts, defaultHTTPClient, "full")
 }
 
+// RouteOSRMBaseOverview is RouteOSRMBase with an explicit overview mode
+// (full, simplified, or false). Prefer overview=false when only distance/time matter.
+func RouteOSRMBaseOverview(ctx context.Context, base string, pts []Point, overview string) (*Route, error) {
+	if base == "" {
+		base = defaultOSRMBase
+	}
+	return routeOSRM(ctx, base, pts, defaultHTTPClient, overview)
+}
+
 // RouteOSRMOverview requests a route from OSRM. overview is one of full,
 // simplified, or false (see OSRM API docs).
 func RouteOSRMOverview(ctx context.Context, pts []Point, overview string) (*Route, error) {

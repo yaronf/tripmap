@@ -25,7 +25,7 @@ func restoreTrip(ctx context.Context, baseURL, bearer, tripID, versionID string)
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Idempotency-Key", fmt.Sprintf("viewerchat-mt-restore-%d", time.Now().UnixNano()))
+	req.Header.Set("Idempotency-Key", fmt.Sprintf("viewerchat-suite-restore-%d", time.Now().UnixNano()))
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err

@@ -33,6 +33,7 @@ func New(cfg Config, st store.Store) *Server {
 		Store:         st,
 		PublicBaseURL: cfg.PublicBaseURL,
 		RouteMode:     cfg.RouteMode,
+		OSRMBaseURL:   cfg.OSRMBaseURL,
 	})
 	s := &Server{cfg: cfg, store: st, ops: ops, mux: http.NewServeMux()}
 	if cfg.OpenAIAPIKey != "" {

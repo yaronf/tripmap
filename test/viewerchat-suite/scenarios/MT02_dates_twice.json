@@ -1,0 +1,34 @@
+{
+  "id": "MT02",
+  "title": "Dates changed twice",
+  "hazard": "Later date edits must use final dates; preserve unrelated earlier preferences",
+  "setup": {
+    "trip": "adk-eval",
+    "restore_version": "iKfKl9ssQruzt3XvRsOLQ8e7ADhxewNk"
+  },
+  "turns": [
+    "Work only on adk-eval.",
+    "Preference to remember: we like quiet evenings and hate long driving days. Do not write yet.",
+    "What is the current start_date (or trip start) if present? If absent, say so.",
+    "Assume we want the trip to start on 2026-09-01. Don't write yet — just acknowledge.",
+    "Actually change that: start on 2026-09-10 instead. Still don't write.",
+    "Final dates: start 2026-09-15. When we write, use only this start date.",
+    "Also preference: keep day 3 titled something with Alpha and Beta if we retitle it later.",
+    "Unrelated chat: what's a good packing tip for rain?",
+    "Ok, set the trip start_date to the final agreed date only. Do not change day titles yet.",
+    "Confirm the stored start_date from tools.",
+    "Now retitle day 3 to reflect Alpha→Beta, without changing the start_date.",
+    "Confirm both: start_date and day 3 title.",
+    "Did you use 2026-09-01 or 2026-09-10 anywhere in writes? Answer yes/no with evidence.",
+    "List preferences we stated that were not written as trip fields.",
+    "If I ask to shift the whole trip by +2 days later, which base date do you shift from?"
+  ],
+  "checks": [
+    {"kind": "never_tools", "tools": ["restoreVersion"]},
+    {"kind": "tools_must_include", "tools": ["patchTrip"]},
+    {"kind": "patch_args_not_regex", "pattern": "2026-09-0[10]"},
+    {"kind": "any_text_regex", "pattern": "2026-09-15"},
+    {"kind": "never_tools", "tools": ["restoreVersion"]}
+  ],
+  "pass_notes": "Only 2026-09-15 (or derived from it) in date writes. Quiet/no-long-drive preferences preserved in conversation answers, not silently discarded. Day 3 retitle keeps Alpha/Beta theme."
+}

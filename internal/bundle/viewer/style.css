@@ -930,6 +930,36 @@ body.chat-open .detail-chat {
     min-height: 9.5rem;
   }
 
+  /* List mode: chat pane needs explicit height + safe area for iOS composer. */
+  body.chat-open.mode-list .detail {
+    min-height: 0;
+  }
+
+  body.chat-open.mode-list .detail-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-bottom: 0.75rem;
+  }
+
+  body.chat-open.mode-list .detail-chat {
+    flex: 0 0 min(50vh, 22rem);
+    min-height: 12rem;
+    max-height: 55vh;
+    padding-bottom: var(--safe-bottom);
+  }
+
+  body.chat-open.mode-list .persona-dock-host {
+    min-height: 10rem;
+  }
+
+  .chat-toggle-label {
+    display: none;
+  }
+
+  .chat-toggle {
+    padding: 0.28rem 0.45rem;
+  }
+
   body.mode-map .app {
     position: relative;
   }

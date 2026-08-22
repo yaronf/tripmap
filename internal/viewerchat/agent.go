@@ -21,15 +21,23 @@ const (
 		"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
 		"Use listVersions + getVersion to inspect history; restoreVersion only when the user asks to revert. " +
 		"Human viewers sign in with Hellō, then use /me/trips/<id>/."
-	viewerChatRules = "You can research the live web via OpenAI hosted web_search (coords, maps links, hours, logistics). " +
+	viewerChatRules = "OpenAI hosted web_search is for discovery only (find a place, coords, maps links, hours). " +
+		"Use at most one focused web_search when you lack lat/lon or maps_url; do not run multiple searches for the same place. " +
+		"Never web_search on confirmation turns (user says yes/ok/add it/sounds good, or pastes a maps link) — " +
+		"reuse coords/maps_url already in this conversation or from a prior tool result and patch immediately. " +
+		"For per-day drive distance or drive time on the current itinerary, call getTrip and read day_stats (drive_dist, drive_min) — " +
+		"do not call getTripYAML or estimateDrive for that. Use estimateDrive only for hypothetical routes or places not yet on the trip. " +
 		"Ground itinerary facts in tool results (getTrip / getTripYAML). " +
-		"To add a stop: web_search for the place (include city/region/country) and take lat/lon from search results when available; " +
+		"To add a stop: if needed, one web_search (include city/region/country), take lat/lon from results; " +
 		"then create the place under places (title/lat/lon/type, preferably maps_url) and call upsert_stop " +
 		"as a single object with day, list (\"route\" or \"stops\"), and place — never put route/stops under update_day " +
 		"(update_day is title/notes/hike/ferry/photo only). " +
-		"For overnight or day-endpoint changes use replaceDayRoutes. " +
-		"Never invent latitude/longitude. If web_search does not yield usable coords, ask the user instead of guessing. " +
-		"When confirming a change, speak only in trip terms (day number, place title, where on the day). " +
+		"For overnight or day-endpoint changes use replaceDayRoutes with days as an object keyed by day number " +
+		"(not an array); include both day N and N+1 when the overnight moves. " +
+		"Never invent latitude/longitude. If you still lack usable coords after one search (or from the user's maps link), ask once — do not keep researching. " +
+		"When the user clearly assents to a concrete place or edit already discussed, mutate in that turn; " +
+		"do not ask for another confirmation and do not re-research. " +
+		"After a successful mutate, confirm in one short sentence in trip terms (day number, place title, where on the day). " +
 		"Never mention version_id, revision ids, schema_version, bundle_ok, or other internal API fields to the user."
 )
 
@@ -157,7 +165,8 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 		"%s\n\n%s\n\nYou are the in-viewer assistant for trip id %q. "+
 			"The trip id is fixed server-side — never switch trips. "+
 			"The viewer's current day is %d (1-based). Prefer getTripYAML with scope=day for that day before editing. "+
-			"Be concise. After a successful mutate, confirm in one short sentence without technical ids.",
+			"For drive-time or distance questions about existing days, getTrip day_stats is enough — do not load YAML. "+
+			"Be concise. Prefer mutate-over-chatter when the user has already chosen.",
 		mcpInstructions, viewerChatRules, in.TripID, in.Day,
 	)
 
@@ -187,7 +196,9 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 		input = append(input, history...)
 
 		start := time.Now()
+		stopKeepalive := startSSEKeepalive(ctx, send, "thinking")
 		msg, err := am.Generate(ctx, input, genOpts...)
+		stopKeepalive()
 		latency := time.Since(start).Milliseconds()
 		if err != nil {
 			tl.with("latency_ms", latency, "model", a.model).Error("model_call", "error", truncateRunes(err.Error(), 300))
@@ -213,7 +224,10 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 			break
 		}
 		toolIters++
+		toolStatus := toolStatusMessage(calls)
+		stopTools := startSSEKeepalive(ctx, send, toolStatus)
 		results, err := toolsNode.Invoke(ctx, msg)
+		stopTools()
 		if err != nil {
 			return TurnResult{TripUpdated: tripUpdated}, fmt.Errorf("tools: %w", err)
 		}
@@ -269,4 +283,52 @@ func assistantText(msg *schema.AgenticMessage) string {
 		}
 	}
 	return b.String()
+}
+
+// startSSEKeepalive emits data: status events while a blocking step runs so
+// Persona sees activity (comment pings alone are not enough).
+func startSSEKeepalive(ctx context.Context, send func(Event) error, status string) func() {
+	if send == nil {
+		return func() {}
+	}
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		_ = send(Event{Type: "status", Status: status})
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = send(Event{Type: "status", Status: status})
+			}
+		}
+	}()
+	return func() { close(stop) }
+}
+
+func toolStatusMessage(calls []*schema.FunctionToolCall) string {
+	if len(calls) == 0 {
+		return "using tools"
+	}
+	names := make([]string, 0, len(calls))
+	seen := make(map[string]bool, len(calls))
+	for _, c := range calls {
+		if c == nil {
+			continue
+		}
+		name := strings.TrimSpace(c.Name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return "using tools"
+	}
+	return "using " + strings.Join(names, ", ")
 }

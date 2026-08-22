@@ -69,7 +69,7 @@ func putLocalTripYAML(ctx context.Context, localURL, bearer, tripID string, yaml
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Idempotency-Key", fmt.Sprintf("viewerchat-mt-create-%d", time.Now().UnixNano()))
+	req.Header.Set("Idempotency-Key", fmt.Sprintf("viewerchat-suite-create-%d", time.Now().UnixNano()))
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func putLocalTripYAML(ctx context.Context, localURL, bearer, tripID string, yaml
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("Content-Type", "application/yaml")
-	req.Header.Set("Idempotency-Key", fmt.Sprintf("viewerchat-mt-put-%d", time.Now().UnixNano()))
+	req.Header.Set("Idempotency-Key", fmt.Sprintf("viewerchat-suite-put-%d", time.Now().UnixNano()))
 	res, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return err

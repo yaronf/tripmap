@@ -327,6 +327,7 @@
   }
 
   async function maybeEnableChat() {
+    const toggle = document.getElementById("btn-chat-toggle");
     try {
       const res = await fetch("/auth/me", { credentials: "include" });
       if (!res.ok) return;
@@ -336,6 +337,11 @@
       document.body.classList.add("chat-enabled");
     } catch (err) {
       console.warn("tripmap chat unavailable:", err);
+      if (toggle) {
+        toggle.hidden = false;
+        toggle.disabled = true;
+        toggle.title = `Chat failed to load: ${err?.message || err}`;
+      }
     }
   }
 

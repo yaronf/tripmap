@@ -121,7 +121,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, tripID, user
 		"body_bytes", len(body),
 		"user", truncateRunes(lastUser, 120),
 		"model", h.Agent.model,
+		"user_agent", truncateRunes(r.UserAgent(), 160),
 	).Info("turn_start")
+
+	_ = sw.send(Event{Type: "status", Status: "starting"})
 
 	res, err := h.Agent.Run(r.Context(), TurnInput{
 		TripID:   tripID,

@@ -1,6 +1,6 @@
 # Runbook: in-viewer chat (Persona + Eino)
 
-Hellō-signed-in viewers with `chat=yes` in `config/users.csv` get an **Ask** pane (Persona). The backend agent is Eino OpenAI **Responses** (`gpt-5-mini` by default) with hosted **`web_search`** plus in-process itinerary tools. Tool implementations share `internal/tripops` with HTTP/MCP (chat binders only fix trip id, viewer-day defaults, logging).
+Hellō-signed-in viewers with `chat=yes` in `config/users.csv` get an **Ask** pane (Persona). The backend agent is Eino OpenAI **Responses** (`gpt-5-mini` by default) with hosted **`web_search`** (discovery only; low context; not on yes/confirm turns) plus in-process itinerary tools. Tool implementations share `internal/tripops` with HTTP/MCP (chat binders only fix trip id, viewer-day defaults, logging).
 
 ## Enable
 
@@ -27,18 +27,21 @@ BASE_URL=http://127.0.0.1:8080 ./scripts/smoke-chat.sh
 
 Requires `AGENT_BEARER_TOKEN`, `HELLO_SESSION_SECRET`, `OPENAI_API_KEY`, and a `chat=yes` email in `users.csv` (or `CHAT_EMAIL=…`).
 
-## Multi-turn e2e (laptop)
+## Viewer-chat e2e (laptop)
 
-[`test/viewerchat-mt`](../test/viewerchat-mt/) runs suite-mt scripts through in-process tripmapd (Hellō cookie + SSE). With `ITINERARIES_BUCKET` unset, the runner uses a mem store and seeds `adk-eval` from prod (`TRIPMAP_SEED_URL`, default `https://tripmap.sheffer.org`) via agent `getVersion`. Needs OpenAI + Hellō secrets + agent Bearer.
+[`test/viewerchat-suite`](../test/viewerchat-suite/) runs MT (multi-turn context) and S (one-shot sophistication) scripts through in-process tripmapd (Hellō cookie + SSE). With `ITINERARIES_BUCKET` unset, the runner uses a mem store and seeds `adk-eval` from prod (`TRIPMAP_SEED_URL`, default `https://tripmap.sheffer.org`) via agent `getVersion`. Needs OpenAI + Hellō secrets + agent Bearer.
 
 ```bash
 set -a && source .env && set +a
-go run ./test/viewerchat-mt \
-  --scenario experiments/adk-mcp/suite-mt/scenarios/MT01_rejected_italy.json \
-  --log test/viewerchat-mt/runs/MT01.jsonl
+go run ./test/viewerchat-suite \
+  --scenario test/viewerchat-suite/scenarios/S06_overnight_delta.json \
+  --log test/viewerchat-suite/runs/S06.jsonl
+
+# Full suite (MT + S):
+go run ./test/viewerchat-suite --dir test/viewerchat-suite/scenarios
 ```
 
-Viewer forks (no `listTrips`): `test/viewerchat-mt/scenarios/MT04_*.json`, `MT09_*.json`, `MT10_*.json`. See that directory’s README. Scoring uses [`internal/mteval`](../internal/mteval).
+See that directory’s README. Scoring uses [`internal/mteval`](../internal/mteval).
 
 ## Logs (CloudWatch / stdout)
 
