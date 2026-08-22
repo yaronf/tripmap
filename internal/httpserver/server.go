@@ -60,6 +60,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /favicon.svg", s.handleFavicon)
 	s.mux.HandleFunc("GET /favicon.ico", s.handleFavicon)
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
+	s.mux.HandleFunc("GET /privacy", s.handlePrivacy)
+	s.mux.HandleFunc("GET /terms", s.handleTerms)
 	s.mux.HandleFunc("GET /auth/hello/login", s.handleHelloLogin)
 	s.mux.HandleFunc("GET /auth/hello/callback", s.handleHelloCallback)
 	s.mux.HandleFunc("GET /auth/me", s.handleAuthMe)
@@ -101,42 +103,16 @@ func (s *Server) Health(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	hello := s.helloEnabled()
 	sess, authed := s.sessionFromRequest(r)
-	var body string
-	if !hello {
-		body = `<p>tripmapd — Hellō login not configured (<code>HELLO_CLIENT_ID</code>).</p>`
-	} else if authed {
-		body = fmt.Sprintf(`
-<p>Signed in as <strong>%s</strong> (%s)</p>
-<p><a href="/auth/logout">Sign out</a></p>
-%s
-<p class="muted">Open an itinerary above to view the map and leave comments.</p>`,
-			htmlEscape(sess.Name), htmlEscape(sess.Email), s.tripListHTML(r))
-	} else {
-		body = `
-<link href="https://cdn.hello.coop/css/hello-btn.css" rel="stylesheet"/>
-<p>tripmap seasonal API &amp; viewers.</p>
-<div class="hello-container">
-  <button class="hello-btn" type="button" onclick="login(event)">ō&nbsp;&nbsp;Continue with Hellō</button>
-</div>
-<script>
-function login(event){
-  event.target.classList.add('hello-btn-loader');
-  event.target.disabled = true;
-  window.location.href = '/auth/hello/login';
+	s.writeHomePage(w, s.homePageMain(hello, authed, sess)+s.tripListSection(r, authed))
 }
-</script>
-<p class="muted">Sign in to browse itineraries.</p>`
+
+func (s *Server) tripListSection(r *http.Request, authed bool) string {
+	if !authed {
+		return ""
 	}
-	_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>tripmap</title>
-<link rel="icon" href="/favicon.png" type="image/png"/>
-<style>body{font-family:system-ui,sans-serif;max-width:36rem;margin:2.5rem auto;padding:0 1rem;line-height:1.5;color:#1a1f1c;background:#f3efe6}
-a{color:#0f5c5c}code{font-size:.9em}.muted{color:#5c6560;font-size:.9rem}ul.trips{list-style:none;padding:0;margin:1.25rem 0}ul.trips li{margin:.55rem 0;padding:.55rem 0;border-top:1px solid #ddd6c8}ul.trips li:first-child{border-top:0}ul.trips a{font-weight:600;text-decoration:none}ul.trips a:hover{text-decoration:underline}ul.trips .id{display:block;font-size:.85rem;color:#5c6560;font-weight:400}</style>
-</head><body><h1>tripmap</h1>%s</body></html>`, body)
+	return s.tripListHTML(r) + `<p class="muted">Open an itinerary above to view the map and leave comments.</p>`
 }
 
 func (s *Server) tripListHTML(r *http.Request) string {

@@ -34,6 +34,10 @@ Parameters:
     Type: String
     Default: ""
     Description: Hellō OAuth Client ID (public). Empty disables /auth/hello/*.
+  GoogleSiteVerification:
+    Type: String
+    Default: ""
+    Description: Optional Search Console HTML tag for tripmap.sheffer.org home page.
 
 Resources:
   ExpressService:
@@ -79,6 +83,8 @@ Resources:
               - "${Base}/auth/hello/callback"
               - Base:
                   Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
+          - Name: GOOGLE_SITE_VERIFICATION
+            Value: !Ref GoogleSiteVerification
           - Name: OPENAI_MODEL
             Value: gpt-5-mini
         Secrets:

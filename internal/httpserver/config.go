@@ -29,6 +29,8 @@ type Config struct {
 	OpenAIModel        string
 	ChatAllowedEmails  []string // lowercase; subset of Hellō users allowed to chat
 	ChatAllowedSubs    []string
+	ContactEmail           string // privacy / legal contact (CONTACT_EMAIL)
+	GoogleSiteVerification string // Search Console HTML tag (GOOGLE_SITE_VERIFICATION)
 }
 
 // LoadConfig reads configuration from the environment.
@@ -48,6 +50,8 @@ func LoadConfig() (Config, error) {
 		HelloSessionSecret: strings.TrimSpace(os.Getenv("HELLO_SESSION_SECRET")),
 		OpenAIAPIKey:       resolveOpenAIAPIKey(),
 		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-5-mini"),
+		ContactEmail:           strings.TrimSpace(os.Getenv("CONTACT_EMAIL")),
+		GoogleSiteVerification: strings.TrimSpace(os.Getenv("GOOGLE_SITE_VERIFICATION")),
 	}
 	if v := os.Getenv("MAX_YAML_BYTES"); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)
