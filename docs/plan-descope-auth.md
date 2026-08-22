@@ -1,24 +1,21 @@
 # Plan: Hellō → Descope (Google only, Option A)
 
-**Status:** **Ready to deploy** — Google OAuth branding verified/published; Option A code in tree. Set `DESCOPE_PROJECT_ID` and deploy.  
+**Status:** **Live** — Descope Google sign-in working on `https://tripmap.sheffer.org` (2026-08-23).  
 **Baseline tag:** `pre-descope` (Hellō + legal/home UI).  
 **Scope:** Replace Hellō with Descope social login (Google only). Keep the existing `tripmap_session` HMAC cookie and `/me/trips/{id}/` viewer path unchanged.
 
 ---
 
-## 0. Pause notes (2026-08-22)
+## 0. Cutover notes (2026-08-22 → 08-23)
 
-We drafted Option A, deployed `/privacy` and `/terms` + a purpose-first home page for Google branding, then temporarily reverted Descope code and stayed on Hellō while branding was stuck.
+Google brand verification passed; app published to Production. Option A deployed. First Descope project hit `E062202` after deleting/re-adding the Google provider — fixed by a **fresh Descope project** + correct Google client (redirect URI `https://api.descope.com/v1/oauth/callback`). Allowlist must use the **Google account email** (e.g. Gmail), not a prior Hellō mailbox.
 
-**What changed later the same day:** Google brand verification **passed after waiting a few hours** and retrying; the app was **published** to Production. The earlier “homepage purpose / app name mismatch” flags were a delayed automated crawl, not a permanent block. Dual Test-users ACL is **not** required once Production branding is verified.
+**Keep:**
 
-**Still true / keep:**
-
-- Public home + `/privacy` + `/terms` (needed for Google Branding; keep on Hellō until cutover).
-- Prefer **Production** External + verified branding over Testing (avoids a second Google test-user list).
-- Git tag `pre-descope` marks the Hellō restore point before Descope code returns.
-
-**Next:** deploy with `DESCOPE_PROJECT_ID=… ./scripts/deploy-compute.sh --prefix descope`, then smoke §8.
+- Public home + `/privacy` + `/terms` (Google Branding).
+- **Enable method in API and SDK** on Social Login.
+- Git tag `pre-descope` as Hellō restore point.
+- `users.csv` emails = Google login addresses (`USERS_FILE` baked into image).
 
 ---
 
@@ -160,7 +157,8 @@ There is **no region setting in Project Settings**. Region is chosen **only when
    - `https://tripmap.sheffer.org` (prod)
    - `http://localhost:8080` and optionally `http://127.0.0.1:8080` (local)
    - If the UI wants full paths, use `…/auth/callback` instead of host-only.
-5. Copy **Project ID** → your password manager + `DESCOPE_PROJECT_ID` for deploy.
+5. **Critical for tripmapd (server SDK):** On **Authentication Methods → Social (OAuth)** (and/or the Google provider page), turn **ON** **Enable method in API and SDK**. If this is off, OAuth only works from Descope Flows; our Go `SignUpOrIn` call fails (often as `E062202` / 401) before any Google page appears.
+6. Copy **Project ID** → your password manager + `DESCOPE_PROJECT_ID` for deploy. Confirm the console project selector matches that ID.
 
 **What you type at deploy time:**
 
