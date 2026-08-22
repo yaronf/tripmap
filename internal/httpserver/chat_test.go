@@ -12,9 +12,9 @@ import (
 
 func TestChatAuthGates(t *testing.T) {
 	srv, _ := testServer(t)
-	srv.cfg.HelloClientID = "app_test"
-	srv.cfg.HelloSessionSecret = "session-test-key"
-	srv.cfg.HelloAllowedEmails = []string{"a@b.c", "chat@b.c"}
+	srv.cfg.DescopeProjectID = "app_test"
+	srv.cfg.SessionSecret = "session-test-key"
+	srv.cfg.AllowedEmails = []string{"a@b.c", "chat@b.c"}
 	srv.cfg.ChatAllowedEmails = []string{"chat@b.c"}
 	// Key set after New so chat handler stays nil → 503 (agent not wired).
 	srv.cfg.OpenAIAPIKey = "sk-test"

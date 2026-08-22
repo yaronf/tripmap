@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/descope/go-sdk/descope/client"
 	"github.com/yaronf/mcpopenapi"
 	"github.com/yaronf/tripmap/api"
 	"github.com/yaronf/tripmap/internal/itinerary"
@@ -25,6 +27,10 @@ type Server struct {
 	ops   *tripops.Service
 	mux   *http.ServeMux
 	chat  chatHTTP // nil until viewerchat agent is wired
+
+	descopeInit sync.Once
+	descopeCli  *client.DescopeClient
+	descopeErr  error
 }
 
 // New builds the HTTP server.
@@ -62,8 +68,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /privacy", s.handlePrivacy)
 	s.mux.HandleFunc("GET /terms", s.handleTerms)
-	s.mux.HandleFunc("GET /auth/hello/login", s.handleHelloLogin)
-	s.mux.HandleFunc("GET /auth/hello/callback", s.handleHelloCallback)
+	s.mux.HandleFunc("GET /auth/login", s.handleAuthLogin)
+	s.mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
 	s.mux.HandleFunc("GET /auth/me", s.handleAuthMe)
 	s.mux.HandleFunc("GET /auth/logout", s.handleAuthLogout)
 	s.mux.Handle("/me/trips/", http.HandlerFunc(s.handleSessionTrip))
@@ -80,7 +86,7 @@ func (s *Server) routes() {
 		Instructions: "tripmap agent API as MCP tools. Prefer patchTrip with update_day or places.<id>.info; " +
 			"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
 			"Use listVersions + getVersion to inspect history; restoreVersion only when the user asks to revert. " +
-			"Human viewers sign in with Hellō, then use /me/trips/{id}/.",
+			"Human viewers sign in with Google (Descope), then use /me/trips/{id}/.",
 		// Concrete servers URL (placeholder {{BASE_URL}} is not valid YAML for the parser).
 		OpenAPIYAML:        []byte(OpenAPIDocument("https://tripmap.local")),
 		Upstream:           specMux,
@@ -103,9 +109,9 @@ func (s *Server) Health(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	hello := s.helloEnabled()
+	authOn := s.authEnabled()
 	sess, authed := s.sessionFromRequest(r)
-	s.writeHomePage(w, s.homePageMain(hello, authed, sess)+s.tripListSection(r, authed))
+	s.writeHomePage(w, s.homePageMain(authOn, authed, sess)+s.tripListSection(r, authed))
 }
 
 func (s *Server) tripListSection(r *http.Request, authed bool) string {

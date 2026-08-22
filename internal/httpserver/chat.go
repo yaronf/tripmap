@@ -29,14 +29,8 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, id string) {
 
 func (s *Server) chatAllowed(sess sessionCookie) bool {
 	email := strings.ToLower(strings.TrimSpace(sess.Email))
-	sub := strings.TrimSpace(sess.Sub)
 	for _, e := range s.cfg.ChatAllowedEmails {
 		if e != "" && e == email {
-			return true
-		}
-	}
-	for _, id := range s.cfg.ChatAllowedSubs {
-		if id != "" && id == sub {
 			return true
 		}
 	}

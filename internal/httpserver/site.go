@@ -7,7 +7,7 @@ import (
 
 const siteAppName = "Tripmap"
 
-const homeAppDescription = "Tripmap is a web application for private multi-day road trip itineraries. Trip organizers publish routes and maps; invited travelers sign in with Hellō to view the itinerary, shared notes, and comments."
+const homeAppDescription = "Tripmap is a web application for private multi-day road trip itineraries. Trip organizers publish routes and maps; invited travelers sign in with Google to view the itinerary, shared notes, and comments."
 
 func (s *Server) siteExtraHead() string {
 	if token := s.cfg.GoogleSiteVerification; token != "" {
@@ -34,7 +34,6 @@ func (s *Server) writeHomePage(w http.ResponseWriter, bodyHTML string) {
 	_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 %s<link rel="icon" href="/favicon.png" type="image/png"/>
-<link href="https://cdn.hello.coop/css/hello-btn.css" rel="stylesheet"/>
 <style>%s</style>
 </head><body>
 <header><p class="brand">%s</p></header>
@@ -43,10 +42,10 @@ func (s *Server) writeHomePage(w http.ResponseWriter, bodyHTML string) {
 </body></html>`, s.homePageHead(), sitePageCSS, siteAppName, bodyHTML, siteFooterHTML())
 }
 
-func (s *Server) homePageMain(helloOn, authed bool, sess sessionCookie) string {
+func (s *Server) homePageMain(authOn, authed bool, sess sessionCookie) string {
 	body := fmt.Sprintf(`<h1>%s</h1>
 <h2>Purpose of the application</h2>
-<p><strong>%s</strong> %s Hellō sign-in is used only to verify invited users and display their name and email while signed in.</p>
+<p><strong>%s</strong> %s Google Sign-In is used only to verify invited users and display their name and email while signed in.</p>
 <p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>
 <h2>App functionality</h2>
 <p>The %s application provides the following features for invited trip participants:</p>
@@ -57,7 +56,7 @@ func (s *Server) homePageMain(helloOn, authed bool, sess sessionCookie) string {
 <li>Optional in-viewer chat assistant for trip questions (when enabled by the organizer)</li>
 </ul>
 <h2>Who can use %s</h2>
-<p>%s is invitation-only. The trip operator adds your Hellō account (email or subject id) to an allowlist. %s is not a public travel search, booking, or marketplace service.</p>`,
+<p>%s is invitation-only. The trip operator adds your Google account email to an allowlist. %s is not a public travel search, booking, or marketplace service.</p>`,
 		siteAppName,
 		siteAppName,
 		homeAppDescription,
@@ -66,8 +65,8 @@ func (s *Server) homePageMain(helloOn, authed bool, sess sessionCookie) string {
 		siteAppName,
 		siteAppName)
 
-	if !helloOn {
-		body += `<p class="muted">Hellō sign-in is available during the active trip season.</p>`
+	if !authOn {
+		body += `<p class="muted">Google sign-in is available during the active trip season.</p>`
 	} else if authed {
 		body += fmt.Sprintf(`
 <p>Signed in as <strong>%s</strong> (%s)</p>
@@ -75,16 +74,7 @@ func (s *Server) homePageMain(helloOn, authed bool, sess sessionCookie) string {
 			htmlEscape(sess.Name), htmlEscape(sess.Email))
 	} else {
 		body += `
-<div class="hello-container">
-  <button class="hello-btn" type="button" onclick="helloLogin(event)">ō&nbsp;&nbsp;Continue with Hellō</button>
-</div>
-<script>
-function helloLogin(event){
-  event.target.classList.add('hello-btn-loader');
-  event.target.disabled = true;
-  window.location.href = '/auth/hello/login';
-}
-</script>
+<p><a href="/auth/login" class="btn">Continue with Google</a></p>
 <p class="muted">You need an invitation from the trip organizer to sign in.</p>`
 	}
 	return body

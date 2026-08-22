@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// usersFile holds Hellō sign-in ACL and optional chat ACL from one CSV.
+// usersFile holds sign-in ACL and optional chat ACL from one CSV.
 type usersFile struct {
 	LoginEmails []string
 	LoginSubs   []string

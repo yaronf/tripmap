@@ -1,7 +1,7 @@
 # Plan: Hellō → Descope (Google only, Option A)
 
-**Status:** **In progress — console setup.** Google OAuth branding is **verified and published**. Finish Descope + Google client wiring (§3–4), then re-land Option A code and deploy.  
-**Baseline tag:** `pre-descope` (Hellō + legal/home UI; Descope auth code not in tree).  
+**Status:** **Ready to deploy** — Google OAuth branding verified/published; Option A code in tree. Set `DESCOPE_PROJECT_ID` and deploy.  
+**Baseline tag:** `pre-descope` (Hellō + legal/home UI).  
 **Scope:** Replace Hellō with Descope social login (Google only). Keep the existing `tripmap_session` HMAC cookie and `/me/trips/{id}/` viewer path unchanged.
 
 ---
@@ -18,7 +18,7 @@ We drafted Option A, deployed `/privacy` and `/terms` + a purpose-first home pag
 - Prefer **Production** External + verified branding over Testing (avoids a second Google test-user list).
 - Git tag `pre-descope` marks the Hellō restore point before Descope code returns.
 
-**Next:** complete Descope Google provider + redirect URLs (§3), paste client into Descope, then re-implement/deploy Option A and smoke login.
+**Next:** deploy with `DESCOPE_PROJECT_ID=… ./scripts/deploy-compute.sh --prefix descope`, then smoke §8.
 
 ---
 
@@ -156,10 +156,10 @@ There is **no region setting in Project Settings**. Region is chosen **only when
 1. Use your **Free US project** (or **+ Project** top-right — no region step on Free).
 2. **Authentication Methods → Social (OAuth)** → enable **Google only**; disable magic link, OTP, password, etc.
 3. Google provider → **Use my own account** → paste **Google Client ID + secret** (from §3.2).
-4. Register **redirect URLs** Descope may send users back to after Google:
-  - `https://tripmap.sheffer.org/auth/callback`
-  - `http://localhost:8080/auth/callback`
-  - `http://127.0.0.1:8080/auth/callback` (optional)
+4. **Project Settings → Approved Domains** — allow Descope to redirect back to tripmap after Google (§3.3):
+   - `https://tripmap.sheffer.org` (prod)
+   - `http://localhost:8080` and optionally `http://127.0.0.1:8080` (local)
+   - If the UI wants full paths, use `…/auth/callback` instead of host-only.
 5. Copy **Project ID** → your password manager + `DESCOPE_PROJECT_ID` for deploy.
 
 **What you type at deploy time:**
@@ -267,16 +267,22 @@ Descope guide: [Custom Social Login with Google](https://docs.descope.com/auth-m
 
 ### 3.3 Local dev (localhost vs 127.0.0.1)
 
-**Plan:** keep the same loopback behavior for Descope callbacks (`authCallbackURI` in tripmapd).
+**Where:** [Descope console](https://app.descope.com/) → **Project** (gear / Project Settings) → **Approved Domains** (sometimes labeled redirect / trusted domains).  
+**Not** Google Cloud — Google only needs Descope’s own callback (`https://api.descope.com/v1/oauth/callback`).
 
+Add domains (or full origins) Descope is allowed to send the browser back to after Google finishes. tripmapd passes one of these as `redirectURL` when starting OAuth:
 
-| Register in Descope                   | Use when                           |
+| Register in Descope Approved Domains | Use when |
 | ------------------------------------- | ---------------------------------- |
-| `http://localhost:8080/auth/callback` | You open `http://localhost:8080/…` |
-| `http://127.0.0.1:8080/auth/callback` | You open `http://127.0.0.1:8080/…` |
+| `https://tripmap.sheffer.org` (or full `…/auth/callback` if the UI wants paths) | Production |
+| `http://localhost:8080` / `http://localhost:8080/auth/callback` | You open `http://localhost:8080/…` |
+| `http://127.0.0.1:8080` / `http://127.0.0.1:8080/auth/callback` | You open `http://127.0.0.1:8080/…` |
 
+UI varies: some builds accept **host only** (`localhost:8080`); others want the **full callback URL**. If login fails with a redirect/domain error, add the exact URL tripmapd uses (`…/auth/callback`).
 
-Pick one habit for daily dev (**localhost** recommended). Register both redirect URIs in Descope so either works. No Google Cloud change needed for local — prod Google client is Descope-only.
+Pick one habit for daily dev (**localhost** recommended). Register both loopbacks so either works. No Google Cloud change for local.
+
+**Plan:** keep the same loopback behavior for Descope callbacks (`authCallbackURI` in tripmapd).
 
 ---
 

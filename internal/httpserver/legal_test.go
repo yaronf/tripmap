@@ -66,19 +66,19 @@ func TestGoogleSiteVerificationMeta(t *testing.T) {
 	}
 }
 
-func TestRootShowsHelloWhenConfigured(t *testing.T) {
+func TestRootShowsGoogleWhenAuthConfigured(t *testing.T) {
 	srv := New(Config{
 		AgentBearerToken:   "secret",
 		PublicBaseURL:      "https://example.test",
 		MaxYAMLBytes:         512 * 1024,
-		HelloClientID:      "app_test",
-		HelloSessionSecret: "test-secret",
-		HelloAllowedEmails: []string{"a@example.com"},
+		DescopeProjectID:      "app_test",
+		SessionSecret: "test-secret",
+		AllowedEmails: []string{"a@example.com"},
 	}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)
-	if !strings.Contains(rec.Body.String(), "Continue with Hellō") {
-		t.Fatalf("expected Hellō sign-in button")
+	if !strings.Contains(rec.Body.String(), "Continue with Google") {
+		t.Fatalf("expected Google sign-in button")
 	}
 }

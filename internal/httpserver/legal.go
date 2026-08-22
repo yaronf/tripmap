@@ -20,7 +20,7 @@ func (s *Server) handlePrivacy(w http.ResponseWriter, _ *http.Request) {
 <p>Tripmap (<code>%s</code>) is a private, invitation-only service for viewing road-trip itineraries.</p>
 <h2>Information we collect</h2>
 <ul>
-<li><strong>Sign-in.</strong> If you sign in with Hellō, we receive your email address, display name, and subject id to verify that you are on the trip operator’s allowlist and to show who is signed in.</li>
+<li><strong>Sign-in.</strong> If you sign in with Google, we receive your email address and display name through our authentication provider (Descope). We use this only to verify that you are on the trip operator’s allowlist and to show who is signed in.</li>
 <li><strong>Session.</strong> We set an HTTP-only session cookie so you stay signed in between visits.</li>
 <li><strong>Trip content.</strong> Itineraries, shared notes, and comments you can view or edit are stored in the operator’s cloud storage (Amazon Web Services in the EU).</li>
 <li><strong>Chat.</strong> If in-viewer chat is enabled for your account, your messages may be sent to OpenAI to generate replies. Do not enter sensitive personal data in chat.</li>
@@ -29,7 +29,8 @@ func (s *Server) handlePrivacy(w http.ResponseWriter, _ *http.Request) {
 <p>We use the above solely to operate Tripmap for invited travelers: authentication, displaying itineraries, shared notes, comments, and optional chat. We do not sell your personal information.</p>
 <h2>Third parties</h2>
 <ul>
-<li>Hellō — OAuth sign-in (see <a href="https://www.hello.coop/privacy">Hellō privacy</a>)</li>
+<li>Google — OAuth sign-in (subject to <a href="https://policies.google.com/privacy">Google’s Privacy Policy</a>)</li>
+<li>Descope — authentication processing</li>
 <li>Amazon Web Services — hosting and storage</li>
 <li>OpenAI — optional chat responses when enabled</li>
 </ul>
@@ -51,7 +52,7 @@ func (s *Server) handleTerms(w http.ResponseWriter, _ *http.Request) {
 <h2>The service</h2>
 <p>Tripmap provides private itinerary viewers and related tools for invited travelers on a specific trip. The service may run seasonally and may be unavailable when not in season.</p>
 <h2>Eligibility and access</h2>
-<p>Access is by invitation only. The trip operator maintains an email allowlist. You must sign in with a Hellō account that is on that list. We may revoke access at any time.</p>
+<p>Access is by invitation only. The trip operator maintains an email allowlist. You must sign in with a Google account whose email address is on that list. We may revoke access at any time.</p>
 <h2>Acceptable use</h2>
 <ul>
 <li>Use Tripmap only for the intended trip and shared planning.</li>

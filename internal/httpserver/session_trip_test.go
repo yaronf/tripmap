@@ -12,9 +12,9 @@ import (
 
 func TestSignedInRootListsTrips(t *testing.T) {
 	srv, _ := testServer(t)
-	srv.cfg.HelloClientID = "app_test"
-	srv.cfg.HelloSessionSecret = "session-test-key"
-	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+	srv.cfg.DescopeProjectID = "app_test"
+	srv.cfg.SessionSecret = "session-test-key"
+	srv.cfg.AllowedEmails = []string{"a@b.c"}
 
 	createBody, _ := json.Marshal(map[string]string{"id": "list-trip", "yaml": sampleYAML})
 	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))
@@ -52,9 +52,9 @@ func TestSignedInRootListsTrips(t *testing.T) {
 
 func TestSessionTripRequiresLogin(t *testing.T) {
 	srv, _ := testServer(t)
-	srv.cfg.HelloClientID = "app_test"
-	srv.cfg.HelloSessionSecret = "session-test-key"
-	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+	srv.cfg.DescopeProjectID = "app_test"
+	srv.cfg.SessionSecret = "session-test-key"
+	srv.cfg.AllowedEmails = []string{"a@b.c"}
 
 	req := httptest.NewRequest(http.MethodGet, "/me/trips/x/", nil)
 	rec := httptest.NewRecorder()
@@ -63,16 +63,16 @@ func TestSessionTripRequiresLogin(t *testing.T) {
 		t.Fatalf("code=%d want 302", rec.Code)
 	}
 	loc := rec.Header().Get("Location")
-	if !strings.Contains(loc, "/auth/hello/login") || !strings.Contains(loc, "return_to") {
+	if !strings.Contains(loc, "/auth/login") || !strings.Contains(loc, "return_to") {
 		t.Fatalf("location=%s", loc)
 	}
 }
 
 func TestSessionTripManifestPublicWithoutCookie(t *testing.T) {
 	srv, _ := testServer(t)
-	srv.cfg.HelloClientID = "app_test"
-	srv.cfg.HelloSessionSecret = "session-test-key"
-	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+	srv.cfg.DescopeProjectID = "app_test"
+	srv.cfg.SessionSecret = "session-test-key"
+	srv.cfg.AllowedEmails = []string{"a@b.c"}
 
 	createBody, _ := json.Marshal(map[string]string{"id": "manifest-trip", "yaml": sampleYAML})
 	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))
@@ -109,9 +109,9 @@ func TestSessionTripManifestPublicWithoutCookie(t *testing.T) {
 
 func TestSessionTripServesBundle(t *testing.T) {
 	srv, _ := testServer(t)
-	srv.cfg.HelloClientID = "app_test"
-	srv.cfg.HelloSessionSecret = "session-test-key"
-	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+	srv.cfg.DescopeProjectID = "app_test"
+	srv.cfg.SessionSecret = "session-test-key"
+	srv.cfg.AllowedEmails = []string{"a@b.c"}
 
 	createBody, _ := json.Marshal(map[string]string{"id": "sess-trip", "yaml": sampleYAML})
 	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))
@@ -160,9 +160,9 @@ func TestSessionTripServesBundle(t *testing.T) {
 
 func TestSessionTripViewerComesFromImageNotS3(t *testing.T) {
 	srv, mem := testServer(t)
-	srv.cfg.HelloClientID = "app_test"
-	srv.cfg.HelloSessionSecret = "session-test-key"
-	srv.cfg.HelloAllowedEmails = []string{"a@b.c"}
+	srv.cfg.DescopeProjectID = "app_test"
+	srv.cfg.SessionSecret = "session-test-key"
+	srv.cfg.AllowedEmails = []string{"a@b.c"}
 
 	createBody, _ := json.Marshal(map[string]string{"id": "embed-trip", "yaml": sampleYAML})
 	req := authReq(http.MethodPost, "/api/agent/trips", "secret", bytes.NewReader(createBody))

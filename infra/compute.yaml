@@ -30,10 +30,10 @@ Parameters:
     Default: 2
     MinValue: 1
     MaxValue: 20
-  HelloClientID:
+  DescopeProjectID:
     Type: String
     Default: ""
-    Description: Hellō OAuth Client ID (public). Empty disables /auth/hello/*.
+    Description: Descope project ID (public). Empty disables /auth/login.
   GoogleSiteVerification:
     Type: String
     Default: ""
@@ -76,13 +76,8 @@ Resources:
           - Name: PUBLIC_BASE_URL
             Value:
               Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
-          - Name: HELLO_CLIENT_ID
-            Value: !Ref HelloClientID
-          - Name: HELLO_REDIRECT_URI
-            Value: !Sub
-              - "${Base}/auth/hello/callback"
-              - Base:
-                  Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
+          - Name: DESCOPE_PROJECT_ID
+            Value: !Ref DescopeProjectID
           - Name: GOOGLE_SITE_VERIFICATION
             Value: !Ref GoogleSiteVerification
           - Name: OPENAI_MODEL
@@ -94,8 +89,8 @@ Resources:
               - "${SecretArn}:token::"
               - SecretArn:
                   Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
-          # Injects the JSON key "secret" from tripmap/hello-session
-          - Name: HELLO_SESSION_SECRET
+          # Injects the JSON key "secret" from tripmap/hello-session (session cookie HMAC)
+          - Name: SESSION_SECRET
             ValueFrom: !Sub
               - "${SecretArn}:secret::"
               - SecretArn:

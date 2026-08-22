@@ -4,8 +4,8 @@
 # Terminal A — start tripmapd (mem store, no S3):
 #   set -a && source .env && set +a
 #   export PUBLIC_BASE_URL=http://127.0.0.1:8080
-#   export HELLO_CLIENT_ID="${HELLO_CLIENT_ID:-app_local_smoke}"
-#   # HELLO_SESSION_SECRET, AGENT_BEARER_TOKEN, OPENAI_API_KEY required in .env
+#   export DESCOPE_PROJECT_ID="${DESCOPE_PROJECT_ID:-P2local}"
+#   # SESSION_SECRET (or HELLO_SESSION_SECRET), AGENT_BEARER_TOKEN, OPENAI_API_KEY required in .env
 #   export ROUTE_MODE=straight
 #   unset ITINERARIES_BUCKET COMMENTS_BUCKET
 #   go run ./cmd/tripmapd
@@ -32,10 +32,11 @@ if [[ -z "$TOKEN" ]]; then
   echo "set AGENT_BEARER_TOKEN or TOKEN" >&2
   exit 2
 fi
-if [[ -z "${HELLO_SESSION_SECRET:-}" ]]; then
-  echo "set HELLO_SESSION_SECRET (must match tripmapd)" >&2
+if [[ -z "${SESSION_SECRET:-${HELLO_SESSION_SECRET:-}}" ]]; then
+  echo "set SESSION_SECRET (must match tripmapd)" >&2
   exit 2
 fi
+SESSION_SECRET="${SESSION_SECRET:-$HELLO_SESSION_SECRET}"
 if [[ -z "$EMAIL" ]]; then
   EMAIL="$(awk -F, 'NR>1 && $1!="" && tolower($3) ~ /^(yes|true|1|y|chat)$/ {print $1; exit}' config/users.csv 2>/dev/null || true)"
 fi
@@ -82,7 +83,7 @@ else
 fi
 
 echo "== mint session cookie for $EMAIL =="
-COOKIE="$(HELLO_SESSION_SECRET="$HELLO_SESSION_SECRET" go run ./scripts/mint-session-cookie -email "$EMAIL")"
+COOKIE="$(SESSION_SECRET="$SESSION_SECRET" go run ./scripts/mint-session-cookie -email "$EMAIL")"
 echo ok
 
 echo "== POST /me/trips/$ID/api/chat (SSE) =="

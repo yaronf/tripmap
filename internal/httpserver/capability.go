@@ -17,7 +17,7 @@ import (
 
 const maxNotesBytes = 64 * 1024
 
-// handleSessionTrip serves /me/trips/{id}/… to signed-in Hellō users.
+// handleSessionTrip serves /me/trips/{id}/… to signed-in viewers.
 func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/me/trips/")
 	if rest == "" || rest == "/" {
@@ -52,7 +52,7 @@ func (s *Server) handleSessionTrip(w http.ResponseWriter, r *http.Request) {
 			s.serveTripBundle(w, r, id, rel)
 			return
 		}
-		http.Redirect(w, r, "/auth/hello/login?return_to="+url.QueryEscape(r.URL.Path), http.StatusFound)
+		http.Redirect(w, r, "/auth/login?return_to="+url.QueryEscape(r.URL.Path), http.StatusFound)
 		return
 	}
 	_ = sess

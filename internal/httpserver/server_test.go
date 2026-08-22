@@ -165,8 +165,8 @@ func TestOpenAPIUsesRequestHost(t *testing.T) {
 func TestLoadConfigFromJSONSecret(t *testing.T) {
 	t.Setenv("AGENT_BEARER_TOKEN", "")
 	t.Setenv("AGENT_BEARER_SECRET_JSON", `{"token":"from-json"}`)
-	t.Setenv("HELLO_CLIENT_ID", "")
-	t.Setenv("HELLO_SESSION_SECRET", "")
+	t.Setenv("DESCOPE_PROJECT_ID", "")
+	t.Setenv("SESSION_SECRET", "")
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("OPENAI_SECRET_JSON", "")
 	cfg, err := LoadConfig()
@@ -181,8 +181,8 @@ func TestLoadConfigFromJSONSecret(t *testing.T) {
 func TestLoadConfigRequiresToken(t *testing.T) {
 	t.Setenv("AGENT_BEARER_TOKEN", "")
 	t.Setenv("AGENT_BEARER_SECRET_JSON", "")
-	t.Setenv("HELLO_CLIENT_ID", "")
-	t.Setenv("HELLO_SESSION_SECRET", "")
+	t.Setenv("DESCOPE_PROJECT_ID", "")
+	t.Setenv("SESSION_SECRET", "")
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("OPENAI_SECRET_JSON", "")
 	if _, err := LoadConfig(); err == nil {

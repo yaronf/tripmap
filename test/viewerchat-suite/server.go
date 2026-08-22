@@ -33,8 +33,8 @@ func startLocalServer(ctx context.Context) (*localServer, string, error) {
 	if os.Getenv("ROUTE_MODE") == "" {
 		_ = os.Setenv("ROUTE_MODE", "straight")
 	}
-	if os.Getenv("HELLO_CLIENT_ID") == "" {
-		_ = os.Setenv("HELLO_CLIENT_ID", "app_local_viewerchat_mt")
+	if os.Getenv("DESCOPE_PROJECT_ID") == "" {
+		_ = os.Setenv("DESCOPE_PROJECT_ID", "P2local_viewerchat")
 	}
 	cfg, err := httpserver.LoadConfig()
 	if err != nil {
@@ -43,8 +43,8 @@ func startLocalServer(ctx context.Context) (*localServer, string, error) {
 	if cfg.OpenAIAPIKey == "" {
 		return nil, "", fmt.Errorf("OPENAI_API_KEY or OPENAI_SECRET_JSON required")
 	}
-	if cfg.HelloSessionSecret == "" {
-		return nil, "", fmt.Errorf("HELLO_SESSION_SECRET required")
+	if cfg.SessionSecret == "" {
+		return nil, "", fmt.Errorf("SESSION_SECRET required")
 	}
 	if cfg.AgentBearerToken == "" {
 		return nil, "", fmt.Errorf("AGENT_BEARER_TOKEN required")

@@ -52,7 +52,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	cookie, err := mintSessionCookie(srv.cfg.HelloSessionSecret, email)
+	cookie, err := mintSessionCookie(srv.cfg.SessionSecret, email)
 	if err != nil {
 		log.Fatal(err)
 	}

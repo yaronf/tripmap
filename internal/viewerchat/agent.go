@@ -20,7 +20,7 @@ const (
 	mcpInstructions = "tripmap agent API as MCP tools. Prefer patchTrip with update_day or places.<id>.info; " +
 		"do not put enrichment in notes unless the user asks. listTrips then getTrip/getSchema before edits. " +
 		"Use listVersions + getVersion to inspect history; restoreVersion only when the user asks to revert. " +
-		"Human viewers sign in with Hellō, then use /me/trips/<id>/."
+		"Human viewers sign in with Google, then use /me/trips/<id>/."
 	viewerChatRules = "OpenAI hosted web_search is for discovery only (find a place, coords, maps links, hours). " +
 		"Use at most one focused web_search when you lack lat/lon or maps_url; do not run multiple searches for the same place. " +
 		"Never web_search on confirmation turns (user says yes/ok/add it/sounds good, or pastes a maps link) — " +

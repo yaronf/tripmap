@@ -11,7 +11,8 @@
 #
 # Optional env:
 #   TAG_PREFIX=manual  ACCOUNT=077804408159  REGION=eu-central-1
-#   HELLO_CLIENT_ID=app_slcuDgxAEmgXkpHPePh9Acgp_hi6
+#   DESCOPE_PROJECT_ID=P2xxx...
+#   GOOGLE_SITE_VERIFICATION=...
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,7 +23,7 @@ unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy
 
 ACCOUNT="${ACCOUNT:-077804408159}"
 REGION="${REGION:-eu-central-1}"
-HELLO_CLIENT_ID="${HELLO_CLIENT_ID:-app_slcuDgxAEmgXkpHPePh9Acgp_hi6}"
+DESCOPE_PROJECT_ID="${DESCOPE_PROJECT_ID:-}"
 GOOGLE_SITE_VERIFICATION="${GOOGLE_SITE_VERIFICATION:-}"
 REPO="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/tripmapd"
 
@@ -95,7 +96,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=tripmap \
     ImageTag="$TAG" \
-    HelloClientID="$HELLO_CLIENT_ID" \
+    DescopeProjectID="$DESCOPE_PROJECT_ID" \
     GoogleSiteVerification="$GOOGLE_SITE_VERIFICATION"
 
 echo "== wait for ECS rollout =="
