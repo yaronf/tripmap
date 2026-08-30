@@ -142,7 +142,7 @@ func writePDF(trip itinerary.Trip, days []dayBuilt, overviewPNG []byte, outPath,
 		pdf.SetY(-12)
 		pdf.SetFont(fontFamily, "", 8)
 		pdf.SetTextColor(100, 100, 100)
-		pdf.CellFormat(0, 5, fmt.Sprintf("Generated %s · © OpenStreetMap contributors, CARTO", genStamp),
+		pdf.CellFormat(0, 5, fmt.Sprintf("Generated %s · © OpenStreetMap contributors; basemap tiles © Esri", genStamp),
 			"", 0, "C", false, 0, "")
 	})
 

@@ -164,11 +164,20 @@ func (a *Agent) Run(ctx context.Context, in TurnInput, send func(Event) error, t
 	instruction := fmt.Sprintf(
 		"%s\n\n%s\n\nYou are the in-viewer assistant for trip id %q. "+
 			"The trip id is fixed server-side — never switch trips. "+
-			"The viewer's current day is %d (1-based). Prefer getTripYAML with scope=day for that day before editing. "+
+			"The viewer's current day is %d (1-based). "+
+			"A fresh getTripYAML for that day is included below — treat it as authoritative for the day on screen. "+
+			"Chat history may discuss other days; unless the user clearly names another day, act on day %d. "+
+			"Call getTripYAML again only for a different day, scope=full, or after a mutate when you need refreshed YAML. "+
 			"For drive-time or distance questions about existing days, getTrip day_stats is enough — do not load YAML. "+
 			"Be concise. Prefer mutate-over-chatter when the user has already chosen.",
-		mcpInstructions, viewerChatRules, in.TripID, in.Day,
+		mcpInstructions, viewerChatRules, in.TripID, in.Day, in.Day,
 	)
+	if dayYAML, err := preloadViewerDayYAML(ctx, a.ops, in.TripID, in.Day); err != nil {
+		tl.with("day", in.Day).Warn("preload_day_yaml", "error", truncateRunes(err.Error(), 200))
+	} else if dayYAML != "" {
+		instruction += "\n\n" + dayYAML
+		tl.with("day", in.Day, "yaml_bytes", len(dayYAML)).Info("preload_day_yaml")
+	}
 
 	history := make([]*schema.AgenticMessage, 0, len(in.Messages)+2)
 	for _, m := range in.Messages {
@@ -308,6 +317,26 @@ func startSSEKeepalive(ctx context.Context, send func(Event) error, status strin
 		}
 	}()
 	return func() { close(stop) }
+}
+
+// preloadViewerDayYAML returns a system-prompt block with day-scoped YAML for
+// the viewer's current day. Empty day skips the fetch.
+func preloadViewerDayYAML(ctx context.Context, ops Ops, tripID string, day int) (string, error) {
+	if ops == nil || day < 1 || strings.TrimSpace(tripID) == "" {
+		return "", nil
+	}
+	res, err := ops.GetYAML(ctx, tripID, "day", day)
+	if err != nil {
+		return "", err
+	}
+	body := strings.TrimSpace(string(res.Body))
+	if body == "" {
+		return "", nil
+	}
+	return fmt.Sprintf(
+		"Current viewer day YAML (day %d, scope=day). Use this for facts about the day on screen:\n```yaml\n%s\n```",
+		day, body,
+	), nil
 }
 
 func toolStatusMessage(calls []*schema.FunctionToolCall) string {

@@ -31,7 +31,7 @@ type MapMarker struct {
 	Size     float64
 }
 
-// StaticMapRenderer uses go-staticmaps (OSM/Carto tiles by default).
+// StaticMapRenderer uses go-staticmaps (Esri light-gray basemap by default).
 type StaticMapRenderer struct {
 	// If true, skip downloading tiles (geometry only) — for tests / offline.
 	NoTiles bool
@@ -49,7 +49,15 @@ func (r StaticMapRenderer) Render(paths []MapPath, markers []MapMarker, width, h
 	if r.NoTiles {
 		ctx.SetTileProvider(sm.NewTileProviderNone())
 	} else {
-		ctx.SetTileProvider(sm.NewTileProviderCartoLight())
+		// CARTO light_all now watermarks without an API key. Esri World Street Map
+		// keeps place names (Light Gray Base alone is canvas-only).
+		ctx.SetTileProvider(&sm.TileProvider{
+			Name:        "esri-world-street",
+			Attribution: "Tiles (c) Esri — Esri, DeLorme, NAVTEQ",
+			TileSize:    256,
+			URLPattern:  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/%[2]d/%[4]d/%[3]d",
+			Shards:      []string{},
+		})
 	}
 	for _, p := range paths {
 		if len(p.LatLngs) < 2 {

@@ -361,14 +361,25 @@
 
   function initMap() {
     state.map = L.map(el.map, { zoomControl: true, attributionControl: true });
-    const tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      maxZoom: 19,
-    });
-    tiles.on("tileerror", () => {
+    // CARTO raster basemaps now require a free API key. Esri light-gray is a
+    // close stand-in: Base is the canvas; Reference adds place/road labels.
+    const attr =
+      'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, DeLorme, NAVTEQ';
+    const base = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+      { attribution: attr, maxZoom: 16 }
+    );
+    const labels = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+      { attribution: attr, maxZoom: 16, pane: "overlayPane" }
+    );
+    const onTileError = () => {
       el.tileBanner.hidden = false;
-    });
-    tiles.addTo(state.map);
+    };
+    base.on("tileerror", onTileError);
+    labels.on("tileerror", onTileError);
+    base.addTo(state.map);
+    labels.addTo(state.map);
     L.control.scale({ metric: true, imperial: false, maxWidth: 200 }).addTo(state.map);
     state.layers.addTo(state.map);
     state.map.setView([52.1, 5.1], 7);
