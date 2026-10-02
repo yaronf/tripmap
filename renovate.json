@@ -12,13 +12,28 @@
       "description": "Group routine Go module bumps (root + experiments)",
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["minor", "patch"],
+      "matchDepTypes": ["require", "indirect", "replace", "tool"],
       "groupName": "go modules"
     },
     {
-      "description": "Group Dockerfile base images and Actions",
+      "description": "Group Dockerfile base images and Actions (except golang image)",
       "matchManagers": ["dockerfile", "github-actions"],
       "matchUpdateTypes": ["minor", "patch"],
+      "excludePackageNames": ["golang"],
       "groupName": "ci and docker"
+    },
+    {
+      "description": "Do not bump the go (language) directive automatically",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["golang"],
+      "enabled": false
+    },
+    {
+      "description": "Prompt Go toolchain + golang image patch PRs (not weekly)",
+      "matchPackageNames": ["go", "golang"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "go toolchain",
+      "schedule": ["at any time"]
     },
     {
       "description": "Major Go / AWS / Descope / OpenAI bumps stay as separate PRs",

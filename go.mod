@@ -2,6 +2,8 @@ module github.com/yaronf/tripmap
 
 go 1.25.0
 
+toolchain go1.25.14
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.43.2
 	github.com/aws/aws-sdk-go-v2/config v1.32.33

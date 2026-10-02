@@ -1,5 +1,5 @@
 # Cross-compile friendly: build on host arch, emit linux/$TARGETARCH binary.
-FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS build
+FROM --platform=$BUILDPLATFORM golang:1.25.14-bookworm AS build
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 WORKDIR /src
