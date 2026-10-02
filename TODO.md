@@ -34,6 +34,7 @@ See [docs/itinerary-display-viewer.md](docs/itinerary-display-viewer.md) (archit
 - [x] Structured place enrichment (`info`: links, stats, logistics, facilities, warnings, highlights)
 - [ ] Stop priority flags: `optional`, `backup`, `must`
 - [ ] First-class overnight block (place, nights, notes)
+- [ ] TripIt ICS sync → `booking` on overnight + flight places (name, address, times); viewer display + Refresh control — see [plan-tripit-ics-sync.md](docs/plan-tripit-ics-sync.md)
 - [ ] Booking metadata on stops (required, opens, status) in KML descriptions
 - [ ] Weather backup hints on hike days (`swap_with`) in descriptions
 - [x] Trip dates in YAML (`start` + optional per-day `date`) for viewer and KML
