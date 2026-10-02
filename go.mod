@@ -13,7 +13,7 @@ require (
 	github.com/descope/go-sdk v1.30.0
 	github.com/flopp/go-staticmaps v0.0.0-20260318105611-d3eb636a6468
 	github.com/go-pdf/fpdf v0.9.0
-	github.com/golang/geo v0.0.0-20260713102120-857a528af641
+	github.com/golang/geo v0.0.0-20260928092222-7d12f68cfadb
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/openai/openai-go/v3 v3.35.0
 	github.com/yaronf/mcpopenapi v0.3.0
