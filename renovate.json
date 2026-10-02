@@ -47,6 +47,12 @@
       "schedule": ["at any time"]
     },
     {
+      "description": "Descope alone — its go.mod floor can raise ours via gomodTidy",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["github.com/descope/go-sdk"],
+      "groupName": null
+    },
+    {
       "description": "Major Go / AWS / Descope / OpenAI bumps stay as separate PRs",
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["major"],
