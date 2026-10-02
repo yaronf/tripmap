@@ -29,6 +29,12 @@
       "enabled": false
     },
     {
+      "description": "Stay on current Go minor: no toolchain / golang-image minor or major",
+      "matchPackageNames": ["go", "golang"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
+    },
+    {
       "description": "Prompt Go toolchain + golang image patch PRs (not weekly)",
       "matchPackageNames": ["go", "golang"],
       "matchUpdateTypes": ["patch"],
