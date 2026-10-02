@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    "schedule:weekly"
+  ],
+  "labels": ["dependencies"],
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "description": "Group routine Go module bumps (root + experiments)",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "go modules"
+    },
+    {
+      "description": "Group Dockerfile base images and Actions",
+      "matchManagers": ["dockerfile", "github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "ci and docker"
+    },
+    {
+      "description": "Major Go / AWS / Descope / OpenAI bumps stay as separate PRs",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["major"],
+      "groupName": null
+    }
+  ]
+}
