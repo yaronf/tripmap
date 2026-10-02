@@ -9,7 +9,12 @@
   "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
-      "description": "Group routine Go module bumps (root + experiments)",
+      "description": "Skip abandoned agent experiments (eino-mcp, adk-mcp, …)",
+      "matchFileNames": ["experiments/**"],
+      "enabled": false
+    },
+    {
+      "description": "Group routine Go module bumps (root module)",
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["minor", "patch"],
       "matchDepTypes": ["require", "indirect", "replace", "tool"],
