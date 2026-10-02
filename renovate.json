@@ -19,7 +19,7 @@
       "description": "Group Dockerfile base images and Actions (except golang image)",
       "matchManagers": ["dockerfile", "github-actions"],
       "matchUpdateTypes": ["minor", "patch"],
-      "excludePackageNames": ["golang"],
+      "matchPackageNames": ["!golang"],
       "groupName": "ci and docker"
     },
     {
