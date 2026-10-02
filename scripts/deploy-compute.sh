@@ -21,6 +21,14 @@ cd "$ROOT"
 export PATH="${HOME}/.local/bin:${PATH}"
 unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy
 
+# Load local secrets if present (DESCOPE_PROJECT_ID, etc.). Explicit env wins.
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 ACCOUNT="${ACCOUNT:-077804408159}"
 REGION="${REGION:-eu-central-1}"
 DESCOPE_PROJECT_ID="${DESCOPE_PROJECT_ID:-}"
@@ -88,16 +96,26 @@ else
   echo "== skip build; using tag $TAG =="
 fi
 
+if [[ -z "$DESCOPE_PROJECT_ID" ]]; then
+  echo "error: DESCOPE_PROJECT_ID is empty (set it in .env or the environment)." >&2
+  echo "Passing an empty value clears Google sign-in on the home page." >&2
+  exit 1
+fi
+
 echo "== cloudformation deploy ImageTag=$TAG =="
+CFN_PARAMS=(
+  "ProjectName=tripmap"
+  "ImageTag=$TAG"
+  "DescopeProjectID=$DESCOPE_PROJECT_ID"
+)
+if [[ -n "$GOOGLE_SITE_VERIFICATION" ]]; then
+  CFN_PARAMS+=("GoogleSiteVerification=$GOOGLE_SITE_VERIFICATION")
+fi
 aws cloudformation deploy \
   --stack-name tripmap-compute \
   --template-file infra/compute.yaml \
   --region "$REGION" \
-  --parameter-overrides \
-    ProjectName=tripmap \
-    ImageTag="$TAG" \
-    DescopeProjectID="$DESCOPE_PROJECT_ID" \
-    GoogleSiteVerification="$GOOGLE_SITE_VERIFICATION"
+  --parameter-overrides "${CFN_PARAMS[@]}"
 
 echo "== wait for ECS rollout =="
 for i in $(seq 1 20); do
