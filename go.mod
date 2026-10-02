@@ -15,7 +15,7 @@ require (
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/golang/geo v0.0.0-20260928092222-7d12f68cfadb
 	github.com/oapi-codegen/runtime v1.7.0
-	github.com/openai/openai-go/v3 v3.70.0
+	github.com/openai/openai-go/v3 v3.44.0
 	github.com/yaronf/mcpopenapi v0.3.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -46,7 +46,6 @@ require (
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.18-0.20260924031408-10df7cac3f6d // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/eino-contrib/jsonschema v1.0.3 // indirect

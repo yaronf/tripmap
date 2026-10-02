@@ -53,6 +53,13 @@
       "groupName": null
     },
     {
+      "description": "Keep openai-go within agenticopenai v0.2.4 support (needs ~v3.44)",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["github.com/openai/openai-go/v3"],
+      "allowedVersions": "<=3.44.0",
+      "groupName": null
+    },
+    {
       "description": "Major Go / AWS / Descope / OpenAI bumps stay as separate PRs",
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["major"],
