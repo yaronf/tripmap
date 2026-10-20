@@ -325,6 +325,13 @@ body.chat-open .detail-chat {
   white-space: pre-wrap;
 }
 
+.detail-notes a,
+.shared-notes-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
 .stop-notes {
   margin: 0.35rem 0 0;
   font-family: var(--serif);

@@ -448,6 +448,33 @@
     return escapeHtml(s).replace(/'/g, "&#39;");
   }
 
+  // Turn http(s) and www URLs into links. HTML is escaped first.
+  function linkifyText(s) {
+    const re = /(?:https?:\/\/|www\.)[^\s<]+/gi;
+    const text = String(s);
+    let out = "";
+    let last = 0;
+    for (const m of text.matchAll(re)) {
+      let url = m[0];
+      let trail = "";
+      while (url.length > 0) {
+        const ch = url[url.length - 1];
+        if (!".,;:!?)]".includes(ch)) break;
+        if (ch === ")" && (url.match(/\(/g) || []).length >= (url.match(/\)/g) || []).length) break;
+        trail = ch + trail;
+        url = url.slice(0, -1);
+      }
+      if (!url) continue;
+      out += escapeHtml(text.slice(last, m.index));
+      const href = /^https?:\/\//i.test(url) ? url : "https://" + url;
+      out += `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+      out += escapeHtml(trail);
+      last = m.index + m[0].length;
+    }
+    out += escapeHtml(text.slice(last));
+    return out;
+  }
+
   function renderDetail(d) {
     const flags = [];
     if (d.hike) flags.push('<span class="flag hike">Hike</span>');
@@ -516,7 +543,7 @@
         d.notes
           ? `<section class="day-notes" aria-label="Day notes">
         <h3 class="day-notes-heading">Notes</h3>
-        <p class="detail-notes">${escapeHtml(d.notes)}</p>
+        <p class="detail-notes">${linkifyText(d.notes)}</p>
       </section>`
           : ""
       }
@@ -534,7 +561,7 @@
           </button>
         </div>
         <p id="shared-notes-display" class="shared-notes-body${saved ? "" : " is-empty"}">${
-          saved ? escapeHtml(saved) : "No comments yet."
+          saved ? linkifyText(saved) : "No comments yet."
         }</p>
         <div id="shared-notes-editor" class="shared-notes-editor" hidden>
           <textarea id="shared-notes" aria-label="Edit comments for this day">${escapeHtml(saved)}</textarea>
@@ -580,7 +607,7 @@
     const syncDisplay = (value) => {
       if (!display) return;
       const text = (value || "").trim();
-      display.textContent = text || "No comments yet.";
+      display.innerHTML = text ? linkifyText(text) : "No comments yet.";
       display.classList.toggle("is-empty", !text);
       if (editBtn) {
         const label = text ? "Edit comments" : "Add comments";
