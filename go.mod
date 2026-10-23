@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.0
 	github.com/cloudwego/eino v0.9.21
 	github.com/cloudwego/eino-ext/components/model/agenticopenai v0.2.4
-	github.com/descope/go-sdk v1.35.0
+	github.com/descope/go-sdk v1.38.0
 	github.com/flopp/go-staticmaps v0.0.0-20260318105611-d3eb636a6468
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/golang/geo v0.0.0-20260928092222-7d12f68cfadb
