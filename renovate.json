@@ -34,15 +34,15 @@
       "enabled": false
     },
     {
-      "description": "Stay on current Go minor: no toolchain / golang-image minor or major",
+      "description": "No automatic Go major (language line); minors OK for security track",
       "matchPackageNames": ["go", "golang"],
-      "matchUpdateTypes": ["minor", "major"],
+      "matchUpdateTypes": ["major"],
       "enabled": false
     },
     {
-      "description": "Prompt Go toolchain + golang image patch PRs (not weekly)",
+      "description": "Prompt Go toolchain + golang image patch/minor PRs (not weekly)",
       "matchPackageNames": ["go", "golang"],
-      "matchUpdateTypes": ["patch"],
+      "matchUpdateTypes": ["patch", "minor"],
       "groupName": "go toolchain",
       "schedule": ["at any time"]
     },
