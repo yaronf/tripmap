@@ -11,7 +11,7 @@ require (
 	github.com/cloudwego/eino v0.9.22
 	github.com/cloudwego/eino-ext/components/model/agenticopenai v0.2.4
 	github.com/descope/go-sdk v1.38.0
-	github.com/flopp/go-staticmaps v0.0.0-20260318105611-d3eb636a6468
+	github.com/flopp/go-staticmaps v0.0.0-20261012204737-8cdef9842aeb
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/golang/geo v0.0.0-20260928092222-7d12f68cfadb
 	github.com/oapi-codegen/runtime v1.8.0
