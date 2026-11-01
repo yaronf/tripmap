@@ -1,120 +1,80 @@
 # Runbook: deploy seasonal compute
 
-Stand up `tripmap-compute` (ECS Express Mode) for an in-season window. Data (`tripmap-data`) must already exist.
+Stand up `tripmap-compute` (EC2 `t4g.micro` + Docker) for an in-season window. Data (`tripmap-data`) must already exist.
 
 **Region:** `eu-central-1`  
-**Identity:** prefer `tripmap-deploy` (`aws login`); use `yaron-admin` only if IAM/policy changes are needed.
-
-After a full compute **delete**, recreate needs `ecs:CreateCluster` on the deploy policy (see `infra/deploy-iam.yaml`). If create fails with AccessDenied on `CreateCluster`, update `tripmap-deploy-iam` as `yaron-admin` first, then retry as `tripmap-deploy`.
+**Identities:**
+- **`yaron-admin`** — once, before first EC2 create: deploy updated `tripmap-deploy-iam` (see Phase B below).
+- **`tripmap-deploy`** — day-to-day image/compute/edge (`aws login`).
 
 ## 0. Preconditions
 
 - [ ] `tripmap-data` stack is `CREATE_COMPLETE` / `UPDATE_COMPLETE`
 - [ ] `tripmap-edge` (CloudFront) exists — durable URL `https://tripmap.sheffer.org`
-- [ ] Image exists in ECR `tripmapd` (build/push if you changed code)
-- [ ] Local `.env` has `AGENT_BEARER_TOKEN` (never commit; not readable by `tripmap-deploy`)
-- [ ] Agent Bearer already configured for MCP / scripts (unchanged across seasons)
+- [ ] Phase B: `tripmap-deploy-iam` includes EC2/SSM/instance-role permissions (admin)
+- [ ] Local `.env` has `DESCOPE_PROJECT_ID` and `AGENT_BEARER_TOKEN` (never commit)
+- [ ] `config/users.csv` present on the build machine (baked into the image)
 
-## 1–2. Build, push, and update compute (preferred)
+## Phase B — admin prerequisite (`yaron-admin`)
 
-As `tripmap-deploy`, from the repo root:
+Required **before** the first EC2 `tripmap-compute` create. `tripmap-deploy` cannot update this stack.
+
+```bash
+aws cloudformation deploy \
+  --stack-name tripmap-deploy-iam \
+  --template-file infra/deploy-iam.yaml \
+  --region eu-central-1 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides ProjectName=tripmap DeployUserName=tripmap-deploy
+```
+
+ECS Express permissions remain in the policy until [runbook-ec2-cleanup.md](runbook-ec2-cleanup.md) (Phase D).
+
+## 1–2. Build, push, and update compute (`tripmap-deploy`)
 
 ```bash
 ./scripts/deploy-compute.sh
 # or: ./scripts/deploy-compute.sh --prefix rebuild
+# force new AL2023 AMI (brief downtime):
+#   ./scripts/deploy-compute.sh --refresh-ami
 ```
 
-Viewer `app.js` / CSS / icons are **served from this image**, not patched onto S3. A laptop `aws s3 cp` of those files is overwritten the next time an itinerary regen runs `bundle.Build`. Deploy a new tag to change the PWA.
+The script builds **`linux/arm64`**, pushes to ECR, deploys `infra/compute.yaml` (auto-detects default VPC/subnet + CloudFront prefix list), waits for SSM, pulls/recreates the container, and hits `/health`.
 
-That script ECR-logins, builds `linux/amd64`, pushes the tag + `latest`, runs `aws cloudformation deploy` on `tripmap-compute`, waits for ECS, and hits `/health`.
+Viewer assets are **served from this image**. Deploy a new tag to change the PWA.
 
-Manual steps below remain if you need to reuse an existing tag or change only one piece.
+Reuse a tag: `./scripts/deploy-compute.sh --skip-build --tag existing-tag`.
 
-### Manual: build and push
+### Manual CFN knobs
 
-```bash
-cd /path/to/tripmap
-export PATH="$HOME/.local/bin:$PATH"
-unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy
+| Parameter | Notes |
+|-----------|--------|
+| `ImageTag` | ECR tag; also written to SSM `/tripmap/compute/image-tag` |
+| `AmiRefreshToken` | Change → replace instance (new AMI). Monthly EventBridge does this automatically |
+| `VpcId` / `SubnetId` | Default VPC public subnet |
+| `CloudFrontPrefixListId` | `com.amazonaws.global.cloudfront.origin-facing` |
+| `DescopeProjectID` | Public; empty disables login |
+| `OriginHostname` | Default `tripmap-origin.sheffer.org` (DNS at GoDaddy) |
 
-TAG="manual-$(date +%Y%m%d%H%M%S)"
-ACCOUNT=077804408159
-REGION=eu-central-1
-REPO="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/tripmapd"
+Secrets are **not** in CFN. The instance role reads SM by ARN; `tripmapd` uses `AGENT_BEARER_SECRET_ARN`, `SESSION_SECRET_ARN`, `OPENAI_SECRET_ARN`.
 
-aws ecr get-login-password --region "$REGION" \
-  | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
+## 3. Point CloudFront at the EC2 origin (`tripmap-deploy`)
 
-docker build --platform linux/amd64 -t "$REPO:$TAG" -t "$REPO:latest" .
-docker push "$REPO:$TAG"
-docker push "$REPO:latest"
-```
+After first create (or EIP change):
 
-Skip build if reusing an existing tag (e.g. last known-good `openapi-gpt-…`), or:
-`./scripts/deploy-compute.sh --skip-build --tag existing-tag`.
-
-### Manual: create or update compute stack
+1. Read the Elastic IP from compute outputs.
+2. CloudFront **rejects raw IP origins**. Use a hostname:
+   - Preferred: GoDaddy **A** `tripmap-origin` → EIP, then `ORIGIN=tripmap-origin.sheffer.org`
+   - Temporary: `ORIGIN=${EIP}.sslip.io` (works immediately; switch to GoDaddy when ready)
+3. Update edge:
 
 ```bash
-TAG=…   # from step 1, or an existing ECR tag
-# HelloClientID is public (Hellō console). Empty disables /auth/hello/*.
-HELLO_CLIENT_ID=app_slcuDgxAEmgXkpHPePh9Acgp_hi6
-
-aws cloudformation deploy \
-  --stack-name tripmap-compute \
-  --template-file infra/compute.yaml \
-  --region eu-central-1 \
-  --parameter-overrides \
-    ProjectName=tripmap \
-    ImageTag="$TAG" \
-    HelloClientID="$HELLO_CLIENT_ID"
-```
-
-Hellō console must list redirect URI `https://tripmap.sheffer.org/auth/hello/callback` (exact path).
-
-`HELLO_SESSION_SECRET` is injected from Secrets Manager `tripmap/hello-session` (data stack). Do not reuse the agent Bearer. Signed-in ACL is `config/users.csv` (gitignored; baked into the image from the deploy machine). Start from `config/users.example.csv`.
-
-In-viewer chat (optional): `OPENAI_SECRET_JSON` from `tripmap/openai` + `OPENAI_MODEL=gpt-5-mini`; require `chat=yes` rows. See [runbook-viewer-chat.md](runbook-viewer-chat.md).
-
-Day-to-day **image-only** updates (same stack, new `ImageTag`) typically finish in ~3 minutes after the Express bake tweak below. A full seasonal **create** still needs edge (step 3) and the bake step.
-
-## 2b. Express bake settings (required after create / recreate)
-
-Express Mode defaults to a slow canary (~3 min bake at 5% + ~3 min full bake ≈ 8–10 min per deploy). We shorten that with classic `update-service` (survives later CFN `ImageTag` updates; **resets on seasonal delete+create**).
-
-**Always run after a new `tripmap-compute` create** (and whenever deploys feel ~9 minutes again):
-
-```bash
-REGION=eu-central-1
-CLUSTER=default
-SERVICE=tripmap   # Express ServiceName = ProjectName
-
-# Confirm current settings
-aws ecs describe-services --region "$REGION" --cluster "$CLUSTER" --services "$SERVICE" \
-  --query 'services[0].deploymentConfiguration.{bake:bakeTimeInMinutes,canary:canaryConfiguration,strategy:strategy}' \
-  --output json
-
-# Fast path: 100% canary, zero bake (TripMap is low-risk / single-tenant)
-aws ecs update-service --region "$REGION" --cluster "$CLUSTER" --service "$SERVICE" \
-  --deployment-configuration \
-  '{"bakeTimeInMinutes":0,"canaryConfiguration":{"canaryPercent":100,"canaryBakeTimeInMinutes":0}}' \
-  --query 'service.deploymentConfiguration.{bake:bakeTimeInMinutes,canary:canaryConfiguration}' \
-  --output json
-```
-
-Expect after apply: `bakeTimeInMinutes: 0`, `canaryPercent: 100`, `canaryBakeTimeInMinutes: 0`.
-
-Background and measured timings: [`plan-fast-app-deploys.md`](plan-fast-app-deploys.md).
-
-## 3. Point CloudFront at the new Express origin
-
-Express TLS is on `*.ecs.*.on.aws` (stack `Endpoint`), not the raw ALB DNS name. After create/recreate:
-
-```bash
-ENDPOINT=$(aws cloudformation describe-stacks \
+EIP=$(aws cloudformation describe-stacks \
   --stack-name tripmap-compute --region eu-central-1 \
-  --query "Stacks[0].Outputs[?OutputKey=='Endpoint'].OutputValue" \
-  --output text)
+  --query "Stacks[0].Outputs[?OutputKey=='ElasticIP'].OutputValue" --output text)
+ORIGIN="${ORIGIN:-${EIP}.sslip.io}"
+# After GoDaddy A record: ORIGIN=tripmap-origin.sheffer.org
+
 CERT_ARN=arn:aws:acm:us-east-1:077804408159:certificate/db2fef17-5f20-4863-a0ef-3819c83a8ec9
 
 aws cloudformation deploy \
@@ -125,39 +85,38 @@ aws cloudformation deploy \
     ProjectName=tripmap \
     AlternateDomainName=tripmap.sheffer.org \
     AcmCertificateArn="$CERT_ARN" \
-    OriginDomainName="$ENDPOINT"
+    OriginDomainName="$ORIGIN"
 
 DID=$(aws cloudformation describe-stacks --stack-name tripmap-edge --region eu-central-1 \
   --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text)
 aws cloudfront wait distribution-deployed --id "$DID"
 ```
 
-Public URL stays **`https://tripmap.sheffer.org`** (GoDaddy CNAME → CloudFront; do not change DNS on recreate).
+Public URL stays **`https://tripmap.sheffer.org`** (GoDaddy CNAME → CloudFront). Edge uses **HTTP :80** to the origin; SG allows only the CloudFront prefix list.
 
-## 4. Smoke
+## 4. Smoke (`tripmap-deploy` / browser)
 
 ```bash
 set -a && source .env && set +a
 curl -fsS "https://tripmap.sheffer.org/health"
 curl -fsS "https://tripmap.sheffer.org/openapi.yaml" | head
 BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smoke-agent.sh
-# Optional (needs OPENAI_* + chat=yes ACL): BASE_URL=… ./scripts/smoke-chat.sh
 ```
 
-- [ ] If `HelloClientID` set: open `https://tripmap.sheffer.org/` → Continue with Hellō → open `/me/trips/{id}/`; confirm notes + comments
-- [ ] `GET /auth/me` returns `authenticated: true` (and `chat_enabled: true` when OpenAI + `chat=yes`)
-- [ ] Optional: Ask pane + [runbook-viewer-chat.md](runbook-viewer-chat.md)
+- [ ] Sign-in → `/me/trips/{id}/`; notes + comments
+- [ ] Optional chat: [runbook-viewer-chat.md](runbook-viewer-chat.md)
+- [ ] MCP: [runbook-mcp.md](runbook-mcp.md)
 
-## 5. ChatGPT Agent MCP
+## 5. Done when
 
-- [ ] Connector: Streamable HTTP `https://tripmap.sheffer.org/mcp` + Bearer env `AGENT_BEARER_TOKEN` — see [runbook-mcp.md](runbook-mcp.md)
-- [ ] Quick test in ChatGPT Agent: “List trips.”
+- `/health` OK, MCP + viewer OK
+- Edge origin is `tripmap-origin.sheffer.org` (or EIP) over HTTP
+- Monthly AMI refresh rule exists on the compute stack (`tripmap-ec2-ami-refresh`)
 
-## 6. Done when
+## Day-to-day image roll
 
-- `https://tripmap.sheffer.org/health` OK, `/mcp` lists tools with Bearer, ChatGPT Agent list-trips works, signed-in viewer + comments OK.
-- After **create/recreate**: step **2b** bake settings applied (or verified already `0` / `100%`).
+`./scripts/deploy-compute.sh` (or `--skip-build --tag …`). No edge change unless EIP changed. AMI replace is automatic monthly (EventBridge) or `--refresh-ami`.
 
-## Day-to-day image roll (compute already up)
+## Off-season
 
-Same as steps **1 → 2 → 4** (skip edge unless `Endpoint` changed). No need to re-run **2b** unless describe-services shows bake times back at `3` / canary `5`.
+See [runbook-undeploy-compute.md](runbook-undeploy-compute.md). After Express is fully retired, see [runbook-ec2-cleanup.md](runbook-ec2-cleanup.md).

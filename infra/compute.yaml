@@ -1,7 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  tripmap seasonal compute (eu-central-1): ECS Express Mode service.
-  Delete this stack off-season to stop ALB/Fargate charges. Requires tripmap-data.
+  tripmap seasonal compute (eu-central-1): single t4g.micro EC2 host running
+  tripmapd from ECR under Docker. Delete this stack off-season to stop EC2/EIP
+  charges. Requires tripmap-data. Secrets are loaded by tripmapd via ARNs
+  (instance role); no secret values in this template.
 
 Parameters:
   ProjectName:
@@ -11,25 +13,7 @@ Parameters:
   ImageTag:
     Type: String
     Default: latest
-    Description: ECR image tag to run
-  Cpu:
-    Type: String
-    Default: "256"
-    AllowedValues: ["256", "512", "1024", "2048", "4096"]
-  Memory:
-    Type: String
-    Default: "512"
-    AllowedValues: ["512", "1024", "2048", "4096", "8192"]
-  MinTaskCount:
-    Type: Number
-    Default: 1
-    MinValue: 1
-    MaxValue: 10
-  MaxTaskCount:
-    Type: Number
-    Default: 2
-    MinValue: 1
-    MaxValue: 20
+    Description: ECR image tag to run (also written to SSM for user-data / refresh)
   DescopeProjectID:
     Type: String
     Default: ""
@@ -38,83 +22,500 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional Search Console HTML tag for tripmap.sheffer.org home page.
+  AmiRefreshToken:
+    Type: String
+    Default: "init"
+    Description: >
+      Change this value to force EC2 instance replacement (new AL2023 AMI via
+      SSM dynamic resolve). Monthly EventBridge Lambda bumps it automatically;
+      deploy-compute.sh --refresh-ami does the same on demand.
+  InstanceType:
+    Type: String
+    Default: t4g.micro
+    AllowedValues: [t4g.micro, t4g.small]
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for the instance security group (default VPC is fine)
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet in VpcId
+  CloudFrontPrefixListId:
+    Type: String
+    Description: >
+      Managed prefix list com.amazonaws.global.cloudfront.origin-facing in this
+      region (aws ec2 describe-managed-prefix-lists)
+  OriginHostname:
+    Type: String
+    Default: tripmap-origin.sheffer.org
+    Description: >
+      Hostname operators should point at the EIP (e.g. GoDaddy A record).
+      CloudFront OriginDomainName can use this hostname or the raw EIP.
+  AmiId:
+    Type: String
+    AllowedPattern: "^ami-[0-9a-f]+$"
+    Description: >
+      Concrete AL2023 arm64 AMI id (deploy-compute.sh resolves the public
+      SSM “latest” parameter and passes ami-…).
 
 Resources:
-  ExpressService:
-    Type: AWS::ECS::ExpressGatewayService
+  ImageTagParameter:
+    Type: AWS::SSM::Parameter
     Properties:
-      ServiceName: !Ref ProjectName
-      ExecutionRoleArn:
-        Fn::ImportValue: !Sub "${ProjectName}-TaskExecutionRoleArn"
-      InfrastructureRoleArn:
-        Fn::ImportValue: !Sub "${ProjectName}-InfrastructureRoleArn"
-      TaskRoleArn:
-        Fn::ImportValue: !Sub "${ProjectName}-TaskRoleArn"
-      HealthCheckPath: /health
-      Cpu: !Ref Cpu
-      Memory: !Ref Memory
-      PrimaryContainer:
-        Image: !Sub
-          - "${RepoUri}:${ImageTag}"
-          - RepoUri:
-              Fn::ImportValue: !Sub "${ProjectName}-EcrRepositoryUri"
-            ImageTag: !Ref ImageTag
-        ContainerPort: 8080
-        Environment:
-          - Name: ADDR
-            Value: ":8080"
-          - Name: AWS_REGION
-            Value: !Ref AWS::Region
-          - Name: ITINERARIES_BUCKET
-            Value:
-              Fn::ImportValue: !Sub "${ProjectName}-ItinerariesBucket"
-          - Name: COMMENTS_BUCKET
-            Value:
-              Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
-          - Name: ROUTE_MODE
-            Value: osrm
-          - Name: PUBLIC_BASE_URL
-            Value:
-              Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
-          - Name: DESCOPE_PROJECT_ID
-            Value: !Ref DescopeProjectID
-          - Name: GOOGLE_SITE_VERIFICATION
-            Value: !Ref GoogleSiteVerification
-          - Name: OPENAI_MODEL
-            Value: gpt-5-mini
-        Secrets:
-          # Injects the JSON key "token" from tripmap/agent-bearer
-          - Name: AGENT_BEARER_TOKEN
-            ValueFrom: !Sub
-              - "${SecretArn}:token::"
-              - SecretArn:
-                  Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
-          # Injects the JSON key "secret" from tripmap/hello-session (session cookie HMAC)
-          - Name: SESSION_SECRET
-            ValueFrom: !Sub
-              - "${SecretArn}:secret::"
-              - SecretArn:
-                  Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
-          # Injects full JSON; tripmapd reads api_key (empty/missing disables chat)
-          - Name: OPENAI_SECRET_JSON
-            ValueFrom:
-              Fn::ImportValue: !Sub "${ProjectName}-OpenAISecretArn"
-      ScalingTarget:
-        MinTaskCount: !Ref MinTaskCount
-        MaxTaskCount: !Ref MaxTaskCount
+      Name: !Sub "/${ProjectName}/compute/image-tag"
+      Type: String
+      Value: !Ref ImageTag
+      Description: ECR tag tripmapd should run
+      Tags:
+        Project: !Ref ProjectName
+        Stack: compute
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ec2"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: TripmapRuntime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ItinerariesList
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                Resource:
+                  Fn::Sub:
+                    - "arn:aws:s3:::${Bucket}"
+                    - Bucket:
+                        Fn::ImportValue: !Sub "${ProjectName}-ItinerariesBucket"
+              - Sid: ItinerariesObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub:
+                    - "arn:aws:s3:::${Bucket}/*"
+                    - Bucket:
+                        Fn::ImportValue: !Sub "${ProjectName}-ItinerariesBucket"
+              - Sid: CommentsList
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::Sub:
+                    - "arn:aws:s3:::${Bucket}"
+                    - Bucket:
+                        Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
+              - Sid: CommentsObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub:
+                    - "arn:aws:s3:::${Bucket}/*"
+                    - Bucket:
+                        Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
+              - Sid: ReadSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
+                  - Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
+                  - Fn::ImportValue: !Sub "${ProjectName}-OpenAISecretArn"
+              - Sid: ECRAuth
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: ECRPull
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectName}d"
+              - Sid: ReadImageTagParam
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/compute/image-tag"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub "${ProjectName}-ec2"
+      Roles:
+        - !Ref InstanceRole
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: tripmapd HTTP from CloudFront only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !Ref CloudFrontPrefixListId
+          Description: CloudFront origin-facing
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Name
+          Value: !Sub "${ProjectName}-ec2"
+        - Key: Stack
+          Value: compute
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Stack
           Value: compute
+        - Key: Name
+          Value: !Sub "${ProjectName}-origin"
+
+  # CFN assumes this role when the monthly AMI-refresh Lambda calls UpdateStack,
+  # so the Lambda itself only needs cloudformation:UpdateStack + PassRole.
+  StackServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ec2-cfn"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ManageComputeResources
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:RunInstances
+                  - ec2:TerminateInstances
+                  - ec2:StopInstances
+                  - ec2:StartInstances
+                  - ec2:ReplaceIamInstanceProfileAssociation
+                  - ec2:AssociateIamInstanceProfile
+                  - ec2:DisassociateIamInstanceProfile
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                  - ec2:Describe*
+                  - ec2:CreateSecurityGroup
+                  - ec2:DeleteSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:AllocateAddress
+                  - ec2:ReleaseAddress
+                  - ec2:AssociateAddress
+                  - ec2:DisassociateAddress
+                  - ec2:ModifyInstanceAttribute
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-ec2"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-ec2-*"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - ec2.amazonaws.com
+                      - lambda.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:UpdateRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:GetInstanceProfile
+                  - iam:TagInstanceProfile
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-ec2"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-ec2-*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:instance-profile/${ProjectName}-ec2"
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:GetParameter
+                  - ssm:DeleteParameter
+                  - ssm:AddTagsToResource
+                  - ssm:RemoveTagsFromResource
+                  - ssm:ListTagsForResource
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/compute/*"
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:InvokeFunction
+                  - lambda:ListTags
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-ec2-*"
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DeleteRule
+                  - events:DescribeRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                  - events:TagResource
+                  - events:UntagResource
+                  - events:ListTagsForResource
+                Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-ec2-*"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: ImageTagParameter
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiId
+      SubnetId: !Ref SubnetId
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 10
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            # AmiRefreshToken=${AmiRefreshToken}
+            set -euxo pipefail
+            dnf install -y docker dnf-automatic
+            systemctl enable --now docker
+            sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf || true
+            systemctl enable --now dnf-automatic.timer
+
+            REGION='${AWS::Region}'
+            ACCOUNT='${AWS::AccountId}'
+            REPO="${!ACCOUNT}.dkr.ecr.${!REGION}.amazonaws.com/${ProjectName}d"
+            TAG=$(aws ssm get-parameter --region "${!REGION}" --name "/${ProjectName}/compute/image-tag" --query Parameter.Value --output text)
+
+            aws ecr get-login-password --region "${!REGION}" \
+              | docker login --username AWS --password-stdin "${!ACCOUNT}.dkr.ecr.${!REGION}.amazonaws.com"
+            docker pull "${!REPO}:${!TAG}"
+
+            docker rm -f tripmapd 2>/dev/null || true
+            docker run -d --name tripmapd --restart=always \
+              -p 80:8080 \
+              -e ADDR=:8080 \
+              -e AWS_REGION="${!REGION}" \
+              -e ITINERARIES_BUCKET="${ItinerariesBucket}" \
+              -e COMMENTS_BUCKET="${CommentsBucket}" \
+              -e ROUTE_MODE=osrm \
+              -e PUBLIC_BASE_URL="${PublicBaseURL}" \
+              -e DESCOPE_PROJECT_ID="${DescopeProjectID}" \
+              -e GOOGLE_SITE_VERIFICATION="${GoogleSiteVerification}" \
+              -e OPENAI_MODEL=gpt-5-mini \
+              -e AGENT_BEARER_SECRET_ARN="${AgentBearerSecretArn}" \
+              -e SESSION_SECRET_ARN="${HelloSessionSecretArn}" \
+              -e OPENAI_SECRET_ARN="${OpenAISecretArn}" \
+              "${!REPO}:${!TAG}"
+          - AmiRefreshToken: !Ref AmiRefreshToken
+            ProjectName: !Ref ProjectName
+            DescopeProjectID: !Ref DescopeProjectID
+            GoogleSiteVerification: !Ref GoogleSiteVerification
+            ItinerariesBucket:
+              Fn::ImportValue: !Sub "${ProjectName}-ItinerariesBucket"
+            CommentsBucket:
+              Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
+            PublicBaseURL:
+              Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
+            AgentBearerSecretArn:
+              Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
+            HelloSessionSecretArn:
+              Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
+            OpenAISecretArn:
+              Fn::ImportValue: !Sub "${ProjectName}-OpenAISecretArn"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Stack
+          Value: compute
+        - Key: Name
+          Value: !Sub "${ProjectName}-ec2"
+
+  EIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref Instance
+      AllocationId: !GetAtt ElasticIP.AllocationId
+
+  AmiRefreshRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ec2-ami-refresh"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: UpdateComputeStack
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}::parameter/aws/service/ami-amazon-linux-latest/*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt StackServiceRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: cloudformation.amazonaws.com
+
+  AmiRefreshFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-ec2-ami-refresh"
+      Runtime: python3.13
+      Handler: index.handler
+      Role: !GetAtt AmiRefreshRole.Arn
+      Timeout: 60
+      Environment:
+        Variables:
+          STACK_NAME: !Ref AWS::StackName
+          CFN_ROLE_ARN: !GetAtt StackServiceRole.Arn
+      Code:
+        ZipFile: |
+          import datetime
+          import os
+          import boto3
+
+          def handler(event, context):
+              stack = os.environ["STACK_NAME"]
+              role_arn = os.environ["CFN_ROLE_ARN"]
+              region = os.environ["AWS_REGION"]
+              cfn = boto3.client("cloudformation")
+              ssm = boto3.client("ssm")
+              ami = ssm.get_parameter(
+                  Name="/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
+              )["Parameter"]["Value"]
+              desc = cfn.describe_stacks(StackName=stack)["Stacks"][0]
+              params = []
+              token = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
+              for p in desc.get("Parameters", []):
+                  key = p["ParameterKey"]
+                  if key == "AmiRefreshToken":
+                      params.append({"ParameterKey": key, "ParameterValue": token})
+                  elif key == "AmiId":
+                      params.append({"ParameterKey": key, "ParameterValue": ami})
+                  else:
+                      params.append({"ParameterKey": key, "UsePreviousValue": True})
+              cfn.update_stack(
+                  StackName=stack,
+                  UsePreviousTemplate=True,
+                  Parameters=params,
+                  Capabilities=["CAPABILITY_NAMED_IAM"],
+                  RoleARN=role_arn,
+              )
+              return {"AmiRefreshToken": token, "AmiId": ami}
+
+  AmiRefreshSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${ProjectName}-ec2-ami-refresh"
+      Description: Monthly EC2 AMI replace (first Sunday 04:00 UTC)
+      ScheduleExpression: cron(0 4 ? * SUN#1 *)
+      State: ENABLED
+      Targets:
+        - Id: AmiRefreshLambda
+          Arn: !GetAtt AmiRefreshFunction.Arn
+
+  AmiRefreshPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AmiRefreshFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AmiRefreshSchedule.Arn
 
 Outputs:
-  ServiceArn:
-    Description: Express Gateway service ARN
-    Value: !GetAtt ExpressService.ServiceArn
-  Endpoint:
-    Description: HTTPS endpoint for the service (may change on redeploy)
-    Value: !GetAtt ExpressService.Endpoint
-  ServiceUrlHint:
-    Description: Use https:// + Endpoint as PUBLIC_BASE_URL for the agent API / MCP
-    Value: !Sub "https://${ExpressService.Endpoint}"
+  InstanceId:
+    Description: EC2 instance id
+    Value: !Ref Instance
+    Export:
+      Name: !Sub "${ProjectName}-ComputeInstanceId"
+  ElasticIP:
+    Description: Origin public IPv4 (point OriginHostname here, or use as CloudFront origin)
+    Value: !Ref ElasticIP
+    Export:
+      Name: !Sub "${ProjectName}-ComputeElasticIP"
+  OriginHostname:
+    Description: Intended DNS name for the origin (configure at DNS provider)
+    Value: !Ref OriginHostname
+    Export:
+      Name: !Sub "${ProjectName}-ComputeOriginHostname"
+  SecurityGroupId:
+    Value: !Ref SecurityGroup
+  ImageTagParameterName:
+    Value: !Ref ImageTagParameter
+  StackServiceRoleArn:
+    Description: Pass this RoleARN on CFN updates that replace the instance (AMI refresh)
+    Value: !GetAtt StackServiceRole.Arn

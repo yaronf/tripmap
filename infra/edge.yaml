@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  tripmap durable edge: CloudFront in front of seasonal Express ALB.
-  ACM cert must already exist in us-east-1. DNS (GoDaddy) CNAME is manual.
-  After compute recreate, update OriginDomainName to the new ALB DNS name.
+  tripmap durable edge: CloudFront in front of seasonal EC2 origin (HTTP).
+  ACM cert must already exist in us-east-1. DNS (GoDaddy) CNAME for the
+  public hostname is manual. After compute create, set OriginDomainName to
+  tripmap-origin.sheffer.org (A→EIP) or the raw Elastic IP from compute outputs.
 
 Parameters:
   ProjectName:
@@ -18,9 +19,8 @@ Parameters:
   OriginDomainName:
     Type: String
     Description: >
-      Express Mode public hostname from tripmap-compute Endpoint output
-      (e.g. tr-….ecs.eu-central-1.on.aws). Not the raw ALB DNS name —
-      TLS on Express is issued for *.on.aws only.
+      EC2 origin hostname or Elastic IP (e.g. tripmap-origin.sheffer.org or
+      the tripmap-compute ElasticIP output). CloudFront connects over HTTP :80.
 
 Resources:
   Distribution:
@@ -36,18 +36,16 @@ Resources:
         IPV6Enabled: true
         DefaultRootObject: ""
         Origins:
-          - Id: express-alb
+          - Id: ec2-origin
             DomainName: !Ref OriginDomainName
             CustomOriginConfig:
-              HTTPSPort: 443
-              OriginProtocolPolicy: https-only
-              OriginSSLProtocols:
-                - TLSv1.2
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
               # Keep above the 30s default for slow origin / long MCP calls.
               OriginReadTimeout: 60
               OriginKeepaliveTimeout: 60
         DefaultCacheBehavior:
-          TargetOriginId: express-alb
+          TargetOriginId: ec2-origin
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods:
             - GET
@@ -63,8 +61,8 @@ Resources:
           Compress: true
           # Managed-CachingDisabled
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-          # Managed-AllViewerExceptHostHeader (Host = ALB DNS for Express TLS/routing)
-          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # Managed-AllViewer — forward Host as viewer host; origin sees tripmap.sheffer.org
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
         ViewerCertificate:
           AcmCertificateArn: !Ref AcmCertificateArn
           SslSupportMethod: sni-only

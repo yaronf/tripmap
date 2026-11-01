@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   tripmap persistent data plane (eu-central-1): S3 itineraries + comments,
-  agent Bearer secret, ECR, and IAM roles for seasonal ECS compute.
+  agent Bearer / session / OpenAI secrets, and ECR. EC2 instance IAM lives
+  in tripmap-compute.
 
 Parameters:
   ProjectName:
@@ -104,110 +105,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # Pull images + write CloudWatch Logs (used by ECS/Fargate)
-  TaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${ProjectName}-task-execution"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: ReadInjectedSecrets
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !Ref AgentBearerSecret
-                  - !Ref HelloSessionSecret
-                  - !Ref OpenAISecretArn
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-
-  # App runtime access to S3 + secret
-  TaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${ProjectName}-task"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: TripmapDataAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: ItinerariesList
-                Effect: Allow
-                Action:
-                  - s3:ListBucket
-                  - s3:ListBucketVersions
-                Resource: !GetAtt ItinerariesBucket.Arn
-              - Sid: ItinerariesObjects
-                Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:GetObjectVersion
-                  - s3:PutObject
-                Resource: !Sub "${ItinerariesBucket.Arn}/*"
-              - Sid: CommentsList
-                Effect: Allow
-                Action:
-                  - s3:ListBucket
-                Resource: !GetAtt CommentsBucket.Arn
-              - Sid: CommentsObjects
-                Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                Resource: !Sub "${CommentsBucket.Arn}/*"
-              - Sid: ReadAgentSecret
-                Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Ref AgentBearerSecret
-              - Sid: ReadHelloSessionSecret
-                Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Ref HelloSessionSecret
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-
-  # ECS Express Mode: lets ECS create ALB, SGs, certs, autoscaling on our behalf
-  InfrastructureRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${ProjectName}-ecs-infrastructure"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-
 Outputs:
   ItinerariesBucketName:
     Description: Versioned itinerary YAML bucket
@@ -249,18 +146,3 @@ Outputs:
     Value: !Ref EcrRepository
     Export:
       Name: !Sub "${ProjectName}-EcrRepositoryName"
-
-  TaskExecutionRoleArn:
-    Value: !GetAtt TaskExecutionRole.Arn
-    Export:
-      Name: !Sub "${ProjectName}-TaskExecutionRoleArn"
-
-  TaskRoleArn:
-    Value: !GetAtt TaskRole.Arn
-    Export:
-      Name: !Sub "${ProjectName}-TaskRoleArn"
-
-  InfrastructureRoleArn:
-    Value: !GetAtt InfrastructureRole.Arn
-    Export:
-      Name: !Sub "${ProjectName}-InfrastructureRoleArn"

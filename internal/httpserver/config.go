@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -101,7 +100,18 @@ func resolveSessionSecret() string {
 	if s := strings.TrimSpace(os.Getenv("SESSION_SECRET")); s != "" {
 		return s
 	}
-	return strings.TrimSpace(os.Getenv("HELLO_SESSION_SECRET"))
+	if s := strings.TrimSpace(os.Getenv("HELLO_SESSION_SECRET")); s != "" {
+		return s
+	}
+	raw, err := secretStringFromARN("SESSION_SECRET_ARN")
+	if err != nil || raw == "" {
+		return ""
+	}
+	// ECS injected the JSON key "secret"; full JSON or bare string both work.
+	if v, err := jsonField(raw, "secret"); err == nil && v != "" {
+		return v
+	}
+	return strings.TrimSpace(raw)
 }
 
 func resolveOpenAIAPIKey() string {
@@ -109,12 +119,16 @@ func resolveOpenAIAPIKey() string {
 		return k
 	}
 	if raw := strings.TrimSpace(os.Getenv("OPENAI_SECRET_JSON")); raw != "" {
-		var m map[string]string
-		if err := json.Unmarshal([]byte(raw), &m); err == nil {
-			if k := strings.TrimSpace(m["api_key"]); k != "" {
-				return k
-			}
+		if k, err := jsonField(raw, "api_key"); err == nil && k != "" {
+			return k
 		}
+	}
+	raw, err := secretStringFromARN("OPENAI_SECRET_ARN")
+	if err != nil || raw == "" {
+		return ""
+	}
+	if k, err := jsonField(raw, "api_key"); err == nil {
+		return k
 	}
 	return ""
 }
@@ -124,16 +138,30 @@ func resolveAgentToken() (string, error) {
 		return t, nil
 	}
 	if raw := strings.TrimSpace(os.Getenv("AGENT_BEARER_SECRET_JSON")); raw != "" {
-		var m map[string]string
-		if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t, err := jsonField(raw, "token")
+		if err != nil {
 			return "", fmt.Errorf("AGENT_BEARER_SECRET_JSON: %w", err)
 		}
-		if t := strings.TrimSpace(m["token"]); t != "" {
+		if t != "" {
 			return t, nil
 		}
 		return "", fmt.Errorf("AGENT_BEARER_SECRET_JSON missing token key")
 	}
-	return "", fmt.Errorf("set AGENT_BEARER_TOKEN or AGENT_BEARER_SECRET_JSON")
+	raw, err := secretStringFromARN("AGENT_BEARER_SECRET_ARN")
+	if err != nil {
+		return "", err
+	}
+	if raw == "" {
+		return "", fmt.Errorf("set AGENT_BEARER_TOKEN, AGENT_BEARER_SECRET_JSON, or AGENT_BEARER_SECRET_ARN")
+	}
+	t, err := jsonField(raw, "token")
+	if err != nil {
+		return "", fmt.Errorf("AGENT_BEARER_SECRET_ARN: %w", err)
+	}
+	if t == "" {
+		return "", fmt.Errorf("AGENT_BEARER_SECRET_ARN missing token key")
+	}
+	return t, nil
 }
 
 func envOr(key, fallback string) string {

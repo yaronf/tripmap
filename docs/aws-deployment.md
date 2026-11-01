@@ -5,7 +5,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 
 **Status:** Phase A–C live; durable URL + agent MCP on `https://tripmap.sheffer.org`; OpenAPI 0.3.2. Custom GPT Actions deprecated (see [runbook-mcp.md](runbook-mcp.md)).  
 **Current production (static):** GitHub Pages (`www.sheffer.org/tripmap/`).  
-**In-season compute:** ECS Express Mode behind CloudFront (`tripmap-edge` → `tripmap-compute`).
+**In-season compute:** EC2 `t4g.micro` (Docker) behind CloudFront (`tripmap-edge` → `tripmap-compute`). See [runbook-deploy-compute.md](runbook-deploy-compute.md).
 
 ---
 
@@ -15,8 +15,8 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 |-------|----------|
 | Edge CDN | **CloudFront** for durable `tripmap.sheffer.org` only (`tripmap-edge`); **no WAF** in v1 |
 | S3 encryption | **SSE-S3** (default); no SSE-KMS |
-| Compute | **ECS Express Mode** (Fargate + managed ALB) — not App Runner (sunset / closed to many new accounts) |
-| Scale to zero | **No** on Express Mode — instead **seasonal one-click deploy / undeploy** via CloudFormation |
+| Compute | **EC2 `t4g.micro` (arm64) + Docker** from private ECR; instance IAM role; secrets by ARN at process start |
+| Scale to zero | **No** — **seasonal** CloudFormation create/delete of `tripmap-compute` (keeps data + edge) |
 | Infra as code | **CloudFormation** (two stacks). Agent maintains templates in-repo; you click Create/Delete stack (or one `aws cloudformation` command) |
 | Viewer access | **Capability URL** (unguessable token in path) |
 | Comments | Shared read/write for anyone with the URL; offline = read cache only |
@@ -30,7 +30,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 | Schema evolution | **`schema_version`** in YAML |
 | Itinerary YAML | S3 (`tripmap-data`); not mirrored in git |
 | Region | **All tripmap resources in `eu-central-1` (Frankfurt)**. CLI default may stay `il-central-1`; always `--region eu-central-1` for tripmap |
-| Public hostname | **`https://tripmap.sheffer.org`** via CloudFront (`tripmap-edge`) → Express origin. Express `Endpoint` may change; update CloudFront origin only (runbook). Static Pages remains `www.sheffer.org/tripmap/`. |
+| Public hostname | **`https://tripmap.sheffer.org`** via CloudFront (`tripmap-edge`) → EC2 origin (`tripmap-origin.sheffer.org` or EIP, HTTP :80). Static Pages remains `www.sheffer.org/tripmap/`. |
 
 ---
 
@@ -38,7 +38,7 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 
 | Requirement | Approach |
 |-------------|----------|
-| Run application code on AWS | **ECS Express Mode** when “in season” |
+| Run application code on AWS | **EC2 + Docker** when “in season” |
 | Idle for months | **Delete compute stack** — keep data stack (~cents/mo) |
 | One-click up/down | CloudFormation: `tripmap-data` (keep) + `tripmap-compute` (create/delete) |
 | Canonical YAML | Versioned S3 |
@@ -63,13 +63,13 @@ Companion: [itinerary-display-viewer.md](itinerary-display-viewer.md) (product/a
 
 ```text
 Off-season (most of the year)
-  ✅ tripmap-data stack: S3 ×2, Secrets, IAM roles, ECR (+ image)
-  ❌ tripmap-compute stack: deleted → no ALB, no Fargate ≈ no ~$25/mo
+  ✅ tripmap-data stack: S3 ×2, Secrets, ECR (+ image)
+  ❌ tripmap-compute stack: deleted → no EC2/EIP ≈ ~$13–16/mo saved vs always-on
 
 Trip season (or a test weekend)
-  ✅ Create tripmap-compute → Express Mode service from ECR image
-  ✅ Note new HTTPS base URL → update Custom GPT Actions + partner links
-  ✅ Smoke /health + one capability URL
+  ✅ Create tripmap-compute → t4g.micro + Docker from ECR
+  ✅ Point tripmap-origin (or EIP) in CloudFront; durable URL unchanged
+  ✅ Smoke /health + viewer + MCP
 ```
 
 | Action | How (one-click) |
@@ -98,17 +98,15 @@ Repo path (to add): `infra/`
 - Secrets Manager `tripmap/agent-bearer` (generate or pass as parameter — prefer generate-once and leave)
 - Secrets Manager `tripmap/hello-session` (HMAC for Hellō session cookies; separate from the agent Bearer)
 - ECR repository `tripmapd`
-- IAM task/execution roles used by compute (or export role ARNs via stack outputs)
-- Outputs: bucket names, secret ARN, ECR URI, role ARNs
+- Outputs: bucket names, secret ARNs, ECR URI
+- (Until Phase D cleanup) legacy ECS task/execution/infrastructure roles may still exist
 
 ### `tripmap-compute` (deploy/undeploy)
 
-- ECS Express Mode service (or equivalent CFN resources Express Mode documents) pointing at ECR image tag (e.g. `latest` or immutable digest parameter)
-- Env: bucket names, secret ARN, `AWS_REGION`, `PUBLIC_BASE_URL` (from stack output after create — or set in a second update), `OSRM_BASE_URL`, `MAX_YAML_BYTES`
-- Health check `/health`
-- Outputs: **`ServiceUrl`** (HTTPS base) — copy into GPT Actions + password manager
-
-**Parameter:** `ImageTag` so redeploy can pin a digest without rebuilding the template.
+- EC2 `t4g.micro`, EIP, SG (CloudFront prefix list → :80), instance role, Docker/`tripmapd`
+- Env via user-data / SSM roll: buckets, `PUBLIC_BASE_URL`, Descope, secret **ARNs** (not values)
+- Monthly EventBridge AMI refresh; day-to-day image via `./scripts/deploy-compute.sh`
+- Outputs: `InstanceId`, `ElasticIP`, `OriginHostname`
 
 Optional later: GitHub Actions `workflow_dispatch` jobs `deploy-compute` / `destroy-compute` that call CloudFormation — still one click from the Actions tab.
 
@@ -119,7 +117,7 @@ Optional later: GitHub Actions `workflow_dispatch` jobs `deploy-compute` / `dest
 ```mermaid
 flowchart TB
   subgraph season [In season — tripmap-compute]
-    ecs[ECS Express Mode<br/>tripmapd]
+    ec2[EC2 t4g.micro Docker<br/>tripmapd]
   end
 
   subgraph always [Always — tripmap-data]
@@ -129,13 +127,13 @@ flowchart TB
     ecr[ECR image]
   end
 
-  partner[Partner] -->|capability URL| ecs
-  gpt[ChatGPT Actions] -->|Bearer OpenAPI| ecs
-  cursor[Cursor] -->|git / OpenAPI / AWS MCP| s3y
-  ecs --> s3y
-  ecs --> s3c
-  ecs --> sm
-  ecs --> ecr
+  cf[CloudFront tripmap.sheffer.org] --> ec2
+  gpt[ChatGPT Agent MCP] -->|Bearer| ec2
+  cursor[Cursor] -->|git / OpenAPI| s3y
+  ec2 --> s3y
+  ec2 --> s3c
+  ec2 --> sm
+  ec2 --> ecr
 ```
 
 When compute is deleted, GPT Actions and capability URLs are simply **offline** until the next deploy (expected off-season).
@@ -150,7 +148,7 @@ When compute is deleted, GPT Actions and capability URLs are simply **offline** 
 | **S3 itineraries / comments** | data | Live data |
 | **ECR** | data | Image kept between seasons |
 | **Secrets Manager** | data | Agent Bearer + Hellō session HMAC |
-| **Task role** | data (or compute) | S3 + secret access |
+| **Instance role** | compute (`tripmap-ec2`) | S3 + Secrets Manager + ECR pull + SSM |
 | **AWS MCP (optional)** | — | Cursor → S3 under your IAM |
 
 ### Request surface (when compute is up)
@@ -223,7 +221,7 @@ Prefer **CloudFormation** over click-ops for buckets/roles/compute. You still ap
 - [x] Budget configured
 - [x] Region: work in **eu-central-1** for all tripmap stacks
 - [ ] Optional: CLI default `il-central-1`; alias or always pass `--region eu-central-1`
-- [x] Skip App Runner gate — compute is Express Mode
+- [x] Skip App Runner gate — compute is EC2 + Docker
 - [x] Daily work as `yaron-admin` (not root)
 - [x] Day-to-day Cursor deploys as `tripmap-deploy` (see `infra/deploy-iam.yaml`) — not `AdministratorAccess`
 
@@ -320,7 +318,7 @@ BASE_URL="https://tripmap.sheffer.org" TOKEN="$AGENT_BEARER_TOKEN" ./scripts/smo
 
 ### Phase B — Compute template + OpenAPI
 
-- [x] `infra/compute.yaml` (Express Mode)
+- [x] `infra/compute.yaml` (EC2 t4g.micro + Docker)
 - [x] OpenAPI agent API + schema_version + bundles
 - [x] Deploy/undeploy drill (M4)
 - [x] Seed + Custom GPT (M5–M6)

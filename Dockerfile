@@ -1,7 +1,7 @@
 # Cross-compile friendly: build on host arch, emit linux/$TARGETARCH binary.
 FROM --platform=$BUILDPLATFORM golang:1.27.3-bookworm AS build
 ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETARCH=arm64
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
