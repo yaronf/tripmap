@@ -50,7 +50,7 @@ Reuse a tag: `./scripts/deploy-compute.sh --skip-build --tag existing-tag`.
 | Parameter | Notes |
 |-----------|--------|
 | `ImageTag` | ECR tag; also written to SSM `/tripmap/compute/image-tag` |
-| `AmiRefreshToken` | Change → replace instance (new AMI). Monthly EventBridge does this automatically |
+| `AmiRefreshToken` / `AmiId` | Bumped together on refresh; Launch Template new version **replaces** the instance (real AMI refresh). Monthly EventBridge or `--refresh-ami` |
 | `VpcId` / `SubnetId` | Default VPC public subnet |
 | `CloudFrontPrefixListId` | `com.amazonaws.global.cloudfront.origin-facing` |
 | `DescopeProjectID` | Public; empty disables login |

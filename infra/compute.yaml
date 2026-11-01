@@ -239,6 +239,12 @@ Resources:
                   - ec2:AssociateAddress
                   - ec2:DisassociateAddress
                   - ec2:ModifyInstanceAttribute
+                  - ec2:CreateLaunchTemplate
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:DeleteLaunchTemplate
+                  - ec2:DeleteLaunchTemplateVersions
+                  - ec2:ModifyLaunchTemplate
+                  - ec2:GetLaunchTemplateData
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -312,75 +318,96 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # ImageId + UserData live here so AmiId / AmiRefreshToken bumps create a new
+  # LT version; Instance pins LatestVersionNumber → replacement (real AMI refresh).
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "${ProjectName}-ec2"
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType
+        ImageId: !Ref AmiId
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 10
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Project
+                Value: !Ref ProjectName
+              - Key: Stack
+                Value: compute
+              - Key: Name
+                Value: !Sub "${ProjectName}-ec2"
+        UserData:
+          Fn::Base64: !Sub
+            - |
+              #!/bin/bash
+              # AmiRefreshToken=${AmiRefreshToken}
+              set -euxo pipefail
+              dnf install -y docker dnf-automatic
+              systemctl enable --now docker
+              sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf || true
+              systemctl enable --now dnf-automatic.timer
+
+              REGION='${AWS::Region}'
+              ACCOUNT='${AWS::AccountId}'
+              REPO="${!ACCOUNT}.dkr.ecr.${!REGION}.amazonaws.com/${ProjectName}d"
+              TAG=$(aws ssm get-parameter --region "${!REGION}" --name "/${ProjectName}/compute/image-tag" --query Parameter.Value --output text)
+
+              aws ecr get-login-password --region "${!REGION}" \
+                | docker login --username AWS --password-stdin "${!ACCOUNT}.dkr.ecr.${!REGION}.amazonaws.com"
+              docker pull "${!REPO}:${!TAG}"
+
+              docker rm -f tripmapd 2>/dev/null || true
+              docker run -d --name tripmapd --restart=always \
+                -p 80:8080 \
+                -e ADDR=:8080 \
+                -e AWS_REGION="${!REGION}" \
+                -e ITINERARIES_BUCKET="${ItinerariesBucket}" \
+                -e COMMENTS_BUCKET="${CommentsBucket}" \
+                -e ROUTE_MODE=osrm \
+                -e PUBLIC_BASE_URL="${PublicBaseURL}" \
+                -e DESCOPE_PROJECT_ID="${DescopeProjectID}" \
+                -e GOOGLE_SITE_VERIFICATION="${GoogleSiteVerification}" \
+                -e OPENAI_MODEL=gpt-5-mini \
+                -e AGENT_BEARER_SECRET_ARN="${AgentBearerSecretArn}" \
+                -e SESSION_SECRET_ARN="${HelloSessionSecretArn}" \
+                -e OPENAI_SECRET_ARN="${OpenAISecretArn}" \
+                "${!REPO}:${!TAG}"
+            - AmiRefreshToken: !Ref AmiRefreshToken
+              ProjectName: !Ref ProjectName
+              DescopeProjectID: !Ref DescopeProjectID
+              GoogleSiteVerification: !Ref GoogleSiteVerification
+              ItinerariesBucket:
+                Fn::ImportValue: !Sub "${ProjectName}-ItinerariesBucket"
+              CommentsBucket:
+                Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
+              PublicBaseURL:
+                Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
+              AgentBearerSecretArn:
+                Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
+              HelloSessionSecretArn:
+                Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
+              OpenAISecretArn:
+                Fn::ImportValue: !Sub "${ProjectName}-OpenAISecretArn"
+
   Instance:
     Type: AWS::EC2::Instance
     DependsOn: ImageTagParameter
     Properties:
-      InstanceType: !Ref InstanceType
-      ImageId: !Ref AmiId
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
       SubnetId: !Ref SubnetId
-      IamInstanceProfile: !Ref InstanceProfile
-      SecurityGroupIds:
-        - !Ref SecurityGroup
-      BlockDeviceMappings:
-        - DeviceName: /dev/xvda
-          Ebs:
-            VolumeSize: 10
-            VolumeType: gp3
-            Encrypted: true
-            DeleteOnTermination: true
-      UserData:
-        Fn::Base64: !Sub
-          - |
-            #!/bin/bash
-            # AmiRefreshToken=${AmiRefreshToken}
-            set -euxo pipefail
-            dnf install -y docker dnf-automatic
-            systemctl enable --now docker
-            sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf || true
-            systemctl enable --now dnf-automatic.timer
-
-            REGION='${AWS::Region}'
-            ACCOUNT='${AWS::AccountId}'
-            REPO="${!ACCOUNT}.dkr.ecr.${!REGION}.amazonaws.com/${ProjectName}d"
-            TAG=$(aws ssm get-parameter --region "${!REGION}" --name "/${ProjectName}/compute/image-tag" --query Parameter.Value --output text)
-
-            aws ecr get-login-password --region "${!REGION}" \
-              | docker login --username AWS --password-stdin "${!ACCOUNT}.dkr.ecr.${!REGION}.amazonaws.com"
-            docker pull "${!REPO}:${!TAG}"
-
-            docker rm -f tripmapd 2>/dev/null || true
-            docker run -d --name tripmapd --restart=always \
-              -p 80:8080 \
-              -e ADDR=:8080 \
-              -e AWS_REGION="${!REGION}" \
-              -e ITINERARIES_BUCKET="${ItinerariesBucket}" \
-              -e COMMENTS_BUCKET="${CommentsBucket}" \
-              -e ROUTE_MODE=osrm \
-              -e PUBLIC_BASE_URL="${PublicBaseURL}" \
-              -e DESCOPE_PROJECT_ID="${DescopeProjectID}" \
-              -e GOOGLE_SITE_VERIFICATION="${GoogleSiteVerification}" \
-              -e OPENAI_MODEL=gpt-5-mini \
-              -e AGENT_BEARER_SECRET_ARN="${AgentBearerSecretArn}" \
-              -e SESSION_SECRET_ARN="${HelloSessionSecretArn}" \
-              -e OPENAI_SECRET_ARN="${OpenAISecretArn}" \
-              "${!REPO}:${!TAG}"
-          - AmiRefreshToken: !Ref AmiRefreshToken
-            ProjectName: !Ref ProjectName
-            DescopeProjectID: !Ref DescopeProjectID
-            GoogleSiteVerification: !Ref GoogleSiteVerification
-            ItinerariesBucket:
-              Fn::ImportValue: !Sub "${ProjectName}-ItinerariesBucket"
-            CommentsBucket:
-              Fn::ImportValue: !Sub "${ProjectName}-CommentsBucket"
-            PublicBaseURL:
-              Fn::ImportValue: !Sub "${ProjectName}-PublicBaseURL"
-            AgentBearerSecretArn:
-              Fn::ImportValue: !Sub "${ProjectName}-AgentBearerSecretArn"
-            HelloSessionSecretArn:
-              Fn::ImportValue: !Sub "${ProjectName}-HelloSessionSecretArn"
-            OpenAISecretArn:
-              Fn::ImportValue: !Sub "${ProjectName}-OpenAISecretArn"
       Tags:
         - Key: Project
           Value: !Ref ProjectName

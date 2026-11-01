@@ -213,6 +213,12 @@ Resources:
               - ec2:AssociateIamInstanceProfile
               - ec2:DisassociateIamInstanceProfile
               - ec2:GetManagedPrefixListEntries
+              - ec2:CreateLaunchTemplate
+              - ec2:CreateLaunchTemplateVersion
+              - ec2:DeleteLaunchTemplate
+              - ec2:DeleteLaunchTemplateVersions
+              - ec2:ModifyLaunchTemplate
+              - ec2:GetLaunchTemplateData
             Resource: "*"
           - Sid: SSM
             Effect: Allow
