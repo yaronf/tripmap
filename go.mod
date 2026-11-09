@@ -8,12 +8,13 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/config v1.33.13
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.8
 	github.com/cloudwego/eino v0.9.22
 	github.com/cloudwego/eino-ext/components/model/agenticopenai v0.2.4
 	github.com/descope/go-sdk v1.38.0
 	github.com/flopp/go-staticmaps v0.0.0-20261012204737-8cdef9842aeb
 	github.com/go-pdf/fpdf v0.9.0
-	github.com/golang/geo v0.0.0-20261029132150-f51d36688936
+	github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a
 	github.com/oapi-codegen/runtime v1.8.0
 	github.com/openai/openai-go/v3 v3.44.0
 	github.com/yaronf/mcpopenapi v0.3.0
@@ -34,7 +35,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.12.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.1 // indirect
